@@ -86,11 +86,41 @@ def prune_query_annotation(scores_df):
 			# subset_df = subset_df.sort_values('weighted_score', ascending = False)
 
 			subset_df = subset_df.sort_values(['score', 'weighted_score'], ascending=False)
-			results_df = results_df.append(subset_df.iloc[0].copy())
+
+			top_match = subset_df.iloc[0].copy()
+
+			skip_top_match = False
+			if len(top_match['substring']) == 1:
+				filter_words = pd.read_pickle('filter_words')
+
+				
+				for index,row in filter_words.iterrows():
+					if fuzz.ratio(top_match['substring'], row['words']) > top_match['score']:
+						skip_top_match = True
+						break
+
+			if not skip_top_match:
+				results_df = results_df.append(subset_df.iloc[0].copy())
 
 			index_array.extend(subset_df.index.values)
 		elif len(subset_df) == 1:
-			results_df = results_df.append(subset_df.copy())
+			top_match = subset_df.iloc[0].copy()
+
+			skip_top_match = False
+			if len(top_match['substring']) == 1:
+				filter_words = pd.read_pickle('filter_words')
+
+				
+				for index,row in filter_words.iterrows():
+					if fuzz.ratio(top_match['substring'], row['words']) > top_match['score']:
+						skip_top_match = True
+						break
+
+			if not skip_top_match:
+				results_df = results_df.append(subset_df.iloc[0].copy())
+
+			index_array.extend(subset_df.index.values)
+
 
 	if changes_made:
 		return prune_query_annotation(results_df)
@@ -105,13 +135,21 @@ def pretty_print(data_frame):
 
 
 if __name__ == "__main__":
-	query = "congestive heart failure cough at night"
+	query = """
+		The risk of sudden death has changed over time among patients with symptomatic heart failure and reduced ejection fraction with the sequential introduction of medications including angiotensin-converting-enzyme inhibitors, angiotensin-receptor blockers, beta-blockers, and mineralocorticoid-receptor antagonists. 
+		We sought to examine this trend in detail.
+	"""
+	query = query.lower()
+	snomed_names = return_df_from_query("select * from snomed.metadata_concept_names")
 
-	scores = return_query_snomed_annotation(query)
+	snomed_names.to_pickle('snomed_names')
+	# scores = return_query_snomed_annotation(query)
 
-	# pretty_print(scores)
-	pruned = prune_query_annotation(scores)
-	pretty_print(pruned)
+	# # pretty_print(scores)
+	# pruned = prune_query_annotation(scores)
+	# pretty_print(pruned)
+	# filter_words = pd.read_pickle('filter_words')
+	# pretty_print(filter_words)
 
 	# new_df = pd.DataFrame([['a', 'b', 'c', 4], ['a', 'd', 'e', 2], ['d', 'g', 'l', 1]], columns=['A', 'B' ,'C','count'])
 	# new_df = new_df.sort_values('count', ascending = False)
