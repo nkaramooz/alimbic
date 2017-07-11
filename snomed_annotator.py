@@ -13,7 +13,7 @@ def return_query_snomed_annotation(query):
 		'conceptid', 'concept_name', 'score']
 
 	query = query.lower()
-	snomed_names = return_df_from_query("select * from snomed.metadata_concept_names")
+	snomed_names = return_df_from_query("select * from snomed.metadata_concept_names where term ilike '%%hand%' ")
 
 	annotated_results = pd.DataFrame(columns=results_header)
 
@@ -21,18 +21,19 @@ def return_query_snomed_annotation(query):
 		snomed_term_len = len(row['term'].split())
 		query_words = query.split()
 		query_len = len(query_words)
+		
 		snomed_term = row['term'].decode('utf-8').lower()
 
 		complete_score = fuzz.ratio(query, snomed_term)
 		if complete_score > 80:
-
 			row_annotation = pd.DataFrame([[query, substring, 0.0, query_len-1, row['conceptid'], 
 				snomed_term, complete_score]], columns=results_header)
 			annotated_results = annotated_results.append(row_annotation)
 
+		# evaluating need for searching sub-phrases of the query
 		if query_len > snomed_term_len:
+			
 			counter = 0
-
 			while counter + snomed_term_len <= query_len:
 
 				substring = ' '.join(query_words[counter:counter+snomed_term_len])
@@ -55,10 +56,11 @@ def return_query_snomed_annotation(query):
 	# annotated_results['weighted_score'] = annotated_results['score'] * \
 	# 	1/(1+abs((annotated_results['substring_end_index'] - annotated_results['substring_start_index'])-3))
 	
-	pretty_print(annotated_results)
+
 	annotated_results = annotated_results.groupby(['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid'], as_index=False)['score'].sum()
 
-	annotated_results['weighted_score'] = (annotated_results['substring_end_index'] - annotated_results['substring_start_index'])+1
+	if len(annotated_results) > 0:
+		annotated_results['weighted_score'] = (annotated_results['substring_end_index'] - annotated_results['substring_start_index'])+1
 	return annotated_results.reset_index(drop=True)
 
 
@@ -67,32 +69,31 @@ def prune_query_annotation(scores_df):
 	results_df = pd.DataFrame()
 	changes_made = False
 
-	index_array = [] #it sucks that I have to do this, but can't figure out how else to proceed
+	index_array = []
 	for index, row in scores_df.iterrows():
-
 		exclude_df = scores_df.index.isin(index_array)
-
 		subset_df = scores_df[~exclude_df].copy()
 
+		# want to evaluate subset_df for which there is overlap with the 
+		# current element
 		subset_df = subset_df[
 			((subset_df['substring_start_index'] <= row['substring_start_index']) 
 			& (subset_df['substring_end_index'] >= row['substring_start_index'])) 
 			| ((subset_df['substring_start_index'] <= row['substring_end_index']) 
 			& (subset_df['substring_end_index'] >= row['substring_end_index']))]
 
-		if len(subset_df) > 1:
-			changes_made = True
-
-			# subset_df = subset_df.sort_values('weighted_score', ascending = False)
+		subset_df_len = len(subset_df)
+		if subset_df_len >= 1:
+			if subset_df_len > 1:
+				changes_made = True
 
 			subset_df = subset_df.sort_values(['score', 'weighted_score'], ascending=False)
-
 			top_match = subset_df.iloc[0].copy()
-
 			skip_top_match = False
-			if len(top_match['substring']) == 1:
-				filter_words = pd.read_pickle('filter_words')
+			
+			if len(top_match['substring'].split()) == 1:
 
+				filter_words = pd.read_pickle('filter_words')
 				
 				for index,row in filter_words.iterrows():
 					if fuzz.ratio(top_match['substring'], row['words']) > top_match['score']:
@@ -103,24 +104,6 @@ def prune_query_annotation(scores_df):
 				results_df = results_df.append(subset_df.iloc[0].copy())
 
 			index_array.extend(subset_df.index.values)
-		elif len(subset_df) == 1:
-			top_match = subset_df.iloc[0].copy()
-
-			skip_top_match = False
-			if len(top_match['substring']) == 1:
-				filter_words = pd.read_pickle('filter_words')
-
-				
-				for index,row in filter_words.iterrows():
-					if fuzz.ratio(top_match['substring'], row['words']) > top_match['score']:
-						skip_top_match = True
-						break
-
-			if not skip_top_match:
-				results_df = results_df.append(subset_df.iloc[0].copy())
-
-			index_array.extend(subset_df.index.values)
-
 
 	if changes_made:
 		return prune_query_annotation(results_df)
@@ -135,19 +118,13 @@ def pretty_print(data_frame):
 
 
 if __name__ == "__main__":
-	query = """
-		The risk of sudden death has changed over time among patients with symptomatic heart failure and reduced ejection fraction with the sequential introduction of medications including angiotensin-converting-enzyme inhibitors, angiotensin-receptor blockers, beta-blockers, and mineralocorticoid-receptor antagonists. 
-		We sought to examine this trend in detail.
-	"""
-	query = query.lower()
-	snomed_names = return_df_from_query("select * from snomed.metadata_concept_names")
+	query = "hand and fist"
 
-	snomed_names.to_pickle('snomed_names')
-	# scores = return_query_snomed_annotation(query)
+	scores = return_query_snomed_annotation(query)
 
-	# # pretty_print(scores)
-	# pruned = prune_query_annotation(scores)
-	# pretty_print(pruned)
+
+	pruned = prune_query_annotation(scores)
+	pretty_print(pruned)
 	# filter_words = pd.read_pickle('filter_words')
 	# pretty_print(filter_words)
 
