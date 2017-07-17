@@ -115,23 +115,21 @@ def return_query_snomed_annotation_v3(query):
 	query_words = query.split()
 
 	candidate_df_arr = []
-	results = pd.DataFrame()
+	results_df = pd.DataFrame()
 	for index,word in enumerate(query_words):
-		print word
+
 		if (filter_df['words'] == word).any():
 			continue
 		else:
-
+			## need an added step such that if you've gone enough words
+			# and haven't matched outside the first word of a description
+			# that the description drops off
+			# that should speed things up a bit
 			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr)
 
-			for index,df in enumerate(candidate_df_arr):
-				#want description ids where none of the keywords have a 0 score
-				res_df = df.groupby(['conceptid', 'description_id'], as_index=False)['l_dist'].sum()
-				total_df = df.groupby(['conceptid', 'description_id'], as_index=False)['term_length'].sum()
+			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+			results_df = results_df.append(new_results_df)
 
-				valid_results = res_df[res_df['l_dist'] == total_df['term_length']] 
-				print valid_results
-				
 			new_candidate_query = "select description_id, conceptid, term, word, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')) >=0.70) "
 			new_candidate_df = return_df_from_query(new_candidate_query, ["description_id", "conceptid", "term", "word", "term_length", "l_dist"])
 			
@@ -139,10 +137,27 @@ def return_query_snomed_annotation_v3(query):
 			new_candidate_df['substring_start_index'] = index
 			candidate_df_arr.append(new_candidate_df)
 
-			## something something update all dataframes in candidate_df_arr
-			## something something create a new candidate_df based on query_word
-			## for new set substring start as index
-			## for old need function that says whether a description Id has been fulfilled 
+		
+	candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+	results_df = results_df.append(new_results_df)
+	print results_df
+
+def get_results(candidate_df_arr):
+	results_df = pd.DataFrame()
+	for index,df in enumerate(candidate_df_arr):
+		#want description ids where none of the keywords have a 0 score
+		# res_df = df.groupby(['conceptid', 'description_id'], as_index=False)['l_dist'].sum()
+		# total_df = df.groupby(['conceptid', 'description_id'], as_index=False)['term_length'].sum()
+
+		# find description_ids that should be excluded
+		exclusion_series = df[df['l_dist'] == 0]['description_id'].tolist()
+		new_results = df[~df['description_id'].isin(exclusion_series)]
+		candidate_df_arr[index] = df[df['description_id'].isin(exclusion_series)]
+		results_df = results_df.append(new_results)
+
+	return candidate_df_arr,results_df
+
+
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
 
 	new_candidate_df_arr = []
@@ -155,15 +170,17 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
 
 			if l_dist >= 80:
 				df_copy.loc[index, 'l_dist'] = l_dist/100.00
-				df_copy.loc[index, 'substring_start_index'] == substring_start_index
+				df_copy.loc[index, 'substring_start_index'] = substring_start_index
 
 		new_candidate_df_arr.append(df_copy)
 
 	for index, new_df in enumerate(new_candidate_df_arr):
 		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
 		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
-		candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
-		new_candidate_df_arr[index] = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
+
+		if len(old_df_description_score) >= 1 and len(new_df_description_score) >= 1:
+			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
+			new_candidate_df_arr[index] = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
 
 	return new_candidate_df_arr
 
@@ -278,18 +295,21 @@ def update_postgres_filter_words():
 
 if __name__ == "__main__":
 
+
+	# for some reason adding "and nighttime cough breaks things"
+	# might not be handling instances where result is 0 <- that is probably it
 	query = """
-		chest pain
+		chest pain and congestive hart failure and nighttime cough
 	"""
 
 	
 	# print ratio("breath", "breather")
-	apply_filter_words_exceptions()
-	update_postgres_filter_words()
+	# apply_filter_words_exceptions()
+	# update_postgres_filter_words()
+	
+
+	start_time = time.time()
 	return_query_snomed_annotation_v3(query)
-
-	# start_time = time.time()
-
 	# scores = return_query_snomed_annotation_v2(query)
 	# scores = scores.sort_values('weighted_score', ascending=False)
 	# pprint(scores)
@@ -297,4 +317,4 @@ if __name__ == "__main__":
 	# pprint(pruned)
 	# print fuzz.token_sort_ratio('breath shortness', 'shortness of breath')
 	# pprint(pruned)
-	# print("--- %s seconds ---" % (time.time() - start_time))
+	print("--- %s seconds ---" % (time.time() - start_time))
