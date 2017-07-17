@@ -9,6 +9,7 @@ from pglib import return_postgres_cursor, return_df_from_query, return_sql_alche
 import numpy as np
 import time
 import multiprocessing as mp
+from Levenshtein import *
 
 
 def return_query_snomed_annotation_v1(query):
@@ -103,6 +104,70 @@ def return_query_snomed_annotation_v2(query):
 		results_df['weighted_score'] = (results_df['substring_end_index'] - results_df['substring_start_index'])+1
 	return results_df
 
+def return_query_snomed_annotation_v3(query):
+
+	filter_words_query = "select words from annotation.filter_words"
+	filter_df = return_df_from_query(filter_words_query, ["words"])
+
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']
+
+	query = query.lower()
+	query_words = query.split()
+
+	candidate_df_arr = []
+	results = pd.DataFrame()
+	for index,word in enumerate(query_words):
+		print word
+		if (filter_df['words'] == word).any():
+			continue
+		else:
+
+			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr)
+
+			for index,df in enumerate(candidate_df_arr):
+				#want description ids where none of the keywords have a 0 score
+				res_df = df.groupby(['conceptid', 'description_id'], as_index=False)['l_dist'].sum()
+				total_df = df.groupby(['conceptid', 'description_id'], as_index=False)['term_length'].sum()
+
+				valid_results = res_df[res_df['l_dist'] == total_df['term_length']] 
+				print valid_results
+				
+			new_candidate_query = "select description_id, conceptid, term, word, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')) >=0.70) "
+			new_candidate_df = return_df_from_query(new_candidate_query, ["description_id", "conceptid", "term", "word", "term_length", "l_dist"])
+			
+
+			new_candidate_df['substring_start_index'] = index
+			candidate_df_arr.append(new_candidate_df)
+
+			## something something update all dataframes in candidate_df_arr
+			## something something create a new candidate_df based on query_word
+			## for new set substring start as index
+			## for old need function that says whether a description Id has been fulfilled 
+def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
+
+	new_candidate_df_arr = []
+	for index,df in enumerate(candidate_df_arr):
+
+		df_copy = df.copy()
+		for index,row in df_copy.iterrows():
+
+			l_dist = fuzz.ratio(word, row['word'])
+
+			if l_dist >= 80:
+				df_copy.loc[index, 'l_dist'] = l_dist/100.00
+				df_copy.loc[index, 'substring_start_index'] == substring_start_index
+
+		new_candidate_df_arr.append(df_copy)
+
+	for index, new_df in enumerate(new_candidate_df_arr):
+		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
+		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
+		candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
+		new_candidate_df_arr[index] = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
+
+	return new_candidate_df_arr
+
+
 def snomed_annotation(snomed_names, query):
 	results_header = ['query', 'substring', 'substring_start_index', 'substring_end_index',
 		'conceptid', 'concept_name', 'score']
@@ -195,21 +260,41 @@ def pprint(data_frame):
 		pd.set_option('display.width', 1000)
 		print data_frame
 
+def apply_filter_words_exceptions():
+	filter_words = pd.read_pickle('filter_words')
+	filter_words = filter_words[
+		(filter_words['words'] != 'disease') &
+		(filter_words['words'] != 'skin') & 
+		(filter_words['words'] != 'treatment') &
+		(filter_words['words'] != 'symptoms') &
+		(filter_words['words'] != 'syndrome') &
+		(filter_words['words'] != 'pain')]
+	filter_words.to_pickle('filter_words')
+
+def update_postgres_filter_words():
+	engine = return_sql_alchemy_engine()
+	filter_words = pd.read_pickle('filter_words')
+	filter_words.to_sql('filter_words', engine, schema='annotation', if_exists='replace')
 
 if __name__ == "__main__":
 
 	query = """
-		chest pain and breath shortness at night congestive heart failure
+		chest pain
 	"""
 
+	
+	# print ratio("breath", "breather")
+	apply_filter_words_exceptions()
+	update_postgres_filter_words()
+	return_query_snomed_annotation_v3(query)
 
-	start_time = time.time()
+	# start_time = time.time()
 
 	# scores = return_query_snomed_annotation_v2(query)
 	# scores = scores.sort_values('weighted_score', ascending=False)
 	# pprint(scores)
 	# pruned = prune_query_annotation(scores)
 	# pprint(pruned)
-	print fuzz.token_sort_ratio('breath shortness', 'shortness of breath')
+	# print fuzz.token_sort_ratio('breath shortness', 'shortness of breath')
 	# pprint(pruned)
-	print("--- %s seconds ---" % (time.time() - start_time))
+	# print("--- %s seconds ---" % (time.time() - start_time))
