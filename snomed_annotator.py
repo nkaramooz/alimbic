@@ -121,26 +121,61 @@ def return_query_snomed_annotation_v3(query):
 		if (filter_df['words'] == word).any():
 			continue
 		else:
-			## need an added step such that if you've gone enough words
+			# need an added step such that if you've gone enough words
 			# and haven't matched outside the first word of a description
 			# that the description drops off
 			# that should speed things up a bit
 			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr)
-
+			candidate_df_arr, rough_matches = prune_candidates(index, candidate_df_arr)
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
 			results_df = results_df.append(new_results_df)
-
-			new_candidate_query = "select description_id, conceptid, term, word, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')) >=0.70) "
+			results_df = results_df.append(rough_matches)
+			new_candidate_query = "select description_id, conceptid, term, word, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')/greatest(char_length(word)::float, 1)) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')/greatest(char_length(word)::float, 1) >=0.70)) "
 			new_candidate_df = return_df_from_query(new_candidate_query, ["description_id", "conceptid", "term", "word", "term_length", "l_dist"])
 			
 
 			new_candidate_df['substring_start_index'] = index
 			candidate_df_arr.append(new_candidate_df)
 
+
 		
 	candidate_df_arr, new_results_df = get_results(candidate_df_arr)
 	results_df = results_df.append(new_results_df)
-	print results_df
+	results_df = results_df.groupby(["conceptid", "description_id"], as_index=False)['l_dist'].mean()
+	results_df = results_df.groupby(["conceptid"])['l_dist'].sum()
+	pprint(results_df)
+
+# this function takes the full list of candidate dataframes
+# and identifies which items in the data frame should be thrown out
+# instances where the whole dataframe is empty
+# triggers deletion of the dataframe in the array
+def prune_candidates(index, candidate_df_arr):
+
+	candidate_results = pd.DataFrame()
+	for index, df in enumerate(candidate_df_arr):
+
+		# now want to get dfs grouped by word such that min(substring_start) + len_term-1 == index
+		candidate_min = df.groupby(['description_id', 'term_length'], as_index=False)['substring_start_index'].min()
+		
+		candidate_exclude = candidate_min[(candidate_min['substring_start_index'] + candidate_min['term_length'] - 1) == index]
+
+		if len(candidate_exclude) > 0:
+			print "exclude"
+			possible_results = df.loc[df.index.isin(candidate_exclude.index.values)].groupby(["description_id"], as_index=False)['l_dist'].mean()
+			possible_results = possible_results[possible_result['l_dist'] >= 0.70]
+
+			candidate_results = candidate_results.append(df[possible_results.index.values])
+
+		candidate_df = df.loc[~df.index.isin(candidate_exclude.index.values)]
+
+		if len(candidate_df) == 0:
+			print "true"
+			del candidate_df_arr[index]
+		else:
+			candidate_df_arr[index] = candidate_df
+
+	return candidate_df_arr, candidate_results
+
 
 def get_results(candidate_df_arr):
 	results_df = pd.DataFrame()
@@ -183,6 +218,54 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
 			new_candidate_df_arr[index] = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
 
 	return new_candidate_df_arr
+
+def prune_results(scores_df):
+	exclude_index_arr = []
+	scores_df = scores_df.sort_values('term_length', ascending=False)
+
+	results_df = pd.DataFrame()
+	results_index = []
+	changes_made = False
+	for index, row in scores_df.iterrows():
+		if index not in exclude_index_arr:
+			exclude = scores_df.index.isin(exclude_index_arr)
+			subset_df = scores_df[~exclude].sort_values(['l_dist', 'term_length'])
+			subset_df = subset_df[(subset_df['substring_start_index'] >= row['substring_start_index'])
+				& (subset_df['substring_end_index'] <= row['substring_end_index'])]
+			subset_df = subset_df.sort_values(['score', 'weighted_score'], ascending=False)
+
+			result = subset_df.iloc[0].copy()
+			skip_top_match = False
+			if len(subset_df) > 1:
+				changes_made = True
+				
+				new_exclude = scores_df[(scores_df['substring_start_index'] >= result['substring_start_index']) &
+					(scores_df['substring_end_index'] <= result['substring_end_index'])]
+				exclude_index_arr.append(index)
+				exclude_index_arr.extend(new_exclude.index.values)
+
+				
+			
+			if len(result['substring'].split()) == 1:
+
+				filter_words = pd.read_pickle('filter_words')
+				
+				for index,row in filter_words.iterrows():
+					if fuzz.ratio(result['substring'], row['words']) > result['score']:
+						skip_top_match = True
+						break
+			if not skip_top_match:
+				results_df = results_df.append(result)
+			
+			# if result.name not in results_index:
+			# 	results_index.append(result.name)
+			# 	results_df = results_df.append(result)
+			# exclude_index_arr.append(index)	
+
+	if not changes_made:
+		return results_df
+	else:
+		return prune_query_annotation(results_df)
 
 
 def snomed_annotation(snomed_names, query):
@@ -299,7 +382,7 @@ if __name__ == "__main__":
 	# for some reason adding "and nighttime cough breaks things"
 	# might not be handling instances where result is 0 <- that is probably it
 	query = """
-		chest pain and congestive hart failure and nighttime cough
+		congestive heart failure and lower extremity edema
 	"""
 
 	
@@ -310,6 +393,7 @@ if __name__ == "__main__":
 
 	start_time = time.time()
 	return_query_snomed_annotation_v3(query)
+
 	# scores = return_query_snomed_annotation_v2(query)
 	# scores = scores.sort_values('weighted_score', ascending=False)
 	# pprint(scores)
