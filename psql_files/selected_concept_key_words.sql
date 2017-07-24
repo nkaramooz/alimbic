@@ -12,14 +12,17 @@ create table selected_concept_key_words as (
     		description_id
             ,conceptid
         	,term
-            ,word
+            ,lower(word) as word
+            ,word_ord
     	from (
         	select 
             	id as description_id
                 ,conceptid
                 ,term
-            	,lower(unnest(string_to_array(term, ' '))) as word
-        	from annotation.selected_concept_descriptions
+                ,word
+                ,word_ord
+        	from annotation.selected_concept_descriptions, unnest(string_to_array(term, ' '))
+                with ordinality as f(word, word_ord)
         	) nm
     	where lower(word) not in (select lower(words) from annotation.filter_words)
     ) concept_table
