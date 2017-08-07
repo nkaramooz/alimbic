@@ -5,11 +5,14 @@ import re
 import pickle
 import sys
 import psycopg2 
-from pglib import return_df_from_query
+from pglib import return_df_from_query, return_sql_alchemy_engine
 from fuzzywuzzy import fuzz
 import uuid
 import codecs
 import snomed_annotator as snomed
+import sys
+import nltk.data
+import time
 
 filterWordsFilename = 'filter_words'
 
@@ -41,7 +44,7 @@ def clean_text(text):
 				line = line.replace('[[', '')
 				line = line.replace(']]', '')
 				line = line.replace(',', '')
-				line = line.replace('.', '')
+				# line = line.replace('.', '') ## commented out for document storage script
 				line = line.replace('\'', '')
 				line = line.replace('\"', '')
 				line = line.replace('(', '')
@@ -180,19 +183,58 @@ def get_filter_words_filename():
 	global filterWordsFilename
 	return filterWordsFilename
 
+def annotate_doc_store_with_snomed():
+	file_system_df = pd.read_pickle('file_system')
+	full_db_query = "select description_id, conceptid, term, word, word_ord, term_length, 1 as l_dist from annotation.selected_concept_key_words"
+	full_df = return_df_from_query(full_db_query, ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
+	results_df = pd.DataFrame()
+	for doc_index,doc in file_system_df.iterrows():
+		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
+			file_path += doc['filename']
+
+			current_doc = codecs.open(file_path, 'r', encoding='utf8')
+
+			doc_text = current_doc.read()
+			tokenized = nltk.sent_tokenize(doc_text)
+
+			for ln_index,line in enumerate(tokenized):
+				line = line.encode('utf-8')
+				line = line.replace('.', '')
+				line = line.replace('!', '')
+				line = line.replace(',', '')
+				line = line.replace(';', '')
+				line = line.replace('*', '')
+
+				annotation = snomed.return_document_snomed_annotation(line, full_df)
+
+				if annotation is not None:
+					annotation['docid'] = doc['docid']
+					annotation['ln_number'] = ln_index
+					results_df = results_df.append(annotation)
+
+	engine = return_sql_alchemy_engine()
+	results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
 
 
+
+def annotate_document_with_snomed(c):
+	file_text = current_file.read()
 
 if __name__ == "__main__":
-	document_system = pd.read_pickle('file_system')
+	# document_system = pd.read_pickle('file_system')
 
-	for index, row in document_system.iterrows():
-		filename = row['filename']
-		filename = "/Users/LilNimster/Documents/wiki_data/text_files/" + filename
-		current_file = codecs.open(filename, 'r', encoding='utf8')
-		file_text = current_file.read()
-		print snomed.return_snomed_annotation(row['docid'], file_text)
-		break
+	# for index, row in document_system.iterrows():
+	# 	filename = row['filename']
+	# 	filename = "/Users/LilNimster/Documents/wiki_data/text_files/" + filename
+	# 	current_file = codecs.open(filename, 'r', encoding='utf8')
+	# 	file_text = current_file.read()
+	# 	print snomed.return_snomed_annotation(row['docid'], file_text)
+	# 	break
+	start_time = time.time()
+	annotate_doc_store_with_snomed()
+	print("--- %s seconds ---" % (time.time() - start_time))
+	# save_clean_text()
 
 
 # def annotate_documents_with_snomed():

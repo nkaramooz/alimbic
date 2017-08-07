@@ -12,8 +12,7 @@ import multiprocessing as mp
 from Levenshtein import *
 import copy
 
-
-def return_query_snomed_annotation_v3(query):
+def return_query_snomed_annotation_v3(query, threshold):
 
 	filter_words_query = "select words from annotation.filter_words"
 	filter_df = return_df_from_query(filter_words_query, ["words"])
@@ -25,51 +24,124 @@ def return_query_snomed_annotation_v3(query):
 
 	candidate_df_arr = []
 	results_df = pd.DataFrame()
+
+
 	for index,word in enumerate(query_words):
+		# print_string = str(index) + " : " + word
+		# print(print_string)
 
 		if (filter_df['words'] == word).any():
 			continue
-		else:			
-			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr)
-			
-			new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')/greatest(char_length(word)::float, 1)) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')/greatest(char_length(word)::float, 1) >=0.70)) "
+		else:
+
+			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
+
+			# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')/greatest(char_length(word)::float, 1)) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')/greatest(char_length(word)::float, 1) >=" +str(threshold/100.0) +"))"
+			# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when (1-levenshtein(word," + "\'" + word + "\')) < 0 then 0 else (1-levenshtein(word," + "\'" + word + "\')/greatest(char_length(word)::float, 1)) end as l_dist from annotation.selected_concept_key_words where description_id in (select description_id from annotation.selected_concept_key_words where (1-levenshtein(word, " + "\'" + word + "\')/greatest(char_length(word)::float, 1) >=0.70)) "
+			q_timer = Timer("query_timer")
+			new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word = \'" + word + "\' then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
+				description_id in (select description_id from annotation.selected_concept_key_words where word = \'" + word + "\')"
 			new_candidate_df = return_df_from_query(new_candidate_query, ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
+			q_timer.stop()
+
 
 			new_candidate_df['substring_start_index'] = index
 			new_candidate_df['description_start_index'] = index
-
 			candidate_df_arr.append(new_candidate_df)
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
-
 			results_df = results_df.append(new_results_df)
-			
-	# pprint(results_df)
-	order_score = results_df
-	order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - results_df['description_start_index'] + 1)).abs()
-	order_score = order_score[['conceptid', 'description_id','order_score']].groupby(['conceptid', 'description_id'], as_index=False)['order_score'].sum()
 
 
-	distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
-	results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
+	if len(results_df) > 0:
+		order_score = results_df
+		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - results_df['description_start_index'] + 1)).abs()
+		order_score = order_score[['conceptid', 'description_id','order_score']].groupby(['conceptid', 'description_id'], as_index=False)['order_score'].sum()
 
-	sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
+
+		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
+		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
+
+		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
+
+		sum_scores = sum_scores[sum_scores['sum_score'] > (threshold/100.0)]
+		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
+		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
+
+		joined_results = distinct_results.merge(sum_scores, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id'])
+
+		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.99, 1)
+		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
+		joined_results['final_score'] = joined_results['final_score'] + 0.05*joined_results['term_length']
+
+
 	
-	start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
-	end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
+		final_results = prune_results(joined_results)
+	
+		if len(final_results) > 0:
+			return final_results
 
-	joined_results = distinct_results.merge(sum_scores, on=['conceptid', 'description_id', 'description_start_index'])
-	joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
-	joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
-	joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id'])
-	joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.99, 1)
-	joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
-	joined_results['final_score'] = joined_results['final_score'] + 0.05*joined_results['term_length']
+	return None
 
-	pprint(joined_results)
-	final_results = prune_results(joined_results)
-	final_results = add_names(final_results)
-	pprint(final_results)
+def return_document_snomed_annotation(sentence, full_df, threshold):
 
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']
+
+	sentence = sentence.lower()
+	sentence_words = sentence.split()
+
+	candidate_df_arr = []
+	results_df = pd.DataFrame()
+	query_timer = Timer("query_timer")
+
+	for index,word in enumerate(sentence_words):
+		candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
+
+		word_match_description_list = full_df[full_df['word'] == word]['description_id'].tolist()
+
+		new_candidate_df = full_df[full_df['description_id'].isin(word_match_description_list)].copy()
+
+		new_candidate_df['substring_start_index'] = index
+		new_candidate_df['description_start_index'] = index
+
+		candidate_df_arr.append(new_candidate_df)
+
+		candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+
+		results_df = results_df.append(new_results_df)
+	
+	
+	if len(results_df) > 0:
+		order_score = results_df
+		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - results_df['description_start_index'] + 1)).abs()
+		order_score = order_score[['conceptid', 'description_id','order_score']].groupby(['conceptid', 'description_id'], as_index=False)['order_score'].sum()
+
+
+		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
+		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
+
+		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
+		sum_scores = sum_scores[sum_scores['sum_score'] > (threshold/100.0)]
+		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
+		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
+
+		joined_results = distinct_results.merge(sum_scores, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id'])
+		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.99, 1)
+		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
+		joined_results['final_score'] = joined_results['final_score'] + 0.05*joined_results['term_length']
+
+
+		final_results = prune_results(joined_results)
+		if len(final_results) > 0:
+			final_results = add_names(final_results)
+			return final_results
+
+	return None
 
 def get_results(candidate_df_arr):
 
@@ -87,7 +159,7 @@ def get_results(candidate_df_arr):
 	return new_candidate_df_arr,results_df
 
 
-def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
+def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold):
 
 	new_candidate_df_arr = []
 	for index,df in enumerate(candidate_df_arr):
@@ -98,7 +170,7 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr):
 			l_dist = fuzz.ratio(word, row['word'])
 
 			# assign l_dist to only those that pass threshold
-			if l_dist >= 80:
+			if l_dist >= threshold: ### TUNE ME
 				df_copy.loc[index, 'l_dist'] = l_dist/100.00
 				df_copy.loc[index, 'substring_start_index'] = substring_start_index
 
@@ -165,60 +237,25 @@ def prune_results(scores_df):
 	else:
 		return prune_results(results_df)
 
-
-def snomed_annotation(snomed_names, query):
-	results_header = ['query', 'substring', 'substring_start_index', 'substring_end_index',
-		'conceptid', 'concept_name', 'score']
-
-	query_words = query.split()
-
-	annotated_results = pd.DataFrame(columns=results_header)
-
-	for index,row in snomed_names.iterrows():
-		snomed_term_len = len(row['term'].split())
-		query_len = len(query_words)
-		
-		snomed_term = row['term'].decode('utf-8').lower()
-
-		complete_score = fuzz.token_sort_ratio(query, snomed_term)
-		if complete_score > 80:
-			row_annotation = pd.DataFrame([[query, substring, 0.0, query_len-1, row['conceptid'], 
-				snomed_term, complete_score]], columns=results_header)
-			annotated_results = annotated_results.append(row_annotation)
-
-		# evaluating need for searching sub-phrases of the query
-		if query_len > snomed_term_len:
-			
-			counter = 0
-			while counter + snomed_term_len <= query_len:
-
-				substring = ' '.join(query_words[counter:counter+snomed_term_len])
-
-				substring_score = fuzz.token_sort_ratio(substring, snomed_term)
-				if substring_score > 80:
-					row_annotation = pd.DataFrame([[query, substring, 
-						counter, counter+snomed_term_len-1,
-						row['conceptid'], snomed_term, substring_score]], columns=results_header)
-					annotated_results = annotated_results.append(row_annotation)
-				counter += 1
-
-	return annotated_results
-
 def add_names(results_df):
-	search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions where conceptid in ("
-	sequence = ""
-	counter = 0
-	for index, row in results_df.iterrows():
-		sequence += "\'" + row['conceptid'] + "\'"
 
-		if counter < len(results_df)-1:
-			sequence += ", "
-		counter += 1
-	
-	search_query += sequence + ")"
-	names_df = return_df_from_query(search_query, ['conceptid', 'term'])
-	results_df = results_df.merge(names_df, on='conceptid')
-	return results_df
+	if results_df is None:
+		return None
+	else:
+		search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions where conceptid in ("
+		sequence = ""
+		counter = 0
+		for index, row in results_df.iterrows():
+			sequence += "\'" + row['conceptid'] + "\'"
+
+			if counter < len(results_df)-1:
+				sequence += ", "
+			counter += 1
+		
+		search_query += sequence + ")"
+		names_df = return_df_from_query(search_query, ['conceptid', 'term'])
+		results_df = results_df.merge(names_df, on='conceptid')
+		return results_df
 
 
 def pprint(data_frame):
@@ -242,6 +279,18 @@ def update_postgres_filter_words():
 	filter_words = pd.read_pickle('filter_words')
 	filter_words.to_sql('filter_words', engine, schema='annotation', if_exists='replace')
 
+class Timer:
+	def __init__(self, label):
+		self.label = label
+		self.start_time = time.time()
+
+	def stop(self):
+		self.end_time = time.time()
+		label = self.label + " : " + str(self.end_time - self.start_time)
+		print(label)
+
+
+
 if __name__ == "__main__":
 
 
@@ -252,12 +301,14 @@ if __name__ == "__main__":
 	# """
 
 	query = """
-		cough chronic obstructive pulmonary disease
+		erythema nodosum and methylprednisolone asian origin
+
 	"""
 	
 	
 
-	start_time = time.time()
-	return_query_snomed_annotation_v3(query)
+	check_timer = Timer("full")
+	pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 
-	print("--- %s seconds ---" % (time.time() - start_time))
+	# print("--- %s seconds ---" % (time.time() - start_time))
+	check_timer.stop()
