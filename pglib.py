@@ -10,8 +10,7 @@ def return_postgres_cursor():
 	cursor = conn.cursor()
 	return cursor
 
-def return_df_from_query(sql_query, column_names):
-	cursor = return_postgres_cursor()
+def return_df_from_query(cursor, sql_query, column_names):
 	cursor.execute(sql_query)
 	records = cursor.fetchall()
 	return pd.DataFrame(records, columns = column_names)

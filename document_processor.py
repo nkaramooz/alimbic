@@ -5,7 +5,7 @@ import re
 import pickle
 import sys
 import psycopg2 
-from pglib import return_df_from_query, return_sql_alchemy_engine
+import pglib as pg #import return_df_from_query, return_sql_alchemy_engine
 from fuzzywuzzy import fuzz
 import uuid
 import codecs
@@ -13,6 +13,10 @@ import snomed_annotator as snomed
 import sys
 import nltk.data
 import time
+import utils as u
+import multiprocessing as mp
+from functools import partial
+import itertools
 
 filterWordsFilename = 'filter_words'
 
@@ -184,12 +188,15 @@ def get_filter_words_filename():
 	return filterWordsFilename
 
 def annotate_doc_store_with_snomed():
+	cursor = pg.return_postgres_cursor()
 	file_system_df = pd.read_pickle('file_system')
-	full_db_query = "select description_id, conceptid, term, word, word_ord, term_length, 1 as l_dist from annotation.selected_concept_key_words"
-	full_df = return_df_from_query(full_db_query, ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
+	full_db_query = "select description_id, conceptid, term, word, word_ord, term_length, 1 as l_dist \
+		from annotation.selected_concept_key_words"
+	full_df = pg.return_df_from_query(cursor, full_db_query, ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 	results_df = pd.DataFrame()
 	for doc_index,doc in file_system_df.iterrows():
 		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+			timer = u.Timer("10 sentences")
 			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
 			file_path += doc['filename']
 
@@ -197,7 +204,7 @@ def annotate_doc_store_with_snomed():
 
 			doc_text = current_doc.read()
 			tokenized = nltk.sent_tokenize(doc_text)
-
+			counter = 0
 			for ln_index,line in enumerate(tokenized):
 				line = line.encode('utf-8')
 				line = line.replace('.', '')
@@ -206,20 +213,89 @@ def annotate_doc_store_with_snomed():
 				line = line.replace(';', '')
 				line = line.replace('*', '')
 
-				annotation = snomed.return_document_snomed_annotation(line, full_df)
+				annotation = snomed.return_document_snomed_annotation(line, full_df, 100)
 
 				if annotation is not None:
 					annotation['docid'] = doc['docid']
 					annotation['ln_number'] = ln_index
 					results_df = results_df.append(annotation)
+				counter += 1
+				if counter == 1:
+					u.pprint(results_df)
+					timer.stop()
+					break
+					# sys.exit(0)
+				
+			
+	# engine = pg.return_sql_alchemy_engine()
+	# results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
 
-	engine = return_sql_alchemy_engine()
-	results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
+def annotate_doc_store_with_snomed_parallel():
+
+	file_system_df = pd.read_pickle('file_system')
+
+	results_df = pd.DataFrame()
+	pool = mp.Pool(processes=10)
+	for doc_index, doc in file_system_df.iterrows():
+		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+			timer = u.Timer("10 sentences")
+			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
+			file_path += doc['filename']
+
+			current_doc = codecs.open(file_path, 'r', encoding='utf8')
+
+			doc_text = current_doc.read()
+			tokenized = nltk.sent_tokenize(doc_text)
+
+			funclist = []
+			counter = 0
+
+			
+			for ln_index, line in enumerate(tokenized):
+				
+				params = (line, ln_index, doc)
+				funclist.append(pool.apply_async(annotate_doc, params))
+				counter += 1
+				if counter == 1:
+					break
+			
+			pool.close()
+			pool.join()
+
+			for r in funclist:
+				result = r.get()
+
+				if result is not None:
+					results_df = results_df.append(result)
+			u.pprint(results_df)
+			timer.stop()
+			sys.exit(0)
+			
+	# engine = pg.return_sql_alchemy_engine()
+	# results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
 
 
 
-def annotate_document_with_snomed(c):
-	file_text = current_file.read()
+def annotate_doc(line, ln_index, doc):
+
+	cursor = pg.return_postgres_cursor()
+	line = line.encode('utf-8')
+	line = line.replace('.', '')
+	line = line.replace('!', '')
+	line = line.replace(',', '')
+	line = line.replace(';', '')
+	line = line.replace('*', '')
+	annotation = snomed.return_document_snomed_annotation_parallel(cursor, line, 100)
+
+	if annotation is not None:
+		annotation['docid'] = doc['docid']
+		annotation['ln_number'] = ln_index
+		return annotation
+	else:
+		return None
+
+# def annotate_document_with_snomed(c):
+# 	file_text = current_file.read()
 
 if __name__ == "__main__":
 	# document_system = pd.read_pickle('file_system')
@@ -233,6 +309,7 @@ if __name__ == "__main__":
 	# 	break
 	start_time = time.time()
 	annotate_doc_store_with_snomed()
+	annotate_doc_store_with_snomed_parallel()
 	print("--- %s seconds ---" % (time.time() - start_time))
 	# save_clean_text()
 
@@ -259,3 +336,15 @@ if __name__ == "__main__":
 # print fuzz.ratio("this is a test", "this is a test!")
 
 # return_filtered_query("coughs ins copd diseases")
+
+# for ln_index,line in enumerate(tokenized
+# 	# params = (line, ln_index)
+# 	params = {'line': line, 'ln_index' : ln_index}
+# 	star_annotate_doc(params)
+# 	sys.exit(0)
+# 	funclist.append(pool.map_async(star_annotate_doc, params))
+# 	if counter == 10:
+# 		break
+# 	counter += 1
+# results = []
+# results.append(pool.map_async(star_annotate_doc, tokenized[0:10
