@@ -16,7 +16,7 @@ import time
 import utils as u
 import multiprocessing as mp
 from functools import partial
-import itertools
+
 
 filterWordsFilename = 'filter_words'
 
@@ -187,55 +187,13 @@ def get_filter_words_filename():
 	global filterWordsFilename
 	return filterWordsFilename
 
-def annotate_doc_store_with_snomed():
-	cursor = pg.return_postgres_cursor()
-	file_system_df = pd.read_pickle('file_system')
-	full_db_query = "select description_id, conceptid, term, word, word_ord, term_length, 1 as l_dist \
-		from annotation.selected_concept_key_words"
-	full_df = pg.return_df_from_query(cursor, full_db_query, ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
-	results_df = pd.DataFrame()
-	for doc_index,doc in file_system_df.iterrows():
-		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
-			timer = u.Timer("10 sentences")
-			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
-			file_path += doc['filename']
-
-			current_doc = codecs.open(file_path, 'r', encoding='utf8')
-
-			doc_text = current_doc.read()
-			tokenized = nltk.sent_tokenize(doc_text)
-			counter = 0
-			for ln_index,line in enumerate(tokenized):
-				line = line.encode('utf-8')
-				line = line.replace('.', '')
-				line = line.replace('!', '')
-				line = line.replace(',', '')
-				line = line.replace(';', '')
-				line = line.replace('*', '')
-
-				annotation = snomed.return_document_snomed_annotation(line, full_df, 100)
-
-				if annotation is not None:
-					annotation['docid'] = doc['docid']
-					annotation['ln_number'] = ln_index
-					results_df = results_df.append(annotation)
-				counter += 1
-				if counter == 1:
-					u.pprint(results_df)
-					timer.stop()
-					break
-					# sys.exit(0)
-				
-			
-	# engine = pg.return_sql_alchemy_engine()
-	# results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
 
 def annotate_doc_store_with_snomed_parallel():
 
 	file_system_df = pd.read_pickle('file_system')
 
 	results_df = pd.DataFrame()
-	pool = mp.Pool(processes=10)
+	pool = mp.Pool(processes=3)
 	for doc_index, doc in file_system_df.iterrows():
 		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
 			timer = u.Timer("10 sentences")
@@ -256,7 +214,9 @@ def annotate_doc_store_with_snomed_parallel():
 				params = (line, ln_index, doc)
 				funclist.append(pool.apply_async(annotate_doc, params))
 				counter += 1
-				if counter == 1:
+
+
+				if counter == 50:
 					break
 			
 			pool.close()
@@ -274,6 +234,74 @@ def annotate_doc_store_with_snomed_parallel():
 	# engine = pg.return_sql_alchemy_engine()
 	# results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
 
+def annotate_doc_store_with_snomed_parallel_v2():
+	file_system_df = pd.read_pickle('file_system')
+
+	results_df = pd.DataFrame()
+
+	number_of_processes = 4
+
+	for doc_index, doc in file_system_df.iterrows():
+		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+			timer = u.Timer("50 sentences")
+			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
+			file_path += doc['filename']
+
+			current_doc = codecs.open(file_path, 'r', encoding='utf8')
+
+			doc_text = current_doc.read()
+			tokenized = nltk.sent_tokenize(doc_text)
+
+			funclist = []
+			counter = 0
+
+			task1 = []
+
+			for ln_index, line in enumerate(tokenized):
+				if counter == 25:
+					line = line.encode('utf-8')
+					line = line.replace('.', '')
+					line = line.replace('!', '')
+					line = line.replace(',', '')
+					line = line.replace(';', '')
+					line = line.replace('*', '')
+					print(line)
+					sys.exit(0)
+					params = (line, ln_index, doc)
+					task1.append((annotate_doc, params))
+				
+				counter +=1
+				
+				if counter > 25:
+					break
+
+			task_queue = mp.Queue()
+			done_queue = mp.Queue()
+
+			for task in task1:
+				task_queue.put(task)
+
+			for i in range(number_of_processes):
+				mp.Process(target=worker, args=(task_queue, done_queue)).start()
+
+			for i in range(len(task1)):
+				results_df = results_df.append(done_queue.get())
+
+			for i in range(number_of_processes):
+				task_queue.put('STOP')
+			# u.pprint(results_df)
+			timer.stop()
+			sys.exit(0)
+
+
+def worker(input, output):
+	for func, args in iter(input.get, 'STOP'):
+		result = calculate(func, args)
+		output.put(result)
+
+def calculate(func, args):
+	result = func(*args)
+	return result
 
 
 def annotate_doc(line, ln_index, doc):
@@ -285,7 +313,8 @@ def annotate_doc(line, ln_index, doc):
 	line = line.replace(',', '')
 	line = line.replace(';', '')
 	line = line.replace('*', '')
-	annotation = snomed.return_document_snomed_annotation_parallel(cursor, line, 100)
+
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 100)
 
 	if annotation is not None:
 		annotation['docid'] = doc['docid']
@@ -308,8 +337,7 @@ if __name__ == "__main__":
 	# 	print snomed.return_snomed_annotation(row['docid'], file_text)
 	# 	break
 	start_time = time.time()
-	annotate_doc_store_with_snomed()
-	annotate_doc_store_with_snomed_parallel()
+	annotate_doc_store_with_snomed_parallel_v2()
 	print("--- %s seconds ---" % (time.time() - start_time))
 	# save_clean_text()
 
