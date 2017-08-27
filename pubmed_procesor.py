@@ -9,8 +9,8 @@ import pandas as pd
 import pglib as pg
 
 def load_pubmed():
-	# tree = ET.parse('medline17n0001.xml')
-	tree = ET.parse('test2.xml')
+	tree = ET.parse('medline17n0001.xml')
+	# tree = ET.parse('test2.xml')
 	root = tree.getroot()
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 
@@ -19,13 +19,10 @@ def load_pubmed():
 		json_str = get_pmid(elem, json_str)
 		json_str = get_journal_info(elem, json_str)
 		json_str = get_article_info(elem, json_str)
+		json_str = get_snomed_annotation(json_str)
 		json_str =json.dumps(json_str)
 		json_obj = json.loads(json_str)
-		annotation = annotate_snomed(json_obj['article_abstract'])
-		a_list = annotation['conceptid'].tolist()
-		print(str(a_list))
-		sys.exit(0)
-		# es.index(index='nlm', doc_type='pubmed', body=json_obj)
+		es.index(index='nlm', doc_type='pubmed', body=json_obj)
 
 def get_json(elem):
 	if elem.text is None:
@@ -115,6 +112,16 @@ def get_article_info(elem, json_str):
 		json_str['article_abstract'] = None
 
 	return json_str
+
+def get_snomed_annotation(json_str):
+	text = json_str['article_abstract']
+	if text is None:
+		json_str['conceptids'] = None
+		return json_str
+	else:
+		annotation = annotate_snomed(text)
+		json_str['conceptids'] = annotation['conceptid'].tolist()
+		return json_str
 
 def annotate_snomed(text):
 	cursor = pg.return_postgres_cursor()

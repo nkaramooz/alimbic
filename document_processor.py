@@ -313,7 +313,7 @@ def annotate_doc(line, ln_index, doc):
 def migrate_ln_annotation_to_es():
 	cursor = pg.return_postgres_cursor()
 	query = "select docid, conceptid, ln_number from annotation.doc_annotation"
-	ln_level_df = pg.return_df_from_query(cursor, query, ['docid', 'conceptid', 'ln_number'])
+	ln_level_df = pg.return_df_from_query(cursor, query, None, ['docid', 'conceptid', 'ln_number'])
 	grouped = ln_level_df.groupby(['docid', 'ln_number'], as_index=False)
 	grouped_ln_level = grouped.aggregate(lambda x: list(x))
 

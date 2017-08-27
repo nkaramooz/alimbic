@@ -16,10 +16,14 @@ import utils as u
 
 def get_new_candidate_df(word, cursor):
 
-	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word = \'" \
-		+ word + "\' then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
-		description_id in (select description_id from annotation.selected_concept_key_words where word = \'" + word + "\')"
-	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, \
+	# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word like \'" \
+	# 	+ word + "\' then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
+	# 	description_id in (select description_id from annotation.selected_concept_key_words where word like \'" + word + "\')"
+	# reformatting query to take in params
+	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word like %s \
+		then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
+		description_id in (select description_id from annotation.selected_concept_key_words where word like %s)"
+	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
 	return new_candidate_df
@@ -29,7 +33,7 @@ def return_line_snomed_annotation(cursor, line, threshold):
 
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']
 	filter_words_query = "select words from annotation.filter_words"
-	filter_df = pg.return_df_from_query(cursor, filter_words_query, ["words"])
+	filter_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
 
@@ -197,18 +201,19 @@ def add_names(results_df):
 	if results_df is None:
 		return None
 	else:
-		search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions where conceptid in ("
-		sequence = ""
-		counter = 0
-		for index, row in results_df.iterrows():
-			sequence += "\'" + row['conceptid'] + "\'"
+		search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions \
+			where conceptid in %s"
+		params = (tuple(results_df['conceptid']),)
+		# counter = 0
+		# for index, row in results_df.iterrows():
+		# 	sequence += "\'" + row['conceptid'] + "\'"
 
-			if counter < len(results_df)-1:
-				sequence += ", "
-			counter += 1
+		# 	if counter < len(results_df)-1:
+		# 		sequence += ", "
+		# 	counter += 1
 		
-		search_query += sequence + ")"
-		names_df = pg.return_df_from_query(cursor, search_query, ['conceptid', 'term'])
+		# search_query += sequence + ")"
+		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
 		results_df = results_df.merge(names_df, on='conceptid')
 		return results_df
 
