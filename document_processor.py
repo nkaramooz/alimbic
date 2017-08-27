@@ -5,17 +5,16 @@ import re
 import pickle
 import sys
 import psycopg2 
-import pglib as pg #import return_df_from_query, return_sql_alchemy_engine
+import pglib as pg 
 from fuzzywuzzy import fuzz
 import uuid
 import codecs
 import snomed_annotator as snomed
-import sys
 import nltk.data
 import time
 import utils as u
 import multiprocessing as mp
-from functools import partial
+from elasticsearch import Elasticsearch
 
 
 filterWordsFilename = 'filter_words'
@@ -193,7 +192,7 @@ def annotate_doc_store_with_snomed_parallel():
 	file_system_df = pd.read_pickle('file_system')
 
 	results_df = pd.DataFrame()
-	pool = mp.Pool(processes=3)
+	pool = mp.Pool(processes=10)
 	for doc_index, doc in file_system_df.iterrows():
 		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
 			timer = u.Timer("10 sentences")
@@ -216,7 +215,7 @@ def annotate_doc_store_with_snomed_parallel():
 				counter += 1
 
 
-				if counter == 50:
+				if counter >= 50:
 					break
 			
 			pool.close()
@@ -239,42 +238,25 @@ def annotate_doc_store_with_snomed_parallel_v2():
 
 	results_df = pd.DataFrame()
 
-	number_of_processes = 4
-
+	number_of_processes = 50
+	counter = 0
 	for doc_index, doc in file_system_df.iterrows():
 		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+
 			timer = u.Timer("50 sentences")
 			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
 			file_path += doc['filename']
-
 			current_doc = codecs.open(file_path, 'r', encoding='utf8')
-
 			doc_text = current_doc.read()
 			tokenized = nltk.sent_tokenize(doc_text)
-
 			funclist = []
-			counter = 0
 
 			task1 = []
-
 			for ln_index, line in enumerate(tokenized):
-				if counter == 25:
-					line = line.encode('utf-8')
-					line = line.replace('.', '')
-					line = line.replace('!', '')
-					line = line.replace(',', '')
-					line = line.replace(';', '')
-					line = line.replace('*', '')
-					print(line)
-					sys.exit(0)
-					params = (line, ln_index, doc)
-					task1.append((annotate_doc, params))
+				params = (line, ln_index, doc)
+				task1.append((annotate_doc, params))
+		
 				
-				counter +=1
-				
-				if counter > 25:
-					break
-
 			task_queue = mp.Queue()
 			done_queue = mp.Queue()
 
@@ -283,15 +265,20 @@ def annotate_doc_store_with_snomed_parallel_v2():
 
 			for i in range(number_of_processes):
 				mp.Process(target=worker, args=(task_queue, done_queue)).start()
-
+			
 			for i in range(len(task1)):
 				results_df = results_df.append(done_queue.get())
-
+			
 			for i in range(number_of_processes):
 				task_queue.put('STOP')
-			# u.pprint(results_df)
-			timer.stop()
-			sys.exit(0)
+			
+			results_df['docid'] = doc['docid']
+			engine = pg.return_sql_alchemy_engine()
+			results_df.to_sql('doc_annotation', engine, schema='annotation', if_exists='append')
+			break
+		# counter += 1
+		# if counter == 3000:
+		# 	break
 
 
 def worker(input, output):
@@ -323,56 +310,53 @@ def annotate_doc(line, ln_index, doc):
 	else:
 		return None
 
-# def annotate_document_with_snomed(c):
-# 	file_text = current_file.read()
+def migrate_ln_annotation_to_es():
+	cursor = pg.return_postgres_cursor()
+	query = "select docid, conceptid, ln_number from annotation.doc_annotation"
+	ln_level_df = pg.return_df_from_query(cursor, query, ['docid', 'conceptid', 'ln_number'])
+	grouped = ln_level_df.groupby(['docid', 'ln_number'], as_index=False)
+	grouped_ln_level = grouped.aggregate(lambda x: list(x))
+
+	# for index,row in grouped_ln_level.iterrows():
+
+
+	es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+
+def load_raw_text_to_es():
+	es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+	file_system_df = pd.read_pickle('file_system')
+
+	results_df = pd.DataFrame()
+
+	counter = 0
+	for doc_index, doc in file_system_df.iterrows():
+		if doc['filename'] == 'e3b0949d-4549-43f0-b3b3-fdce04dca74b.txt':
+			file_path = "/Users/LilNimster/Documents/wiki_data/text_files/"
+			file_path += doc['filename']
+
+			current_doc = codecs.open(file_path, 'r', encoding='utf8')
+
+			doc_text = current_doc.read()
+			line_json = {'docid' : doc['docid'], 'body': doc_text, 'filename' : doc['filename']}
+			es.index(index='wiki', doc_type='medical', body=line_json)
+			break
+		# counter += 1
+
+		# if counter == 1933:
+		# 	break
 
 if __name__ == "__main__":
-	# document_system = pd.read_pickle('file_system')
 
-	# for index, row in document_system.iterrows():
-	# 	filename = row['filename']
-	# 	filename = "/Users/LilNimster/Documents/wiki_data/text_files/" + filename
-	# 	current_file = codecs.open(filename, 'r', encoding='utf8')
-	# 	file_text = current_file.read()
-	# 	print snomed.return_snomed_annotation(row['docid'], file_text)
-	# 	break
 	start_time = time.time()
-	annotate_doc_store_with_snomed_parallel_v2()
+	es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+	es_query = {"query" : {"match" : {"body" : "PE"}}, "highlight" : {
+		"fields" : { "body" : {}}
+	}}
+	res_json = es.search(index='wiki', body=es_query)
+	print res_json
+	# load_raw_text_to_es()
+
 	print("--- %s seconds ---" % (time.time() - start_time))
-	# save_clean_text()
 
-
-# def annotate_documents_with_snomed():
-
-
-	#cursor.execute("select * from snomed.curr_description_f limit 10")
-	#records = cursor.fetchall()
-
-	# new_df = pd.DataFrame(records)
-	# print new_df
-
-	# pprint.pprint(records)
-
-
-
-# print fuzz.ratio('chest pain', 'sprain')
-
-# load_wikis()
-
-# aggregate_data()
-
-# print fuzz.ratio("this is a test", "this is a test!")
-
-# return_filtered_query("coughs ins copd diseases")
-
-# for ln_index,line in enumerate(tokenized
-# 	# params = (line, ln_index)
-# 	params = {'line': line, 'ln_index' : ln_index}
-# 	star_annotate_doc(params)
-# 	sys.exit(0)
-# 	funclist.append(pool.map_async(star_annotate_doc, params))
-# 	if counter == 10:
-# 		break
-# 	counter += 1
-# results = []
-# results.append(pool.map_async(star_annotate_doc, tokenized[0:10

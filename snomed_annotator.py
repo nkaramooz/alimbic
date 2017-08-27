@@ -81,9 +81,11 @@ def return_line_snomed_annotation(cursor, line, threshold):
 		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
 		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id', 'description_start_index'])
 
-		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.99, 1)
+		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
-		joined_results['final_score'] = joined_results['final_score'] + 0.05*joined_results['term_length']
+		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
+
+
 
 		final_results = prune_results(joined_results)
 
@@ -146,7 +148,7 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 def prune_results(scores_df):
 
 	exclude_index_arr = []
-	scores_df = scores_df.sort_values(['term_length'], ascending=False)
+	scores_df = scores_df.sort_values(['term_start_index'], ascending=True)
 
 	results_df = pd.DataFrame()
 	results_index = []
@@ -171,13 +173,15 @@ def prune_results(scores_df):
 			result = subset_df.iloc[0].copy()
 			if len(subset_df) > 1:
 				changes_made = True
+
+				# new_exclude = scores_df[
+				# 	((scores_df['term_start_index'] >= result['term_start_index']) 
+				# 		& (scores_df['term_end_index'] <= result['term_end_index']))
+				# 	| (scores_df['term_end_index'] == result['term_start_index'])
+				# 	| (scores_df['term_start_index'] == result['term_end_index'])]
 				
-				new_exclude = scores_df[
-					((scores_df['term_start_index'] >= result['term_start_index']) 
-						& (scores_df['term_end_index'] <= result['term_end_index']))
-					| (scores_df['term_end_index'] == result['term_start_index'])
-					| (scores_df['term_start_index'] == result['term_end_index'])]
-				
+				new_exclude = subset_df
+
 				exclude_index_arr.append(index)
 				exclude_index_arr.extend(new_exclude.index.values)
 
@@ -247,16 +251,16 @@ if __name__ == "__main__":
 	# 	after a first pe the search for secondary causes is usually brief.
 
 	# """
-	# query = """
-	# 	genetic thrombophilia factor v leiden prothrombin mutation g20210a protein c deficiency protein s deficiency antithrombin deficiency hyperhomocysteinemia and plasminogen/fibrinolysis disorders
-	# 	acquired thrombophilia antiphospholipid syndrome nephrotic syndrome paroxysmal nocturnal hemoglobinuria
-	# 	cancer due to secretion of pro-coagulants
-	# 	after a first pe the search for secondary causes is usually brief.
-	# """
-	
 	query = """
-		protein c deficiency protein s deficiency
+		heparin low molecular weight heparin lmwh
+
 	"""
+	# query = """
+	# 	chronic obstructive pulmonary disease and congestive heart failure
+	# """
+	# query = """
+	# 	protein c deficiency protein s deficiency
+	# """
 
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
