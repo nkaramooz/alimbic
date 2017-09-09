@@ -16,13 +16,10 @@ import utils as u
 
 def get_new_candidate_df(word, cursor):
 
-	# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word like \'" \
-	# 	+ word + "\' then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
-	# 	description_id in (select description_id from annotation.selected_concept_key_words where word like \'" + word + "\')"
-	# reformatting query to take in params
+	#Knocks off a second off a sentence by selecting for word_ord=1
 	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word like %s \
 		then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
-		description_id in (select description_id from annotation.selected_concept_key_words where word like %s)"
+		description_id in (select description_id from annotation.selected_concept_key_words where word like %s and word_ord=1)"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
@@ -204,15 +201,6 @@ def add_names(results_df):
 		search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions \
 			where conceptid in %s"
 		params = (tuple(results_df['conceptid']),)
-		# counter = 0
-		# for index, row in results_df.iterrows():
-		# 	sequence += "\'" + row['conceptid'] + "\'"
-
-		# 	if counter < len(results_df)-1:
-		# 		sequence += ", "
-		# 	counter += 1
-		
-		# search_query += sequence + ")"
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
 		results_df = results_df.merge(names_df, on='conceptid')
 		return results_df
@@ -239,33 +227,15 @@ def update_postgres_filter_words():
 if __name__ == "__main__":
 
 
-	# for some reason adding "and nighttime cough breaks things"
-	# might not be handling instances where result is 0 <- that is probably it
-	# query = """
-	# 	heart failure chronic obstructive pulmonary disease
-	# """
 
-	# query = """
-	# 	alterations in blood flow: immobilization after surgery physical trauma|injury pregnancy also procoagulant obesity also procoagulant cancer also procoagulant
-	# 	factors in the vessel wall: surgery catheterizations causing direct injury endothelial injury
-	# 	factors affecting the properties of the blood procoagulant state:
-	# 	estrogen-containing hormonal contraception
-	# 	genetic thrombophilia factor v leiden prothrombin mutation g20210a protein c deficiency protein s deficiency antithrombin deficiency hyperhomocysteinemia and plasminogen/fibrinolysis disorders
-	# 	acquired thrombophilia antiphospholipid syndrome nephrotic syndrome paroxysmal nocturnal hemoglobinuria
-	# 	cancer due to secretion of pro-coagulants
-	# 	after a first pe the search for secondary causes is usually brief.
 
-	# """
-	query = """
-		heparin low molecular weight heparin lmwh
 
-	"""
 	# query = """
 	# 	chronic obstructive pulmonary disease and congestive heart failure
 	# """
-	# query = """
-	# 	protein c deficiency protein s deficiency
-	# """
+	query = """
+		protein c deficiency protein s deficiency
+	"""
 
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
