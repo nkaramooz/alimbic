@@ -233,13 +233,21 @@ if __name__ == "__main__":
 	# query = """
 	# 	chronic obstructive pulmonary disease and congestive heart failure
 	# """
-	query = """
+	query1 = """
 		protein c deficiency protein s deficiency
+	"""
+	query2 = """
+		chronic obstructive pulmonary disease and congestive heart failure
+	"""
+	query3 = """
+		Cough as night asthma congestion sputum
 	"""
 
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
-	u.pprint(return_line_snomed_annotation(cursor, query, 87))
+	u.pprint(return_line_snomed_annotation(cursor, query1, 87))
+	u.pprint(return_line_snomed_annotation(cursor, query2, 87))
+	u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# print("--- %s seconds ---" % (time.time() - start_time))
 	check_timer.stop()
