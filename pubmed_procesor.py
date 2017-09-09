@@ -7,22 +7,24 @@ import snomed_annotator as snomed
 import nltk.data
 import pandas as pd
 import pglib as pg
+import multiprocessing as mp
 
 def load_pubmed():
 	tree = ET.parse('medline17n0001.xml')
 	# tree = ET.parse('test2.xml')
 	root = tree.getroot()
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	print(len(root.findall('.//PubmedArticle')))
+	# for elem in root:
 
-	for elem in root:
-		json_str = {}
-		json_str = get_pmid(elem, json_str)
-		json_str = get_journal_info(elem, json_str)
-		json_str = get_article_info(elem, json_str)
-		json_str = get_snomed_annotation(json_str)
-		json_str =json.dumps(json_str)
-		json_obj = json.loads(json_str)
-		es.index(index='nlm', doc_type='pubmed', body=json_obj)
+	# 	json_str = {}
+	# 	json_str = get_pmid(elem, json_str)
+	# 	json_str = get_journal_info(elem, json_str)
+	# 	json_str = get_article_info(elem, json_str)
+	# 	json_str = get_snomed_annotation(json_str)
+	# 	json_str =json.dumps(json_str)
+	# 	json_obj = json.loads(json_str)
+		# es.index(index='nlm', doc_type='pubmed', body=json_obj)
 
 def get_json(elem):
 	if elem.text is None:
@@ -62,7 +64,16 @@ def get_journal_info(elem, json_str):
 		json_str['journal_pub_year'] = None
 		json_str['journal_pub_month'] = None
 		json_str['journal_pub_day'] = None
+		json_str['journal_issn'] = None
 		return json_str
+	
+	try:
+		issn_elem = journal_elem.findall('./ISSN')[0]
+		json_str['journal_issn'] = issn_elem.text
+		json_str['journal_issn_type'] = issn_elem.attrib
+	except:
+		json_str['journal_issn'] = None
+		json_str['journal_issn_type'] = None
 
 	try:
 		title_elem = journal_elem.findall('./Title')[0]
@@ -119,24 +130,65 @@ def get_snomed_annotation(json_str):
 		json_str['conceptids'] = None
 		return json_str
 	else:
-		annotation = annotate_snomed(text)
-		json_str['conceptids'] = annotation['conceptid'].tolist()
+		annotation = annotate_text(text)
+
+		if annotation is not None:
+			json_str['conceptids'] = annotation['conceptid'].tolist()
+		else:
+			json_str['conceptids'] = None
 		return json_str
 
-def annotate_snomed(text):
-	cursor = pg.return_postgres_cursor()
+def annotate_text(text):
+	number_of_processes = 40
 	tokenized = nltk.sent_tokenize(text)
 	results = pd.DataFrame()
+	funclist = []
+	task1 = []
+	results_df = pd.DataFrame()
 	for ln_index, line in enumerate(tokenized):
-		line = line.encode('utf-8')
-		line = line.replace('.', '')
-		line = line.replace('!', '')
-		line = line.replace(',', '')
-		line = line.replace(';', '')
-		line = line.replace('*', '')
-		annotation = snomed.return_line_snomed_annotation(cursor, line, 100)
-		results = results.append(annotation)
-	return results
+		task1.append((annotate_line, line))
+
+	task_queue = mp.Queue()
+	done_queue = mp.Queue()
+
+	for task in task1:
+		task_queue.put(task)
+
+	for i in range(number_of_processes):
+		mp.Process(target=worker, args=(task_queue, done_queue)).start()
+
+	for i in range(len(task1)):
+		results_df = results_df.append(done_queue.get())
+
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	return results_df
+
+def worker(input, output):
+	for func, args in iter(input.get, 'STOP'):
+		result = calculate(func, args)
+		output.put(result)
+
+def calculate(func, args):
+	# result = func(*args)
+	# return result
+	return func(args)
+
+def annotate_line(line):
+	cursor = pg.return_postgres_cursor()
+	line = line.encode('utf-8')
+	line = line.replace('.', '')
+	line = line.replace('!', '')
+	line = line.replace(',', '')
+	line = line.replace(';', '')
+	line = line.replace('*', '')
+	line = line.replace('[', '')
+	line = line.replace(']', '')
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 100)
+
+	return annotation
+
 
 load_pubmed()
 
