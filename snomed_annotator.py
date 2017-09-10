@@ -41,8 +41,7 @@ def return_line_snomed_annotation(cursor, line, threshold):
 	results_df = pd.DataFrame()
 
 	for index,word in enumerate(ln_words):
-		# p_string = "index: " + str(index) + " string: " +  word
-		# print(p_string)
+
 
 		if (filter_df['words'] == word).any():
 			continue
@@ -174,12 +173,6 @@ def prune_results(scores_df):
 			result = subset_df.iloc[0].copy()
 			if len(subset_df) > 1:
 				changes_made = True
-
-				# new_exclude = scores_df[
-				# 	((scores_df['term_start_index'] >= result['term_start_index']) 
-				# 		& (scores_df['term_end_index'] <= result['term_end_index']))
-				# 	| (scores_df['term_end_index'] == result['term_start_index'])
-				# 	| (scores_df['term_start_index'] == result['term_end_index'])]
 				
 				new_exclude = subset_df
 

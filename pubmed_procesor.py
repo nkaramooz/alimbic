@@ -8,23 +8,38 @@ import nltk.data
 import pandas as pd
 import pglib as pg
 import multiprocessing as mp
+import utils as u
 
 def load_pubmed():
 	tree = ET.parse('medline17n0001.xml')
-	# tree = ET.parse('test2.xml')
+
 	root = tree.getroot()
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-	print(len(root.findall('.//PubmedArticle')))
-	# for elem in root:
 
-	# 	json_str = {}
-	# 	json_str = get_pmid(elem, json_str)
-	# 	json_str = get_journal_info(elem, json_str)
-	# 	json_str = get_article_info(elem, json_str)
-	# 	json_str = get_snomed_annotation(json_str)
-	# 	json_str =json.dumps(json_str)
-	# 	json_obj = json.loads(json_str)
-		# es.index(index='nlm', doc_type='pubmed', body=json_obj)
+	for elem in root:
+		if is_issn(elem, '0028-4793'):
+			json_str = {}
+			json_str = get_pmid(elem, json_str)
+			json_str = get_journal_info(elem, json_str)
+			json_str = get_article_info(elem, json_str)
+			json_str = get_snomed_annotation(json_str)
+			json_str =json.dumps(json_str)
+			json_obj = json.loads(json_str)
+			es.index(index='nlm', doc_type='pubmed', body=json_obj)
+
+def is_issn(elem, issn):
+	try:
+		j_list = elem.findall('./MedlineCitation/Article/Journal')
+		journal_elem = j_list[0]
+		issn_elem = journal_elem.findall('./ISSN')[0]
+		issn_text = issn_elem.text
+
+		if issn_text == issn:
+			return True
+		else:
+			return False
+	except:
+		return False
 
 def get_json(elem):
 	if elem.text is None:
@@ -171,8 +186,6 @@ def worker(input, output):
 		output.put(result)
 
 def calculate(func, args):
-	# result = func(*args)
-	# return result
 	return func(args)
 
 def annotate_line(line):
@@ -190,9 +203,8 @@ def annotate_line(line):
 	return annotation
 
 
-load_pubmed()
+if __name__ == "__main__":
+	t = u.Timer("full")
+	load_pubmed()
+	t.stop()
 
-# es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
-# es_query = {"query" : {"match": {'medlinecitation' : 'formate'}}}
-# res_json = es.search(index='nlm', body=es_query)
-# print res_json
