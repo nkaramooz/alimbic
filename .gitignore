@@ -2,10 +2,8 @@
 ConditionCategories.xml
 articles.xml
 document_processor.pyc
-document_word_frequencies
 pg_connect.pyc
 pglib.pyc
 snomed_annotator.pyc
-test.xml
-text_files/
-
+resources/
+deprecated/
