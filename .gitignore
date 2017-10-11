@@ -1,4 +1,6 @@
 .DS_Store
+ConditionCategories.xml
+articles.xml
 document_processor.pyc
 pg_connect.pyc
 pglib.pyc
