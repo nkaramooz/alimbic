@@ -248,12 +248,16 @@ def annotate_doc_store_with_snomed_parallel_v2():
 			file_path += doc['filename']
 			current_doc = codecs.open(file_path, 'r', encoding='utf8')
 			doc_text = current_doc.read()
+
+			cursor = pg.return_postgres_cursor()
+			filter_words_query = "select words from annotation.filter_words"
+			filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+
 			tokenized = nltk.sent_tokenize(doc_text)
 			funclist = []
-
 			task1 = []
 			for ln_index, line in enumerate(tokenized):
-				params = (line, ln_index, doc)
+				params = (line, ln_index, doc, filter_words_df)
 				task1.append((annotate_doc, params))
 		
 				
@@ -291,17 +295,16 @@ def calculate(func, args):
 	return result
 
 
-def annotate_doc(line, ln_index, doc):
+def annotate_doc(line, ln_index, doc, filter_words_df):
 
 	cursor = pg.return_postgres_cursor()
-	line = line.encode('utf-8')
 	line = line.replace('.', '')
 	line = line.replace('!', '')
 	line = line.replace(',', '')
 	line = line.replace(';', '')
 	line = line.replace('*', '')
 
-	annotation = snomed.return_line_snomed_annotation(cursor, line, 100)
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 100, filter_words_df)
 
 	if annotation is not None:
 		annotation['docid'] = doc['docid']

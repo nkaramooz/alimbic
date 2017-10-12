@@ -9,7 +9,6 @@ import pglib as pg
 import numpy as np
 import time
 import multiprocessing as mp
-from Levenshtein import *
 import copy
 import utils as u 
 
@@ -22,15 +21,12 @@ def get_new_candidate_df(word, cursor):
 		description_id in (select description_id from annotation.selected_concept_key_words where word like %s and word_ord=1)"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
-
 	return new_candidate_df
 
 
-def return_line_snomed_annotation(cursor, line, threshold):
+def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']
-	filter_words_query = "select words from annotation.filter_words"
-	filter_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
 
@@ -50,16 +46,16 @@ def return_line_snomed_annotation(cursor, line, threshold):
 			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
 
 			new_candidate_df = get_new_candidate_df(word, cursor)
-			new_candidate_df['substring_start_index'] = index
-			new_candidate_df['description_start_index'] = index
-			candidate_df_arr.append(new_candidate_df)
-			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
-			results_df = results_df.append(new_results_df)
-
+			if len(new_candidate_df) > 0:
+				new_candidate_df['substring_start_index'] = index
+				new_candidate_df['description_start_index'] = index
+				candidate_df_arr.append(new_candidate_df)
+				candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+				results_df = results_df.append(new_results_df)
 	
 	if len(results_df) > 0:
 		order_score = results_df
-		
+
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'order_score']].groupby(\
@@ -107,7 +103,7 @@ def get_results(candidate_df_arr):
 		if len(remaining_candidates) != 0:
 			new_candidate_df_arr.append(remaining_candidates)
 		results_df = results_df.append(new_results)
-
+		
 	return new_candidate_df_arr,results_df
 
 
@@ -219,10 +215,6 @@ def update_postgres_filter_words():
 
 if __name__ == "__main__":
 
-
-
-
-
 	# query = """
 	# 	chronic obstructive pulmonary disease and congestive heart failure
 	# """
@@ -235,12 +227,16 @@ if __name__ == "__main__":
 	query3 = """
 		Cough as night asthma congestion sputum
 	"""
-
+	query4 = """
+		S/beta+-thalassemia
+	"""
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
-	u.pprint(return_line_snomed_annotation(cursor, query1, 87))
-	u.pprint(return_line_snomed_annotation(cursor, query2, 87))
-	u.pprint(return_line_snomed_annotation(cursor, query3, 87))
+	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
+	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
+	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
+	res = return_line_snomed_annotation(cursor, query4, 100)
+	u.pprint(add_names(res))
 	# print("--- %s seconds ---" % (time.time() - start_time))
 	check_timer.stop()

@@ -16,4 +16,4 @@ class Timer:
 def pprint(data_frame):
 	with pd.option_context('display.max_rows', None, 'display.max_columns', 10):
 		pd.set_option('display.width', 1000)
-		print data_frame
+		print(data_frame)

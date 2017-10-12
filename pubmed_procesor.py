@@ -11,21 +11,27 @@ import multiprocessing as mp
 import utils as u
 
 def load_pubmed():
-	tree = ET.parse('medline17n0001.xml')
+	tree = ET.parse('resources/sample_data/medline17n0001.xml')
 
 	root = tree.getroot()
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 
 	for elem in root:
+		# Filtering only for NEJM articles
 		if is_issn(elem, '0028-4793'):
+			t = u.Timer('article')
 			json_str = {}
 			json_str = get_pmid(elem, json_str)
 			json_str = get_journal_info(elem, json_str)
 			json_str = get_article_info(elem, json_str)
-			json_str = get_snomed_annotation(json_str)
+			json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'])
+			json_str['abstract_conceptids'] = get_snomed_annotation(json_str['article_abstract'])
 			json_str =json.dumps(json_str)
 			json_obj = json.loads(json_str)
-			es.index(index='nlm', doc_type='pubmed', body=json_obj)
+			t.stop()
+			print(json_obj)
+			
+			# es.index(index='nlm', doc_type='pubmed', body=json_obj)
 
 def is_issn(elem, issn):
 	try:
@@ -139,19 +145,17 @@ def get_article_info(elem, json_str):
 
 	return json_str
 
-def get_snomed_annotation(json_str):
-	text = json_str['article_abstract']
+def get_snomed_annotation(text):
+	
 	if text is None:
-		json_str['conceptids'] = None
-		return json_str
+		return None
 	else:
 		annotation = annotate_text(text)
 
 		if annotation is not None:
-			json_str['conceptids'] = annotation['conceptid'].tolist()
+			return annotation['conceptid'].tolist()
 		else:
-			json_str['conceptids'] = None
-		return json_str
+			return None
 
 def annotate_text(text):
 	number_of_processes = 40
@@ -160,8 +164,14 @@ def annotate_text(text):
 	funclist = []
 	task1 = []
 	results_df = pd.DataFrame()
+
+	cursor = pg.return_postgres_cursor()
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+
 	for ln_index, line in enumerate(tokenized):
-		task1.append((annotate_line, line))
+		params = (line, filter_words_df)
+		task1.append((annotate_line, params))
 
 	task_queue = mp.Queue()
 	done_queue = mp.Queue()
@@ -178,7 +188,10 @@ def annotate_text(text):
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
-	return results_df
+	if len(results_df) > 0:
+		return results_df
+	else:
+		return None
 
 def worker(input, output):
 	for func, args in iter(input.get, 'STOP'):
@@ -186,11 +199,11 @@ def worker(input, output):
 		output.put(result)
 
 def calculate(func, args):
-	return func(args)
+	return func(*args)
 
-def annotate_line(line):
+def annotate_line(line, filter_words_df):
 	cursor = pg.return_postgres_cursor()
-	line = line.encode('utf-8')
+	# line = line.encode('utf-8')
 	line = line.replace('.', '')
 	line = line.replace('!', '')
 	line = line.replace(',', '')
@@ -198,7 +211,7 @@ def annotate_line(line):
 	line = line.replace('*', '')
 	line = line.replace('[', '')
 	line = line.replace(']', '')
-	annotation = snomed.return_line_snomed_annotation(cursor, line, 100)
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 100, filter_words_df)
 
 	return annotation
 
