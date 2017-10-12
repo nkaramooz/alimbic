@@ -7,3 +7,4 @@ pglib.pyc
 snomed_annotator.pyc
 resources/
 deprecated/
+__pycache__/
