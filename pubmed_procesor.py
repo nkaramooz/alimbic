@@ -15,6 +15,9 @@ def load_pubmed():
 
 	root = tree.getroot()
 	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	cursor = pg.return_postgres_cursor()
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 
 	for elem in root:
 		# Filtering only for NEJM articles
@@ -24,8 +27,8 @@ def load_pubmed():
 			json_str = get_pmid(elem, json_str)
 			json_str = get_journal_info(elem, json_str)
 			json_str = get_article_info(elem, json_str)
-			json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'])
-			json_str['abstract_conceptids'] = get_snomed_annotation(json_str['article_abstract'])
+			json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
+			json_str['abstract_conceptids'] = get_snomed_annotation(json_str['article_abstract'], filter_words_df)
 			json_str =json.dumps(json_str)
 			json_obj = json.loads(json_str)
 			t.stop()
@@ -145,44 +148,40 @@ def get_article_info(elem, json_str):
 
 	return json_str
 
-def get_snomed_annotation(text):
+def get_snomed_annotation(text, filter_words_df):
 	
 	if text is None:
 		return None
 	else:
-		annotation = annotate_text(text)
+		annotation = annotate_text(text, filter_words_df)
 
 		if annotation is not None:
 			return annotation['conceptid'].tolist()
 		else:
 			return None
 
-def annotate_text(text):
-	number_of_processes = 40
+def annotate_text(text, filter_words_df):
+	number_of_processes = 60
 	tokenized = nltk.sent_tokenize(text)
 	results = pd.DataFrame()
 	funclist = []
-	task1 = []
+	task_list = []
 	results_df = pd.DataFrame()
-
-	cursor = pg.return_postgres_cursor()
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 
 	for ln_index, line in enumerate(tokenized):
 		params = (line, filter_words_df)
-		task1.append((annotate_line, params))
+		task_list.append((annotate_line, params))
 
 	task_queue = mp.Queue()
 	done_queue = mp.Queue()
 
-	for task in task1:
+	for task in task_list:
 		task_queue.put(task)
 
 	for i in range(number_of_processes):
 		mp.Process(target=worker, args=(task_queue, done_queue)).start()
 
-	for i in range(len(task1)):
+	for i in range(len(task_list)):
 		results_df = results_df.append(done_queue.get())
 
 	for i in range(number_of_processes):

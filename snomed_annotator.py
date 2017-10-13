@@ -16,17 +16,20 @@ import utils as u
 def get_new_candidate_df(word, cursor):
 
 	#Knocks off a second off a sentence by selecting for word_ord=1
-	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, case when word like %s \
-		then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
-		description_id in (select description_id from annotation.selected_concept_key_words where word like %s and word_ord=1)"
+
+	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+		case when word = %s then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
+		description_id in \
+		(select description_id from annotation.selected_concept_key_words where word = %s and word_ord=1)"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
+
 	return new_candidate_df
 
 
 def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 
-	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
 
@@ -228,15 +231,17 @@ if __name__ == "__main__":
 		Cough as night asthma congestion sputum
 	"""
 	query4 = """
-		S/beta+-thalassemia
+		hyporeninemic hypoaldosteronism
 	"""
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = return_line_snomed_annotation(cursor, query4, 100)
+	res = return_line_snomed_annotation(cursor, query4, 100, filter_words_df)
 	u.pprint(add_names(res))
 	# print("--- %s seconds ---" % (time.time() - start_time))
 	check_timer.stop()
