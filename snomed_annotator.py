@@ -18,9 +18,9 @@ def get_new_candidate_df(word, cursor):
 	#Knocks off a second off a sentence by selecting for word_ord=1
 
 	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		case when word = %s then 1 else 0 end as l_dist from annotation.selected_concept_key_words where \
+		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words where \
 		description_id in \
-		(select description_id from annotation.selected_concept_key_words where word = %s and word_ord=1)"
+		(select description_id from annotation.augmented_active_selected_concept_key_words where word = %s and word_ord=1)"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
@@ -190,7 +190,8 @@ def add_names(results_df):
 	if results_df is None:
 		return None
 	else:
-		search_query = "select distinct on (conceptid) conceptid, term from annotation.selected_concept_descriptions \
+		# Using old table since augmented tables include the acronyms
+		search_query = "select distinct on (conceptid) conceptid, term from annotation.active_selected_concept_descriptions \
 			where conceptid in %s"
 		params = (tuple(results_df['conceptid']),)
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
@@ -231,7 +232,7 @@ if __name__ == "__main__":
 		Cough as night asthma congestion sputum
 	"""
 	query4 = """
-		hyporeninemic hypoaldosteronism
+		CHF COPD
 	"""
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))

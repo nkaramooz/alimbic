@@ -1,7 +1,7 @@
 set schema 'annotation';
 
-drop table if exists selected_concept_key_words;
-create table selected_concept_key_words as (
+drop table if exists augmented_active_selected_concept_key_words;
+create table augmented_active_selected_concept_key_words as (
 
 
     select 
@@ -21,7 +21,7 @@ create table selected_concept_key_words as (
                 ,term
                 ,word
                 ,word_ord
-        	from annotation.selected_concept_descriptions, unnest(string_to_array(term, ' '))
+        	from annotation.augmented_active_selected_concept_descriptions, unnest(string_to_array(term, ' '))
                 with ordinality as f(word, word_ord)
         	) nm
     	where lower(word) not in (select lower(words) from annotation.filter_words)
@@ -42,7 +42,7 @@ create table selected_concept_key_words as (
                     ,conceptid
                     ,term
                     ,lower(unnest(string_to_array(term, ' '))) as word
-                from annotation.selected_concept_descriptions
+                from annotation.augmented_active_selected_concept_descriptions
                 ) nm
             where lower(word) not in (select lower(words) from annotation.filter_words)
 

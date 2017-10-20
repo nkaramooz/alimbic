@@ -1,7 +1,7 @@
 set schema 'annotation';
 
-drop table if exists active_concept_descriptions;
-create table active_concept_descriptions as (
+drop table if exists active_descriptions;
+create table active_descriptions as (
     select *
     from (
         select 
