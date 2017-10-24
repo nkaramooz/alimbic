@@ -1,0 +1,8 @@
+{% block content %}
+
+<h1> Search </h1>
+<form method="POST" action="search/" class="post-search">{% csrf_token %}
+	<input type="text" name="query">
+	<button type="submit" class="submit btn btn-default">Submit</button>
+</form>
+{% endblock %}

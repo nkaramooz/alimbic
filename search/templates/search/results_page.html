@@ -1,0 +1,22 @@
+{% load app_filters %}
+
+<h1> Elastic search results </h1>
+<h1> Search </h1>
+<form method="POST" action="search/">{% csrf_token %}
+	<input type="text" name="query">
+	<button type="submit">Submit</button>
+</form>
+<br>
+{% for hit in sr %}
+	
+	{% with abstract=hit|get:"_source"%}
+	<h2>{{abstract|get:"article_title"}} </h2>
+	<h4>{{abstract|get:"article_abstract"}}</h4>
+	<h4>{{abstract|get:"article_type"}}</h4>
+	<h5>{{abstract|get:"journal_pub_year"}}</h5>
+	<h5>{{abstract|get:"pmid"}}</h5>
+	{%  endwith %}
+	<h5>{{hit|get:"_score"}}</h5>
+	<br>
+
+{% endfor %}

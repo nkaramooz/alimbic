@@ -232,7 +232,7 @@ if __name__ == "__main__":
 		Cough as night asthma congestion sputum
 	"""
 	query4 = """
-		CHF COPD
+		Community Acquired pneumonia
 	"""
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))

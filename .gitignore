@@ -1,10 +1,8 @@
 .DS_Store
 ConditionCategories.xml
 articles.xml
-document_processor.pyc
-pg_connect.pyc
-pglib.pyc
-snomed_annotator.pyc
 resources/
 deprecated/
 __pycache__/
+db.sqlite3
+*.pyc
