@@ -446,6 +446,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_update()
+	load_pubmed_updates()
 	t.stop()
 
