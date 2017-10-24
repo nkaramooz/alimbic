@@ -53,9 +53,10 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 				new_candidate_df['substring_start_index'] = index
 				new_candidate_df['description_start_index'] = index
 				candidate_df_arr.append(new_candidate_df)
-				candidate_df_arr, new_results_df = get_results(candidate_df_arr)
-				results_df = results_df.append(new_results_df)
-	
+
+			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+			results_df = results_df.append(new_results_df)
+
 	if len(results_df) > 0:
 		order_score = results_df
 
@@ -95,18 +96,18 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 	return None
 
 def get_results(candidate_df_arr):
-
+	## no description here
 	new_candidate_df_arr = []
 	results_df = pd.DataFrame()
 	for index,df in enumerate(candidate_df_arr):
 		exclusion_series = df[df['l_dist'] == 0]['description_id'].tolist()
 		new_results = df[~df['description_id'].isin(exclusion_series)]
-
+		
 		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
 		if len(remaining_candidates) != 0:
 			new_candidate_df_arr.append(remaining_candidates)
 		results_df = results_df.append(new_results)
-		
+
 	return new_candidate_df_arr,results_df
 
 
@@ -120,10 +121,12 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 
 			l_dist = fuzz.ratio(word, row['word'])
 
+			
 			# assign l_dist to only those that pass threshold
 			if l_dist >= threshold: ### TUNE ME
 				df_copy.loc[index, 'l_dist'] = l_dist/100.00
 				df_copy.loc[index, 'substring_start_index'] = substring_start_index
+
 
 		new_candidate_df_arr.append(df_copy)
 
@@ -135,11 +138,14 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
 		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
 
+
+
 		if len(old_df_description_score) > 0 and len(new_df_description_score) > 0:
 			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
 			filtered_candidates = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
 			if len(filtered_candidates) != 0:
 				final_candidate_df_arr.append(filtered_candidates)
+
 
 	return final_candidate_df_arr
 
@@ -232,7 +238,7 @@ if __name__ == "__main__":
 		Cough as night asthma congestion sputum
 	"""
 	query4 = """
-		Community Acquired pneumonia
+		Congestive heart failure: acute-cough
 	"""
 	check_timer = u.Timer("full")
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -242,7 +248,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = return_line_snomed_annotation(cursor, query4, 100, filter_words_df)
+	res = return_line_snomed_annotation(cursor, query4, 93, filter_words_df)
 	u.pprint(add_names(res))
 	# print("--- %s seconds ---" % (time.time() - start_time))
 	check_timer.stop()

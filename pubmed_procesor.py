@@ -12,9 +12,9 @@ import utils as u
 import os
 
 def load_pubmed_baseline():
-	folder_path = 'resources/sample_data'
+	folder_path = 'resources/production_baseline_1'
 	
-	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	cursor = pg.return_postgres_cursor()
 	
@@ -42,11 +42,11 @@ def load_pubmed_baseline():
 				json_str['citations_pmid'] = get_article_citations(elem)
 				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
 				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-				print(json_str)
+
 				json_str =json.dumps(json_str)
 				json_obj = json.loads(json_str)
 
-				# es.index(index='pubmed', doc_type='abstract', body=json_obj)
+				es.index(index='pubmed', doc_type='abstract', body=json_obj)
 				file_abstract_counter += 1
 		print(file_abstract_counter)
 		file_timer.stop()
@@ -129,7 +129,7 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 				sub_res_dict[k2] = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
 			result_dict[k1] = sub_res_dict
 
-		print(result_dict)
+		return result_dict
 	else:
 		return None
 
@@ -378,7 +378,8 @@ def annotate_line(line, filter_words_df):
 	line = line.replace('[', '')
 	line = line.replace(']', '')
 	line = line.replace('-', '')
-	annotation = snomed.return_line_snomed_annotation(cursor, line, 100, filter_words_df)
+	line = line.replace(':', '')
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 93, filter_words_df)
 
 	return annotation
 
@@ -446,6 +447,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_updates()
+	load_pubmed_baseline()
 	t.stop()
 
