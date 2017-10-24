@@ -12,9 +12,9 @@ import utils as u
 import os
 
 def load_pubmed_baseline():
-	folder_path = 'resources/production_baseline_2'
+	folder_path = 'resources/sample_data'
 	
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	cursor = pg.return_postgres_cursor()
 	
@@ -36,20 +36,23 @@ def load_pubmed_baseline():
 
 				json_str = {}
 				json_str = get_pmid(elem, json_str)
+				json_str = get_article_ids(elem, json_str)
 				json_str = get_journal_info(elem, json_str)
 				json_str = get_article_info(elem, json_str)
+				json_str['citations_pmid'] = get_article_citations(elem)
 				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-				json_str['abstract_conceptids'] = get_snomed_annotation(json_str['article_abstract'], filter_words_df)
+				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+				print(json_str)
 				json_str =json.dumps(json_str)
 				json_obj = json.loads(json_str)
 
-				es.index(index='pubmed', doc_type='abstract', body=json_obj)
+				# es.index(index='pubmed', doc_type='abstract', body=json_obj)
 				file_abstract_counter += 1
 		print(file_abstract_counter)
 		file_timer.stop()
 
 def load_pubmed_updates():
-	folder_path = 'resources/production_baseline_2'
+	folder_path = 'resources/production_baseline_1'
 
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
@@ -74,21 +77,22 @@ def load_pubmed_updates():
 
 					json_str = {}
 					json_str = get_pmid(elem, json_str)
+					json_str = get_article_ids(elem, json_str)
 					json_str = get_journal_info(elem, json_str)
 					json_str = get_article_info(elem, json_str)
+					json_str['citations_pmid'] = get_article_citations(elem)
 					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-					json_str['abstract_conceptids'] = get_snomed_annotation(json_str['article_abstract'], filter_words_df)
+					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
 					pmid = json_str['pmid']
 					json_str =json.dumps(json_str)
 					json_obj = json.loads(json_str)
-					# need to check if abstract already exists
-					
 
 					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 					query_result = es.search(index='pubmed', body=get_article_query)
 
 					if query_result['hits']['total'] == 0:
 						es.index(index='pubmed', doc_type='abstract', body=json_obj)
+
 					elif query_result['hits']['total'] == 1:
 						article_id = query_result['hits']['hits'][0]['_id']
 						es.index(index='pubmed', id=article_id, doc_type='abstract', body=json_obj)
@@ -107,7 +111,7 @@ def load_pubmed_updates():
 						continue
 					elif query_result['hits']['total'] == 1:
 						article_id = query_result['hits']['hits'][0]['_id']
-						es.delete(index='pubmed', doc_type='abstract', id=article_id)
+						# es.delete(index='pubmed', doc_type='abstract', id=article_id)
 					else:
 						print("delete: more than one document found")
 						print(pmid)
@@ -115,12 +119,55 @@ def load_pubmed_updates():
 		print(file_abstract_counter)
 		file_timer.stop()
 
+def get_abstract_conceptids(abstract_dict, filter_words_df):
+	result_dict = {}
+	
+	if abstract_dict is not None:
+		for k1 in abstract_dict:
+			sub_res_dict = {}
+			for k2 in abstract_dict[k1]:
+				sub_res_dict[k2] = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
+			result_dict[k1] = sub_res_dict
+
+		print(result_dict)
+	else:
+		return None
+
+
+
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
 	for item in elem:
 		delete_pmid_arr.append(item.text)
 
 	return delete_pmid_arr
+
+def get_article_citations(elem):
+	citation_elems = elem.find('*/CommentsCorrectionsList')
+	citation_pmid_list = []
+	if citation_elems is not None:
+		for citation in citation_elems:
+			for item in citation:
+				if citation.attrib['RefType'] == 'Cites':
+					for item in citation:
+						if item.tag == 'PMID':
+							citation_pmid_list.append(item.text)
+		return citation_pmid_list
+	else:
+		return None
+
+
+def get_article_ids(elem, json_str):
+	id_list_elem = elem.find('*/ArticleIdList')
+	article_id_dict = {}
+	for elem_id in id_list_elem:
+		if elem_id.attrib['IdType'] == 'pubmed':
+			article_id_dict['pmid'] = elem_id.text
+		else:
+			article_id_dict[elem_id.attrib['IdType']] = elem_id.text
+	json_str['article_ids'] = article_id_dict
+
+	return json_str
 
 def is_issn(elem, issn):
 	try:
@@ -192,10 +239,9 @@ def get_journal_info(elem, json_str):
 	return json_str
 
 def get_article_info(elem, json_str):
-	art_list = elem.findall('./MedlineCitation/Article')
 
 	try:
-		article_elem = art_list[0]
+		article_elem = elem.find('./MedlineCitation/Article')
 	except:
 		json_str['article_title'] = None
 		json_str['article_abstract'] = None
@@ -203,18 +249,32 @@ def get_article_info(elem, json_str):
 		json_str['article_type_id'] = None
 
 	try:
-		title_elem = article_elem.findall('./ArticleTitle')[0]
+		title_elem = article_elem.find('./ArticleTitle')
 		json_str['article_title'] = title_elem.text
 	except:
 		json_str['article_title'] = None
 
 	try:
-		#also probably can just do a for loop
-		#if label is null then do 'article_abstract'
-		#else maybe article_abstract_LABEL#
-		#store NLM category as well
-		abstract_elem = article_elem.findall('./Abstract/AbstractText')[0] ## if label is null then only one, otherwise more
-		json_str['article_abstract'] = abstract_elem.text
+		abstract_elem = article_elem.find('./Abstract')
+		abstract_dict = {}
+
+		for abstract_sub_elem in abstract_elem:
+
+			sub_elem_dict = {}
+			
+			if not abstract_sub_elem.attrib:
+				sub_elem_dict['text'] = abstract_sub_elem.text
+				abstract_dict['text'] =  sub_elem_dict
+			else:
+				
+				sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
+				try:
+					abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = sub_elem_dict
+				except:
+					abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = sub_elem_dict
+
+		json_str['article_abstract'] = abstract_dict
+
 	except:
 		json_str['article_abstract'] = None
 
@@ -386,6 +446,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_updates()
+	load_pubmed_update()
 	t.stop()
 
