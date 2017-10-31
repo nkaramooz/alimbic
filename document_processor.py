@@ -5,17 +5,15 @@ import re
 import pickle
 import sys
 import psycopg2 
-import pglib as pg 
 from fuzzywuzzy import fuzz
 import uuid
 import codecs
 import snomed_annotator as snomed
 import nltk.data
 import time
-import utils as u
 import multiprocessing as mp
 from elasticsearch import Elasticsearch
-
+from utilities import utils as u, pglib as pg
 
 filterWordsFilename = 'filter_words'
 

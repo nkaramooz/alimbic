@@ -1,18 +1,18 @@
 import xml.etree.ElementTree as ET 
 import json
 from elasticsearch import Elasticsearch
+from nltk.stem.wordnet import WordNetLemmatizer
 import sys 
 import codecs
 import snomed_annotator as snomed
 import nltk.data
 import pandas as pd
-import pglib as pg
 import multiprocessing as mp
-import utils as u
+import utils as u, pglib as pg
 import os
 
 def load_pubmed_baseline():
-	folder_path = 'resources/production_baseline_1'
+	folder_path = 'resources/production_updates_10_21_17'
 	
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
@@ -40,8 +40,8 @@ def load_pubmed_baseline():
 				json_str = get_journal_info(elem, json_str)
 				json_str = get_article_info(elem, json_str)
 				json_str['citations_pmid'] = get_article_citations(elem)
-				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+				# json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
+				# json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
 
 				json_str =json.dumps(json_str)
 				json_obj = json.loads(json_str)
@@ -87,7 +87,6 @@ def load_pubmed_updates():
 					json_str =json.dumps(json_str)
 					json_obj = json.loads(json_str)
 
-					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 					query_result = es.search(index='pubmed', body=get_article_query)
 
 					if query_result['hits']['total'] == 0:
@@ -119,6 +118,53 @@ def load_pubmed_updates():
 		print(file_abstract_counter)
 		file_timer.stop()
 
+def update_abstracts_with_conceptids():
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	page = es.search(index='pubmed', doc_type='abstract', scroll='1000m', \
+		size=1000, body={"query" : {"match_all" : {}}})
+
+	counter = len(page['hits']['hits'])
+	sid = page['_scroll_id']
+	scroll_size = page['hits']['total']
+
+	c=u.Timer(str(counter))
+	abstract_conceptid_update_iterator(page)
+	c.stop()
+
+	while (scroll_size > 0):
+		page = es.scroll(scroll_id = sid, scroll='1000m')
+		sid = page['_scroll_id']
+		scroll_size = len(page['hits']['hits'])
+
+		counter += len(page['hits']['hits'])
+		
+		c = u.Timer(str(counter))
+		abstract_conceptid_update_iterator(page)
+		c.stop()
+
+
+def abstract_conceptid_update_iterator(sr):
+	cursor = pg.return_postgres_cursor()
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+
+	for abstract in sr['hits']['hits']:
+		title_conceptids = get_abstract_title_conceptids(abstract['_source']['article_title'], \
+			filter_words_df)
+		abstract_conceptids = get_abstract_conceptids(abstract['_source']['article_abstract'], \
+			filter_words_df)
+		article_id = abstract['_id']
+
+		conceptids = {}
+		
+		conceptids['doc'] = {"title_conceptids" : title_conceptids, \
+			"abstract_conceptids" : abstract_conceptids}
+		update_json_str = json.dumps(conceptids)
+		update_json_obj = json.loads(update_json_str)
+		es.update(index='pubmed', id=article_id, doc_type='abstract', body=update_json_obj)
+
 def get_abstract_conceptids(abstract_dict, filter_words_df):
 	result_dict = {}
 	
@@ -130,6 +176,12 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 			result_dict[k1] = sub_res_dict
 
 		return result_dict
+	else:
+		return None
+
+def get_abstract_title_conceptids(abstract_title, filter_words_df):
+	if abstract_title is not None:
+		return get_snomed_annotation(abstract_title, filter_words_df)
 	else:
 		return None
 
@@ -383,6 +435,60 @@ def annotate_line(line, filter_words_df):
 
 	return annotation
 
+def update_special_characters():
+	folder_path = 'resources/production_baseline_1'
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	cursor = pg.return_postgres_cursor()
+	
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+
+	for filename in os.listdir(folder_path):
+		file_timer = u.Timer('file')
+		file_path = folder_path + '/' + filename
+		tree = ET.parse(file_path)
+
+		root = tree.getroot()
+
+		file_abstract_counter = 0
+		for elem in root:
+			# Filtering only for NEJM articles
+			if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')):
+
+				article = {}
+				pmid = get_pmid(elem, {})['pmid']
+				article = get_article_info(elem, article)
+				get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+				article_id = es.search(index='pubmed', body=get_article_query)['hits']['hits'][0]['_id']
+
+				if "-" in article['article_title']:
+					title_update = {}
+					title_update['doc'] = {'title_conceptids' : get_snomed_annotation(article['article_title'], filter_words_df)}
+					title_json_str =json.dumps(title_update)
+					title_json_obj = json.loads(title_json_str)
+					es.update(index='pubmed', id=article_id, doc_type='abstract', body=title_json_obj)
+					print(article['article_title'])
+
+
+				abstract_dict = article['article_abstract']
+
+				if abstract_dict is not None:
+					for k1 in abstract_dict:
+						for k2 in abstract_dict[k1]:
+							if "-" in abstract_dict[k1][k2]:
+								sub_res_dict = {}
+								sub_res_dict[k2] = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
+								update_dict = {}
+								update_dict['doc'] = {'abstract_conceptids' : {k1 : sub_res_dict}}
+								update_json_str = json.dumps(update_dict)
+								update_json_obj = json.loads(update_json_str)
+								es.update(index='pubmed', id=article_id, doc_type='abstract', body=update_json_obj)
+								print(abstract_dict[k1][k2])
+
+
+				file_abstract_counter += 1
+		print(file_abstract_counter)
+		file_timer.stop()
 
 ######### MIGRATIONS
 
@@ -430,7 +536,6 @@ def add_article_types():
 				pmid = get_pmid(elem, {})['pmid']
 				json_str['doc'] = get_article_type(elem)
 
-				qa
 				article_id = es.search(index='pubmed', body=get_article_query)['hits']['hits'][0]['_id']
 
 				json_str =json.dumps(json_str)
@@ -447,6 +552,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_baseline()
+	update_abstracts_with_conceptids()
 	t.stop()
 

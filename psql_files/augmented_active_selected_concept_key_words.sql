@@ -4,27 +4,27 @@ drop table if exists augmented_active_selected_concept_key_words;
 create table augmented_active_selected_concept_key_words as (
 
 
-    select 
+   select 
         concept_table.*
         ,len_tb.term_length
     from (
         select 
-    		description_id
+            description_id
             ,conceptid
-        	,term
+            ,term
             ,lower(word) as word
             ,word_ord
-    	from (
-        	select 
-            	id as description_id
+        from (
+            select 
+                id as description_id
                 ,conceptid
                 ,term
                 ,word
                 ,word_ord
-        	from annotation.augmented_active_selected_concept_descriptions, unnest(string_to_array(term, ' '))
+            from annotation.augmented_active_selected_concept_descriptions, unnest(string_to_array(replace(replace(replace(term, ' - ', ' '), '-', ' '), ',', ''), ' '))
                 with ordinality as f(word, word_ord)
-        	) nm
-    	where lower(word) not in (select lower(words) from annotation.filter_words)
+            ) nm
+        where lower(word) not in (select lower(words) from annotation.filter_words)
     ) concept_table
     join (
         select
@@ -41,7 +41,7 @@ create table augmented_active_selected_concept_key_words as (
                     id as description_id
                     ,conceptid
                     ,term
-                    ,lower(unnest(string_to_array(term, ' '))) as word
+                    ,lower(unnest(string_to_array(replace(replace(replace(term, ' - ', ' '), '-', ' '), ',', ''), ' '))) as word
                 from annotation.augmented_active_selected_concept_descriptions
                 ) nm
             where lower(word) not in (select lower(words) from annotation.filter_words)

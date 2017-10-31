@@ -9,10 +9,11 @@ create table augmented_active_selected_concept_descriptions as (
 	    ,term
 	from (
 		select 
+			distinct on (conceptid, term)
 			id
 		  	,conceptid
 		    ,term
-		from annotation.active_selected_concept_descriptions
+		from annotation.active_cleaned_selected_concept_descriptions
 
 		union
 

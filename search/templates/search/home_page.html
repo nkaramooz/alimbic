@@ -1,8 +1,3 @@
-{% block content %}
-
-<h1> Search </h1>
-<form method="POST" action="search/" class="post-search">{% csrf_token %}
-	<input type="text" name="query">
-	<button type="submit" class="submit btn btn-default">Submit</button>
-</form>
-{% endblock %}
+<a href="{% url 'search:elastic_search_home_page' %}"> Elastic search home page </a>
+<br>
+<a href="{% url 'search:concept_search_home_page' %}"> Concept search home page </a>

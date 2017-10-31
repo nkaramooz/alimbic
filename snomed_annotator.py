@@ -5,12 +5,13 @@ import sys
 import psycopg2
 from sqlalchemy import create_engine
 from fuzzywuzzy import fuzz
-import pglib as pg
+from nltk.stem.wordnet import WordNetLemmatizer
 import numpy as np
 import time
 import multiprocessing as mp
 import copy
-import utils as u 
+import utils as u, pglib as pg
+
 
 
 def get_new_candidate_df(word, cursor):
@@ -18,9 +19,9 @@ def get_new_candidate_df(word, cursor):
 	#Knocks off a second off a sentence by selecting for word_ord=1
 
 	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words where \
+		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas where \
 		description_id in \
-		(select description_id from annotation.augmented_active_selected_concept_key_words where word = %s and word_ord=1)"
+		(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas where word = %s and word_ord=1)"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
@@ -41,6 +42,8 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 
 	for index,word in enumerate(ln_words):
 
+		lmtzr = WordNetLemmatizer()
+		word = lmtzr.lemmatize(word)
 
 		if (filter_df['words'] == word).any():
 			continue
@@ -220,8 +223,48 @@ def update_postgres_filter_words():
 	filter_words = pd.read_pickle('filter_words')
 	filter_words.to_sql('filter_words', engine, schema='annotation', if_exists='replace')
 
+def annotate_line(line, filter_words_df):
+	cursor = pg.return_postgres_cursor()
+	# line = line.encode('utf-8')
+	line = line.replace('.', '')
+	line = line.replace('!', '')
+	line = line.replace(',', '')
+	line = line.replace(';', '')
+	line = line.replace('*', '')
+	line = line.replace('[', ' ')
+	line = line.replace(']', ' ')
+	line = line.replace('-', ' ')
+	line = line.replace(':', ' ')
+	annotation = return_line_snomed_annotation(cursor, line, 90, filter_words_df)
 
+	return annotation
 
+def get_concept_synonyms_from_series(conceptid_series, cursor):
+
+	formatted_concepts_str = "("
+	for item in conceptid_series:
+		formatted_concepts_str += "'" + item + "', "
+	formatted_concepts_str = formatted_concepts_str.rstrip(", ")
+	formatted_concepts_str += ")"
+	
+	query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s" % formatted_concepts_str
+
+	synonym_df = pg.return_df_from_query(cursor, query, None, \
+	 ["reference_conceptid", "synonym_conceptid"])
+
+	results_list = []
+
+	for item in conceptid_series:
+		if len(synonym_df[synonym_df['reference_conceptid'] == item]) > 0:
+			sub_list = [item]
+			sub_df = synonym_df[synonym_df['reference_conceptid'] == item]
+			for ind,val in sub_df.iterrows():
+				sub_list.append(val['synonym_conceptid'])
+			results_list.append(sub_list)
+		else:
+			results_list.append(item)
+
+	return results_list
 
 if __name__ == "__main__":
 
@@ -238,17 +281,28 @@ if __name__ == "__main__":
 		Cough as night asthma congestion sputum
 	"""
 	query4 = """
-		Congestive heart failure: acute-cough
+		H2-receptor antagonists
+	"""
+
+	query5 = """
+		Heart Failure with Preserved Ejection Fraction.
+	"""
+
+	query6 = """
+		Treatment
 	"""
 	check_timer = u.Timer("full")
+
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	# filter_words_query = "select words from annotation.filter_words"
+	# filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = return_line_snomed_annotation(cursor, query4, 93, filter_words_df)
-	u.pprint(add_names(res))
-	# print("--- %s seconds ---" % (time.time() - start_time))
+	# res = annotate_line(query6, filter_words_df)
+	# u.pprint(add_names(res))
+
+	c = pd.Series(['108759002', '386844006'])
+	get_concept_synonyms_from_series(c, cursor)
 	check_timer.stop()

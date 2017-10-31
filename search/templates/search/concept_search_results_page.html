@@ -1,0 +1,41 @@
+{% load app_filters %}
+
+<h1> Concept search results </h1>
+<h1> Search </h1>
+<form action="{% url 'search:concept_search' %}" method="post"> 
+{% csrf_token %}
+	<input type="text" name="query">
+	<input type="submit" value="submit">
+</form>
+<br>
+<h3>Query: <i>{{query}}</i></h3>
+<h5> Annotation: </h5>
+{% for concept in concepts %}
+	<i> {{concept.conceptid}} : {{concept.term}} </i>
+{% endfor %}
+
+{% for hit in sr %}
+	
+	{% with abstract=hit|get:"_source"%}
+	<h2>{{abstract.article_title}} </h2>
+	<h4>{{abstract.article_abstract}}</h4>
+	<h4>{{abstract.article_type}}</h4>
+	<h5>{{abstract.journal_pub_year}}</h5>
+	<h5>Title conceptids </h5>
+	<ul>
+		{% for concept in abstract.title_conceptids %}
+			<li> {{concept.conceptid}} : {{concept.term}} </li>
+		{% endfor %}
+	</ul>
+	<h5> Abstract conceptids </h5>
+	<ul>
+		{% for concept in abstract.abstract_conceptids %}
+			<li> {{concept.conceptid}} : {{concept.term}} </li>
+		{% endfor %}
+	</ul>
+	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">PMID: {{abstract.pmid}}</a></h5>
+	{%  endwith %}
+	<h5>{{hit|get:"_score"}}</h5>
+	<br>
+
+{% endfor %}
