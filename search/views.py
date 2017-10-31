@@ -234,5 +234,4 @@ def check_concept_types_and_update_query(query_concept_list, unmatched_terms, cu
 			return query_concept_list.append(treatment_conceptids_list)
 	else:
 		return query_concept_list
-			# get conceptids for all things in the "treatment category"
-			# append that list to query_concept_list
+
