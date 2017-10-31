@@ -4,6 +4,7 @@ from django.urls import reverse
 import snomed_annotator as ann
 import pglib as pg
 from elasticsearch import Elasticsearch
+from nltk.stem.wordnet import WordNetLemmatizer
 import utils as u
 import pandas as pd
 # Create your views here.
@@ -206,8 +207,32 @@ def get_query_arr_dict(query_concept_list):
 		concept_dict = {'conceptid' : row['conceptid'], 'term' : row['term']}
 		dict_arr.append(concept_dict)
 	if len(dict_arr) == 0:
-		# print("AUIDHYKLJSDALKJSADLKJDHSALKJHDSKJLADKLJSAKJL")
 		return None
 	else:
 		return dict_arr
 
+def check_concept_types_and_update_query(query_concept_list, unmatched_terms, cursor):
+	concept_type_query_string = "select conceptid, \
+		case when any(transitive_closure) = '404684003' \
+		then 'symptom' \
+		when any(transitive_closure) = '123037004' then 'anatomy' \
+		when any(transitive_closure) = '363787002' then 'observable' \
+		when any(transitive_closure) = '410607006' then 'cause' \
+		when any(transitive_closure) = '373873005' then 'treatment' \
+		when any(transitive_closure) = '71388002' then 'treatment' \
+		when any(transitive_closure) = '105590001' then 'treatment' \
+		when any(transitive_closure) = '362981000' then 'qualifier' end as concept_type \
+		from annotation.transitive_closure"
+	query_concept_type_df = pg.return_df_from_query(cursor, None, None, ["conceptid", "concept_type"])
+	query_concept_list = query_concept_type_df['concept_type'].tolist()
+	if unmatched_terms != "" and 'treatment' not in query_concept_list:
+		if 'treatment' in unmatched_terms:
+			treatment_conceptids_query = "select distinct (supertypeId) as conceptid from snomed.curr_transitive_closure_f where \
+				subtypeId in ('373873005', '71388002', '105590001')"
+			treatment_conceptids_df = pg.return_df_from_query(cursor, None, None, ["conceptid"])
+			treatment_conceptids_list = treatment_conceptids_df["conceptid"].tolist()
+			return query_concept_list.append(treatment_conceptids_list)
+	else:
+		return query_concept_list
+			# get conceptids for all things in the "treatment category"
+			# append that list to query_concept_list
