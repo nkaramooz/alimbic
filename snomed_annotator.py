@@ -291,18 +291,25 @@ if __name__ == "__main__":
 	query6 = """
 		Treatment
 	"""
+
+	query7 = """
+		Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancer
+	"""
+
+	query8 = """
+		acute coronary heart disease
+	"""
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
-	# filter_words_query = "select words from annotation.filter_words"
-	# filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	# res = annotate_line(query6, filter_words_df)
-	# u.pprint(add_names(res))
+	res = annotate_line(query8, filter_words_df)
+	u.pprint(add_names(res))
 
-	c = pd.Series(['108759002', '386844006'])
-	get_concept_synonyms_from_series(c, cursor)
+
 	check_timer.stop()

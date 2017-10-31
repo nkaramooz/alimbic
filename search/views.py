@@ -51,21 +51,24 @@ def concept_search_results(request, query):
 	sr = {}
 	query_concepts_dict = None
 	if query_concepts_df is not None:
+		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
 		full_query_concepts_list = ann.get_concept_synonyms_from_series(query_concepts_df['conceptid'], cursor)
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 		es_query = {"from" : 0, \
 				 "size" : 20, \
-				 "query": get_query(full_query_concepts_list, cursor)}
+				 "query": get_query(full_query_concepts_list, unmatched_terms, cursor)}
+		print(es_query)
 		sr = es.search(index='pubmed', body=es_query)
-
+		print(sr['hits']['hits'])
 	else:
 		es_query = get_text_query(query)
 		sr = es.search(index='pubmed', body=es_query)
-
+		print("TEXT QUERY")
 	sr = sr['hits']['hits']
 
 	if len(sr) == 0:
+		print("TEXT QUERY")
 		es_query = get_text_query(query)
 		sr = es.search(index='pubmed', body=es_query)
 		sr = sr['hits']['hits']
@@ -79,6 +82,17 @@ def concept_search_results(request, query):
 
 
 ### Utility functions
+
+def get_unmatched_terms(query, query_concepts_df, filter_words_df):
+	unmatched_terms = ""
+	for index,word in enumerate(query.split()):
+		if (filter_words_df['words'] == word).any():
+			continue
+		elif len(query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]) > 0:
+			continue
+		else:
+			unmatched_terms += word + " "
+	return unmatched_terms
 
 def add_concept_names_to_sr(sr):
 	for hit in sr:
@@ -116,7 +130,8 @@ def get_article_type_filters():
 	filt = [ \
 			{"match": {"article_type" : "Letter"}}, \
 			{"match": {"article_type" : "Editorial"}}, \
-			{"match": {"article_type" : "Comment"}} \
+			{"match": {"article_type" : "Comment"}}, \
+			{"match": {"article_type" : "Biography"}}
 			]
 	return filt
 
@@ -127,15 +142,18 @@ def get_concept_string(conceptid_series):
 	
 	return result_string.strip()
 
-def get_query(full_conceptid_list, cursor):
+def get_query(full_conceptid_list, unmatched_terms, cursor):
 	es_query = {}
 	es_query["bool"] = { \
 						"must_not": get_article_type_filters(), \
 						"must": \
 							[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
-							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}]}
+							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}, \
+							 {"query_string": {"fields" : ["article_title^5", "article_abstract.*"], \
+							"query" : unmatched_terms}}]}
+							
 	return es_query
-#"(108759002 OR 386905002) AND 363443007"
+
 
 def get_concept_query_string(full_conceptid_list, cursor):
 	query_string = ""
