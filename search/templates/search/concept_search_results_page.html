@@ -36,6 +36,7 @@
 	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">PMID: {{abstract.pmid}}</a></h5>
 	{%  endwith %}
 	<h5>{{hit|get:"_score"}}</h5>
+	<h5>{{hit|get:"_id"}}</h5>
 	<br>
 
 {% endfor %}

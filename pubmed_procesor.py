@@ -14,13 +14,14 @@ import os
 def load_pubmed_baseline():
 	folder_path = 'resources/production_updates_10_21_17'
 	
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	cursor = pg.return_postgres_cursor()
 	
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	
+	cursor.close()
+	d = u.Timer("Full TIMER")
 	for filename in os.listdir(folder_path):
 		file_timer = u.Timer('file')
 		file_path = folder_path + '/' + filename
@@ -40,14 +41,20 @@ def load_pubmed_baseline():
 				json_str = get_journal_info(elem, json_str)
 				json_str = get_article_info(elem, json_str)
 				json_str['citations_pmid'] = get_article_citations(elem)
-				# json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-				# json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
+				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
 
-				json_str =json.dumps(json_str)
-				json_obj = json.loads(json_str)
+				# json_str =json.dumps(json_str)
+				# json_obj = json.loads(json_str)
 
-				es.index(index='pubmed', doc_type='abstract', body=json_obj)
+				# es.index(index='pubmed', doc_type='abstract', body=json_obj)
+				if file_abstract_counter >20:
+					d.stop()
+					sys.exit(0)
 				file_abstract_counter += 1
+		if file_abstract_counter >20:
+			d.stop()
+			sys.exit(0)
 		print(file_abstract_counter)
 		file_timer.stop()
 
@@ -60,7 +67,7 @@ def load_pubmed_updates():
 	
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-
+	cursor.close()
 	for filename in os.listdir(folder_path):
 		file_timer = u.Timer('file')
 		file_path = folder_path + '/' + filename
@@ -147,7 +154,7 @@ def abstract_conceptid_update_iterator(sr):
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-
+	cursor.close()
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 
 	for abstract in sr['hits']['hits']:
@@ -380,7 +387,8 @@ def get_snomed_annotation(text, filter_words_df):
 			return None
 
 def annotate_text(text, filter_words_df):
-	number_of_processes = 60
+	number_of_processes = 8
+
 	tokenized = nltk.sent_tokenize(text)
 	results = pd.DataFrame()
 	funclist = []
@@ -431,8 +439,8 @@ def annotate_line(line, filter_words_df):
 	line = line.replace(']', '')
 	line = line.replace('-', '')
 	line = line.replace(':', '')
-	annotation = snomed.return_line_snomed_annotation(cursor, line, 93, filter_words_df)
-
+	annotation = snomed.return_line_snomed_annotation_v1(cursor, line, 93, filter_words_df)
+	cursor.close()
 	return annotation
 
 def update_special_characters():
@@ -442,7 +450,7 @@ def update_special_characters():
 	
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-
+	cursor.close()
 	for filename in os.listdir(folder_path):
 		file_timer = u.Timer('file')
 		file_path = folder_path + '/' + filename
@@ -552,6 +560,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	update_abstracts_with_conceptids()
+	load_pubmed_baseline()
 	t.stop()
 

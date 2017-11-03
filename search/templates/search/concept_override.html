@@ -1,0 +1,11 @@
+<h1> Concept override </h1>
+<form action="{% url 'search:post_concept_override' %}" method="post"> 
+{% csrf_token %}
+	<h3> Conceptid: <input type="text" name="conceptid"> </h3> <br> 
+	<h3> Descriptionid: <input type="text" name="descriptionid"> </h3> <br>
+	<input type="radio" name="action_type" value="whitelist_description"> whitelist description <br>
+	<input type="radio" name="action_type" value="blacklist_descriptionid"> blacklist description id <br>
+	<input type="radio" name="action_type" value="delete_descriptionid"> delete description id </br>
+	<h3> Description text: <input type="text" name="description_text"> </h3>
+	<input type="submit" value="submit">
+</form>
