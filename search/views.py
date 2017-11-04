@@ -22,17 +22,17 @@ def concept_override(request):
 def post_concept_override(request):
 	cursor = pg.return_postgres_cursor()
 	conceptid = request.POST['conceptid']
-	descriptionid = request.POST['descriptionid']
+	description_id = request.POST['description_id']
+	description = request.POST['description_text']
 
-	
-	if request.POST['action_type'] == 'whitelist_description':
-		if u.is_valid_conceptid(conceptid, cursor):
-			u.whitelist_description_for_conceptid(conceptid, request.POST['description_text'], cursor)
-		else:
-			raise ValueError('Invalid conceptid')
-
-	elif request.POST['action_type'] == 'delete_descriptionid':
-			u.delete_descriptionid(description_id, cursor)
+	if request.POST['action_type'] == 'add_description':
+		u.add_description(conceptid, description, cursor)
+	elif request.POST['action_type'] == 'deactivate_description_id':
+		u.deactivate_description_id(description_id, cursor)
+	elif request.POST['action_type'] == 'activate_description_id':
+		u.activate_description_id(description_id, cursor)
+	elif request.POST['action_type'] == 'add_concept':
+		u.add_concept(description, cursor)
 
 	cursor.close()
 	return HttpResponseRedirect(reverse('search:concept_override'))
@@ -70,19 +70,19 @@ def concept_search_results(request, query):
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	query_concepts_df = ann.return_line_snomed_annotation_v1(cursor, query, 90, filter_words_df)
+	query_concepts_df = ann.return_line_snomed_annotation(cursor, query, 90, filter_words_df)
 
 	sr = {}
 	query_concepts_dict = None
 	if query_concepts_df is not None:
 		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
 		full_query_concepts_list = ann.get_concept_synonyms_from_series(query_concepts_df['conceptid'], cursor)
-		print(get_query(check_concept_types_and_update_query(full_query_concepts_list, unmatched_terms, cursor), '', cursor))
+		# print(get_query(check_concept_types_and_update_query(full_query_concepts_list, unmatched_terms, cursor), '', cursor))
 		
 
-		print(full_query_concepts_list)
+		# print(full_query_concepts_list)
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
-
+		print(query_concepts_dict)
 		es_query = {"from" : 0, \
 				 "size" : 20, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, cursor)}
@@ -95,11 +95,11 @@ def concept_search_results(request, query):
 		print("TEXT QUERY1")
 	sr = sr['hits']['hits']
 	
-	if len(sr) == 0:
-		print("TEXT QUERY2")
-		es_query = get_text_query(query)
-		sr = es.search(index='pubmed', body=es_query)
-		sr = sr['hits']['hits']
+	# if len(sr) == 0:
+	# 	print("TEXT QUERY2")
+	# 	es_query = get_text_query(query)
+	# 	sr = es.search(index='pubmed', body=es_query)
+	# 	sr = sr['hits']['hits']
 
 	# title_df = pd.DataFrame(sr['title_conceptids'], columns=['conceptid'])
 
@@ -270,12 +270,15 @@ def check_concept_types_and_update_query(og_query_concept_list, unmatched_terms,
 			from snomed.curr_transitive_closure_f \
 			where supertypeid in %s ) tb \
 		where concept_type is not null"
-
+	print(og_query_concept_list)
+	print("ADSLHKJGDASHJGDSAKHAJKSHD")
+	og_query_concept_list = [item for sublist in og_query_concept_list for item in sublist]
+	### FIX ABOVE
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (tuple(og_query_concept_list),), ["conceptid", "concept_type"])
 	query_concept_type_list = query_concept_type_df['concept_type'].tolist()
 	if unmatched_terms != "" and 'treatment' not in query_concept_type_list:
 		if 'treatment' in unmatched_terms:
-			print("treu")
+
 			treatment_conceptids_query = "select distinct (supertypeId) as conceptid from snomed.curr_transitive_closure_f where \
 				subtypeId in ('373873005', '71388002', '105590001')"
 			treatment_conceptids_df = pg.return_df_from_query(cursor, treatment_conceptids_query, None, ["conceptid"])

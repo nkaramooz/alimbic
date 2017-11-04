@@ -16,7 +16,8 @@ from elasticsearch import Elasticsearch
 import os
 
 def load_pubmed_baseline():
-	folder_arr = ['resources/production_baseline_1', 'resources/production_baseline_1', 'resources/production_updates_10_21_17']
+	# 'resources/production_baseline_1', 'resources/production_baseline_1', 
+	folder_arr = ['resources/production_updates_10_21_17']
 	
 	for folder_path in folder_arr:
 
@@ -33,21 +34,14 @@ def load_pubmed_baseline():
 
 
 				json_str = {}
-				json_str = get_article_ids(elem, json_str)
+				# json_str = get_article_ids(elem, json_str)
+				json_str = get_journal_info(elem, json_str)
 				# json_str = get_pmid(elem, json_str)
-				try:
-					if json_str['article_ids']['pmid'] == '21864184':
-						print(file_path)
-						json_str = get_article_ids(elem, json_str)
-						json_str = get_journal_info(elem, json_str)
-						json_str = get_article_info(elem, json_str)
-						json_str['citations_pmid'] = get_article_citations(elem)
-						json_str =json.dumps(json_str)
-						json_obj = json.loads(json_str)
-						print(json_str)
-						print(json_obj)
-				except:
-					print(elem.findall("."))
+				
+				if json_str['journal_pub_year'] is not None:
+					print(json_str['journal_pub_year'])
+					if (int(json_str['journal_pub_year']) > 1990):
+						print("TRUE")
 
 def get_pmid(elem, json_str):
 	pmid = elem.findall('*/PMID')

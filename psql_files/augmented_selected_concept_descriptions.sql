@@ -28,12 +28,12 @@ create table augmented_selected_concept_descriptions as (
 		union
 
 		select 
-			public.uuid_generate_v4()::text as id
+			description_id as id
 		    ,conceptid
 		    ,term
 		from annotation.description_whitelist
 		) tb
-	where id not in (select id from annotation.description_id_blacklist)
+	where id not in (select id from annotation.description_blacklist)
 );
 
 create index ascd_conceptid_ind on augmented_selected_concept_descriptions(conceptid);

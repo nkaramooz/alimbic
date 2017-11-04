@@ -24,20 +24,20 @@ def lemmatize_description_id(description_id, cursor):
 
 if __name__ == '__main__':
 
-	# query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
+	query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
 	cursor = pg.return_postgres_cursor()
 
-	# new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-	# 	['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
+	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
 
 
 
-	# new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
+	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
 
-	# engine = pg.return_sql_alchemy_engine()
+	engine = pg.return_sql_alchemy_engine()
 
-	# new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
-	# 	engine, schema='annotation', if_exists='replace', index=False)
+	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
+		engine, schema='annotation', if_exists='replace', index=False)
 
 	index_query = """
 		set schema 'annotation';
@@ -50,3 +50,4 @@ if __name__ == '__main__':
 
 	cursor.execute(index_query, None)
 	cursor.connection.commit()
+	cursor.close()

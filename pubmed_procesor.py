@@ -11,56 +11,8 @@ import multiprocessing as mp
 import utils as u, pglib as pg
 import os
 
-def load_pubmed_baseline():
-	folder_path = 'resources/production_updates_10_21_17'
-	
-	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-	
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
-	d = u.Timer("Full TIMER")
-	for filename in os.listdir(folder_path):
-		file_timer = u.Timer('file')
-		file_path = folder_path + '/' + filename
-
-		tree = ET.parse(file_path)
-
-		root = tree.getroot()
-
-		file_abstract_counter = 0
-		for elem in root:
-			# Filtering only for NEJM articles
-			if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')):
-
-				json_str = {}
-				json_str = get_pmid(elem, json_str)
-				json_str = get_article_ids(elem, json_str)
-				json_str = get_journal_info(elem, json_str)
-				json_str = get_article_info(elem, json_str)
-				json_str['citations_pmid'] = get_article_citations(elem)
-				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-
-				# json_str =json.dumps(json_str)
-				# json_obj = json.loads(json_str)
-
-				# es.index(index='pubmed', doc_type='abstract', body=json_obj)
-				if file_abstract_counter >20:
-					d.stop()
-					sys.exit(0)
-				file_abstract_counter += 1
-		if file_abstract_counter >20:
-			d.stop()
-			sys.exit(0)
-		print(file_abstract_counter)
-		file_timer.stop()
 
 def load_pubmed_updates():
-	folder_path = 'resources/production_baseline_1'
-
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	cursor = pg.return_postgres_cursor()
@@ -68,62 +20,80 @@ def load_pubmed_updates():
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
-	for filename in os.listdir(folder_path):
-		file_timer = u.Timer('file')
-		file_path = folder_path + '/' + filename
 
-		tree = ET.parse(file_path)
+	folder_arr = ['resources/production_baseline_1', 'resources/production_baseline_2', 'resources/production_updates_10_21_17']
+	index_name = 'pubmed2'
+	index_exists = es.indices.exists(index=index_name)
+	for folder_path in folder_arr:
 
-		root = tree.getroot()
+		for filename in os.listdir(folder_path):
+			file_timer = u.Timer('file')
+			file_path = folder_path + '/' + filename
 
-		file_abstract_counter = 0
-		for elem in root:
-			if elem.tag == 'PubmedArticle':
-				# Filtering only for NEJM articles
-				if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')):
+			tree = ET.parse(file_path)
 
-					json_str = {}
-					json_str = get_pmid(elem, json_str)
-					json_str = get_article_ids(elem, json_str)
-					json_str = get_journal_info(elem, json_str)
-					json_str = get_article_info(elem, json_str)
-					json_str['citations_pmid'] = get_article_citations(elem)
-					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-					pmid = json_str['pmid']
-					json_str =json.dumps(json_str)
-					json_obj = json.loads(json_str)
+			root = tree.getroot()
 
-					query_result = es.search(index='pubmed', body=get_article_query)
+			file_abstract_counter = 0
+			for elem in root:
+				if elem.tag == 'PubmedArticle':
 
-					if query_result['hits']['total'] == 0:
-						es.index(index='pubmed', doc_type='abstract', body=json_obj)
+					# Filtering only for NEJM articles
+					if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
+						or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
+						or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
+						or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
 
-					elif query_result['hits']['total'] == 1:
-						article_id = query_result['hits']['hits'][0]['_id']
-						es.index(index='pubmed', id=article_id, doc_type='abstract', body=json_obj)
-					else:
-						print("###more than one result found###")
-					file_abstract_counter += 1
-			elif elem.tag == 'DeleteCitation':
+						json_str = {}
+						json_str = get_journal_info(elem, json_str)
+						
+						if json_str['journal_pub_year'] is not None:
+							if (int(json_str['journal_pub_year']) > 1990):
+								json_str = get_pmid(elem, json_str)
+								json_str = get_article_ids(elem, json_str)
+								
+								json_str = get_article_info(elem, json_str)
+								json_str['citations_pmid'] = get_article_citations(elem)
+								json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
+								json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+								
+								pmid = json_str['pmid']
+								json_str =json.dumps(json_str)
+								json_obj = json.loads(json_str)
 
-				delete_pmid_arr = get_deleted_pmid(elem)
+								if index_exists:
+									get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+									query_result = es.search(index=index_name, body=get_article_query)
 
-				for pmid in delete_pmid_arr:
-					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-					query_result = es.search(index='pubmed', body=get_article_query)
+									if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
+										es.index(index=index_name, doc_type='abstract', body=json_obj)
+									
+									elif query_result['hits']['total'] == 1:
+										article_id = query_result['hits']['hits'][0]['_id']
+										es.index(index=index_name, id=article_id, doc_type='abstract', body=json_obj)
+									file_abstract_counter += 1
+								else:
+									es.index(index=index_name, doc_type='abstract', body=json_obj)
+									index_exists = True
+				elif elem.tag == 'DeleteCitation':
 
-					if query_result['hits']['total'] == 0:
-						continue
-					elif query_result['hits']['total'] == 1:
-						article_id = query_result['hits']['hits'][0]['_id']
-						# es.delete(index='pubmed', doc_type='abstract', id=article_id)
-					else:
-						print("delete: more than one document found")
-						print(pmid)
-			
-		print(file_abstract_counter)
-		file_timer.stop()
+					delete_pmid_arr = get_deleted_pmid(elem)
+
+					for pmid in delete_pmid_arr:
+						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+						query_result = es.search(index=index_name, body=get_article_query)
+
+						if query_result['hits']['total'] == 0:
+							continue
+						elif query_result['hits']['total'] == 1:
+							article_id = query_result['hits']['hits'][0]['_id']
+							# es.delete(index='pubmed', doc_type='abstract', id=article_id)
+						else:
+							print("delete: more than one document found")
+							print(pmid)
+				
+			print(file_abstract_counter)
+			file_timer.stop()
 
 def update_abstracts_with_conceptids():
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
@@ -439,7 +409,9 @@ def annotate_line(line, filter_words_df):
 	line = line.replace(']', '')
 	line = line.replace('-', '')
 	line = line.replace(':', '')
-	annotation = snomed.return_line_snomed_annotation_v1(cursor, line, 93, filter_words_df)
+	line = line.replace('\'', '')
+	line = line.replace('"', '')
+	annotation = snomed.return_line_snomed_annotation(cursor, line, 93, filter_words_df)
 	cursor.close()
 	return annotation
 
@@ -560,6 +532,6 @@ def add_article_types():
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_baseline()
+	load_pubmed_updates()
 	t.stop()
 

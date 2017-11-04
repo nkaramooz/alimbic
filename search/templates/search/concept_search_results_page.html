@@ -1,3 +1,4 @@
+
 {% load app_filters %}
 
 <h1> Concept search results </h1>
@@ -21,22 +22,10 @@
 	<h4>{{abstract.article_abstract}}</h4>
 	<h4>{{abstract.article_type}}</h4>
 	<h5>{{abstract.journal_pub_year}}</h5>
-	<h5>Title conceptids </h5>
-	<ul>
-		{% for concept in abstract.title_conceptids %}
-			<li> {{concept.conceptid}} : {{concept.term}} </li>
-		{% endfor %}
-	</ul>
-	<h5> Abstract conceptids </h5>
-	<ul>
-		{% for concept in abstract.abstract_conceptids %}
-			<li> {{concept.conceptid}} : {{concept.term}} </li>
-		{% endfor %}
-	</ul>
 	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">PMID: {{abstract.pmid}}</a></h5>
 	{%  endwith %}
 	<h5>{{hit|get:"_score"}}</h5>
-	<h5>{{hit|get:"_id"}}</h5>
+	<h5><a href="http://localhost:9200/pubmed/abstract/{{hit|get:"_id"}}?pretty"> source </a> </h5>
 	<br>
 
 {% endfor %}
