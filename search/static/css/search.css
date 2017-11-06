@@ -1,0 +1,26 @@
+.title_header {
+	text-align: center;
+}
+.body {
+	padding-left: 25%;
+	padding-right: 25%;
+	padding-top: 25px;
+}
+.query-display {
+	padding-bottom: 15px;
+}
+
+.search-field {
+	width: 600px !important;
+
+}
+
+.search-bar {
+	text-align: center;
+	padding-bottom: 30px;
+}
+
+.body.abstract {
+	border: 5px solid black !important;
+	background: blue !important;
+}

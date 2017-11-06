@@ -1,31 +1,63 @@
 
 {% load app_filters %}
+{% load staticfiles %}
 
-<h1> Concept search results </h1>
+<head>
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+	<link rel="stylesheet" href="{% static 'css/search.css' %}">
+</head>
+
+
+<div class="title_header">
 <h1> Search </h1>
-<form action="{% url 'search:concept_search' %}" method="post"> 
+</div>
+
+
+
+<div class="search-bar">
+<form action="{% url 'search:concept_search' %}" method="post" class="form-inline"> 
 {% csrf_token %}
-	<input type="text" name="query">
-	<input type="submit" value="submit">
+		
+		<label class="sr-only">search field</label>
+		<input type="text" name="query" class="search-field form-control">
+		<input type="submit" value="search" class="btn btn-primary">
+
 </form>
-<br>
+</div>
+
+<div class="body">
+
+<div class="query-display">
 <h3>Query: <i>{{query}}</i></h3>
-<h5> Annotation: </h5>
+<h5>
 {% for concept in concepts %}
 	<i> {{concept.conceptid}} : {{concept.term}} </i>
-{% endfor %}
+{% endfor %} 
+</h5>
+</div>
+
 
 {% for hit in sr %}
-	
+	<div class="abstract">
 	{% with abstract=hit|get:"_source"%}
 	<h2>{{abstract.article_title}} </h2>
-	<h4>{{abstract.article_abstract}}</h4>
+	{% if abstract.article_abstract is not None %}
+		{% for key1,value1 in abstract.article_abstract.items %}
+			{% for key2,value2 in value1.items %}
+				<h4><b>{{key2}}</b></h4>
+				<h4> {{value2}} </h4>
+				<br>
+			{% endfor %}
+		{% endfor %}
+	{% endif %}	
 	<h4>{{abstract.article_type}}</h4>
-	<h5>{{abstract.journal_pub_year}}</h5>
-	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">PMID: {{abstract.pmid}}</a></h5>
+	<h5>publication year: {{abstract.journal_pub_year}}</h5>
+	<h5>score: {{hit|get:"_score"}}</h5>
+	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">Pubmed</a></h5>
 	{%  endwith %}
-	<h5>{{hit|get:"_score"}}</h5>
 	<h5><a href="http://localhost:9200/pubmed/abstract/{{hit|get:"_id"}}?pretty"> source </a> </h5>
 	<br>
-
+	</div>
 {% endfor %}
+</div>

@@ -22,7 +22,7 @@ def load_pubmed_updates():
 	cursor.close()
 
 	folder_arr = ['resources/production_baseline_1', 'resources/production_baseline_2', 'resources/production_updates_10_21_17']
-	index_name = 'pubmed2'
+	index_name = 'pubmed3'
 	index_exists = es.indices.exists(index=index_name)
 	for folder_path in folder_arr:
 
@@ -87,7 +87,7 @@ def load_pubmed_updates():
 							continue
 						elif query_result['hits']['total'] == 1:
 							article_id = query_result['hits']['hits'][0]['_id']
-							# es.delete(index='pubmed', doc_type='abstract', id=article_id)
+							es.delete(index=index_name, doc_type='abstract', id=article_id)
 						else:
 							print("delete: more than one document found")
 							print(pmid)
