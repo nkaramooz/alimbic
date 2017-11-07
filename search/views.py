@@ -9,10 +9,33 @@ import utils as u
 import pandas as pd
 # Create your views here.
 
-
+INDEX_NAME='pubmed3'
 
 def home_page(request):
 	return render(request, 'search/home_page.html')
+
+### CONCEPT OVERRIDE
+def concept_override(request):
+
+	return render(request, 'search/concept_override.html')
+
+def post_concept_override(request):
+	cursor = pg.return_postgres_cursor()
+	conceptid = request.POST['conceptid']
+	description_id = request.POST['description_id']
+	description = request.POST['description_text']
+
+	if request.POST['action_type'] == 'add_description':
+		u.add_description(conceptid, description, cursor)
+	elif request.POST['action_type'] == 'deactivate_description_id':
+		u.deactivate_description_id(description_id, cursor)
+	elif request.POST['action_type'] == 'activate_description_id':
+		u.activate_description_id(description_id, cursor)
+	elif request.POST['action_type'] == 'add_concept':
+		u.add_concept(description, cursor)
+
+	cursor.close()
+	return HttpResponseRedirect(reverse('search:concept_override'))
 
 ### ELASTIC SEARCH
 
@@ -29,7 +52,7 @@ def elastic_search_results(request, query):
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 
 	es_query = get_text_query(query)
-	sr = es.search(index='pubmed', body=es_query)['hits']['hits']
+	sr = es.search(index=INDEX_NAME, body=es_query)['hits']['hits']
 	return render(request, 'search/elastic_search_results_page.html', {'sr' : sr, 'query' : query})
 
 
@@ -54,28 +77,34 @@ def concept_search_results(request, query):
 	if query_concepts_df is not None:
 		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
 		full_query_concepts_list = ann.get_concept_synonyms_from_series(query_concepts_df['conceptid'], cursor)
+
+		get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
+
+
+		# print(full_query_concepts_list)
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 		es_query = {"from" : 0, \
 				 "size" : 20, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, cursor)}
-		print(es_query)
-		sr = es.search(index='pubmed', body=es_query)
-		print(sr['hits']['hits'])
+
+		sr = es.search(index=INDEX_NAME, body=es_query)
+
 	else:
 		es_query = get_text_query(query)
-		sr = es.search(index='pubmed', body=es_query)
-		print("TEXT QUERY")
+		sr = es.search(index=INDEX_NAME, body=es_query)
+		print("TEXT QUERY1")
 	sr = sr['hits']['hits']
-
-	if len(sr) == 0:
-		print("TEXT QUERY")
-		es_query = get_text_query(query)
-		sr = es.search(index='pubmed', body=es_query)
-		sr = sr['hits']['hits']
+	
+	# if len(sr) == 0:
+	# 	print("TEXT QUERY2")
+	# 	es_query = get_text_query(query)
+	# 	sr = es.search(index='pubmed', body=es_query)
+	# 	sr = sr['hits']['hits']
 
 	# title_df = pd.DataFrame(sr['title_conceptids'], columns=['conceptid'])
-	sr = add_concept_names_to_sr(sr)
+
+	# sr = get_concept_names_dict_for_sr(sr)
 
 	return render(request, 'search/concept_search_results_page.html', {'sr' : sr, 'query' : query, 'concepts' : query_concepts_dict})
 
@@ -95,21 +124,26 @@ def get_unmatched_terms(query, query_concepts_df, filter_words_df):
 			unmatched_terms += word + " "
 	return unmatched_terms
 
-def add_concept_names_to_sr(sr):
+def get_concept_names_dict_for_sr(sr):
+
+	concept_df = pd.DataFrame()
+	c = u.Timer('start iteration')
 	for hit in sr:
 		try:
-			title_df = pd.DataFrame(hit['_source']['title_conceptids'], columns=['conceptid'])
-			title_df = ann.add_names(title_df)
-			hit['_source']['title_conceptids'] = get_abstract_concept_arr_dict(title_df)
+			if hit['_source']['title_conceptids'] is not None:
+				concept_df = concept_df.append(pd.DataFrame(hit['_source']['title_conceptids'], columns=['conceptid']))
 		except:
-			hit['_source']['title_conceptids'] = None
-
-		try:
-			hit['_source']['abstract_conceptids'] = get_flattened_abstract_concepts(hit)
-		except:
-			hit['_source']['title_conceptids'] = None
+			pass
+			# hit['_source']['title_conceptids'] = get_abstract_concept_arr_dict(title_df)
 	
+
+		abstract_concepts = get_flattened_abstract_concepts(hit)
+		if abstract_concepts is not None:
+			concept_df = concept_df.append(pd.DataFrame([[abstract_concepts]], columns=['conceptid']))
+
+	c.stop()
 	return sr
+	# return concept_df
 
 def get_flattened_abstract_concepts(hit):
 	abstract_concept_arr = []
@@ -145,16 +179,23 @@ def get_concept_string(conceptid_series):
 
 def get_query(full_conceptid_list, unmatched_terms, cursor):
 	es_query = {}
-	es_query["bool"] = { \
+
+	if unmatched_terms is None:
+		es_query["bool"] = { \
+							"must_not": get_article_type_filters(), \
+							"must": \
+								[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
+								 "query" : get_concept_query_string(full_conceptid_list, cursor)}}]}
+	else:
+		es_query["bool"] = { \
 						"must_not": get_article_type_filters(), \
 						"must": \
 							[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
-							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}, \
-							 {"query_string": {"fields" : ["article_title^5", "article_abstract.*"], \
+							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}],
+						"should": \
+							[{"query_string": {"fields" : ["article_title^5", "article_abstract.*"], \
 							"query" : unmatched_terms}}]}
-							
 	return es_query
-
 
 def get_concept_query_string(full_conceptid_list, cursor):
 	query_string = ""
@@ -200,6 +241,7 @@ def get_query_arr_dict(query_concept_list):
 				flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[concept]], columns=['conceptid']))
 		else:
 			flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[item]], columns=['conceptid']))
+
 	flattened_concept_df = ann.add_names(flattened_concept_df)
 
 	dict_arr = []
@@ -211,27 +253,73 @@ def get_query_arr_dict(query_concept_list):
 	else:
 		return dict_arr
 
-def check_concept_types_and_update_query(query_concept_list, unmatched_terms, cursor):
-	concept_type_query_string = "select conceptid, \
-		case when any(transitive_closure) = '404684003' \
-		then 'symptom' \
-		when any(transitive_closure) = '123037004' then 'anatomy' \
-		when any(transitive_closure) = '363787002' then 'observable' \
-		when any(transitive_closure) = '410607006' then 'cause' \
-		when any(transitive_closure) = '373873005' then 'treatment' \
-		when any(transitive_closure) = '71388002' then 'treatment' \
-		when any(transitive_closure) = '105590001' then 'treatment' \
-		when any(transitive_closure) = '362981000' then 'qualifier' end as concept_type \
-		from annotation.transitive_closure"
-	query_concept_type_df = pg.return_df_from_query(cursor, None, None, ["conceptid", "concept_type"])
-	query_concept_list = query_concept_type_df['concept_type'].tolist()
-	if unmatched_terms != "" and 'treatment' not in query_concept_list:
-		if 'treatment' in unmatched_terms:
-			treatment_conceptids_query = "select distinct (supertypeId) as conceptid from snomed.curr_transitive_closure_f where \
-				subtypeId in ('373873005', '71388002', '105590001')"
-			treatment_conceptids_df = pg.return_df_from_query(cursor, None, None, ["conceptid"])
-			treatment_conceptids_list = treatment_conceptids_df["conceptid"].tolist()
-			return query_concept_list.append(treatment_conceptids_list)
-	else:
-		return query_concept_list
+def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
+	concept_type_query_string = "select * \
+		from ( \
+			select supertypeid, \
+			case when subtypeid = '404684003' then 'symptom' \
+				when subtypeid = '123037004' then 'anatomy' \
+				when subtypeid = '363787002' then 'observable' \
+				when subtypeid = '410607006' then 'cause' \
+				when subtypeid = '373873005' then 'treatment' \
+				when subtypeid = '71388002' then 'treatment' \
+				when subtypeid = '105590001' then 'treatment' \
+				when subtypeid = '362981000' then 'qualifier' \
+    			when subtypeid = '64572001' then 'condition' end as concept_type \
+			from snomed.curr_transitive_closure_f \
+			where supertypeid in %s ) tb \
+		where concept_type is not null"
 
+	flattened_query_concept_list = [item for sublist in og_query_concept_list for item in sublist]
+	### FIX ABOVE
+	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (tuple(flattened_query_concept_list),), ["conceptid", "concept_type"])
+	query_concept_type_list = query_concept_type_df['concept_type'].tolist()
+	if unmatched_terms != "" and 'treatment' not in query_concept_type_list:
+		if 'treatment' in unmatched_terms:
+			## Do a search of the conceptids 
+			## of the top X search results, pool all the conceptids into one list
+			## pull only the ones that map to treatments
+			## return the list of treatment conceptids
+			es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+
+			es_query = {"from" : 0, \
+				 "size" : 40, \
+				 "query": \
+			 		{"bool": { \
+						"must": \
+							[{"query_string": {"fields" : ["title_conceptids"], \
+							 "query" : get_concept_query_string(og_query_concept_list, cursor)}}], \
+						"must_not": get_article_type_filters()}}}
+
+
+			sr = es.search(index=INDEX_NAME, body=es_query)
+			sr_conceptids = get_conceptids_from_sr(sr)
+			dist_sr_conceptids = list(set(sr_conceptids))
+			sr_concept_type_query = """
+				select 
+					supertypeid as conceptid
+				from snomed.curr_transitive_closure_f
+				where subtypeid in ('71388002', '105590001', '373873005')
+				and supertypeid in %s
+			"""
+			tx_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid"])
+			sr_conceptid_df = pd.DataFrame(sr_conceptids, columns=["conceptid"])
+			sr_conceptid_df['count'] = 1
+			sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
+			sr_conceptid_df.columns = ['conceptid', 'count']
+			sr_conceptid_df = ann.add_names(sr_conceptid_df)
+			sr_conceptid_df = sr_conceptid_df[sr_conceptid_df['conceptid'].isin(tx_df['conceptid'].tolist())]
+			u.pprint(sr_conceptid_df)
+			
+
+def get_conceptids_from_sr(sr):
+	conceptid_list = []
+	for hit in sr['hits']['hits']:
+		if hit['_source']['title_conceptids'] is not None:
+			conceptid_list.extend(hit['_source']['title_conceptids'])
+		if hit['_source']['abstract_conceptids'] is not None:
+			for key1 in hit['_source']['abstract_conceptids']:
+				for key2 in hit['_source']['abstract_conceptids'][key1]:
+					conceptid_list.extend(hit['_source']['abstract_conceptids'][key1][key2])
+
+	return conceptid_list
