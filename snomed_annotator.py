@@ -348,16 +348,17 @@ def resolve_conflicts(results_df):
 		last_term_start_index = None
 		u.pprint(final_results)
 		for index,row in join_weights.iterrows():
-			# print(row['term_start_index'])
-			# print(row['term'])
 			if last_term_start_index != row['term_start_index']:
-				# print("ASDHKLASDLKJASKJLDHKAJSLHKJDASHJKL")
-				# u.pprint(row['term'])
-				u.pprint(row)
 				final_results = final_results.append(row)
 				last_term_start_index = row['term_start_index']
-		# u.pprint(final_results[['conceptid', 'term', 'final_score']])
-		return final_results
+	else: #choosing randomly :(
+		conflicted_df = conflicted_df.sort_values(['term_start_index', 'final_score'], ascending=False)
+
+		for index,row in join_weights.iterrows():
+			if last_term_start_index != row['term_start_index']:
+				final_results = final_results.append(row)
+				last_term_start_index = row['term_start_index']
+	return final_results
 
 
 def add_names(results_df):
