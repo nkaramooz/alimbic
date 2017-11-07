@@ -19,16 +19,16 @@ def get_new_candidate_df(word, cursor):
 	#Knocks off a second off a sentence by selecting for word_ord=1
 
 	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas where \
+		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
 		description_id in \
-		(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas where word = %s and word_ord=1)"
+		(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
+			(word_ord = 1 or word_ord = 2))"
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
 	return new_candidate_df
 
-
-def return_line_snomed_annotation(cursor, line, threshold, filter_df):
+def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
@@ -40,9 +40,10 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 	candidate_df_arr = []
 	results_df = pd.DataFrame()
 
+	lmtzr = WordNetLemmatizer()
+
 	for index,word in enumerate(ln_words):
 
-		lmtzr = WordNetLemmatizer()
 		word = lmtzr.lemmatize(word)
 
 		if (filter_df['words'] == word).any():
@@ -52,6 +53,7 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
 
 			new_candidate_df = get_new_candidate_df(word, cursor)
+
 			if len(new_candidate_df) > 0:
 				new_candidate_df['substring_start_index'] = index
 				new_candidate_df['description_start_index'] = index
@@ -65,9 +67,85 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
+
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
+
+
+		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
+		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
+
+		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
+		sum_scores = sum_scores[sum_scores['sum_score'] >= (threshold/100.0)]
+
+		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
+		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
+
+		joined_results = distinct_results.merge(sum_scores, on=['conceptid', 'description_id', 'description_start_index'])
+
+		joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id', 'description_start_index'])
+
+		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
+		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
+		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
+
+
 		
+		final_results = prune_results_v2(joined_results, joined_results)
+		u.pprint(final_results['final_score'])
+		if len(final_results) > 0:
+			final_results = add_names(final_results)
+			final_results['line'] = line
+			final_results = resolve_conflicts(final_results)
+			return final_results
+
+	return None
+
+def return_line_snomed_annotation(cursor, line, threshold, filter_df):
+
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
+	annotation_header = ['query', 'substring', 'substring_start_index', \
+		'substring_end_index', 'conceptid']
+
+	line = line.lower()
+	ln_words = line.split()
+
+	candidate_df_arr = []
+	results_df = pd.DataFrame()
+
+	lmtzr = WordNetLemmatizer()
+
+	for index,word in enumerate(ln_words):
+
+		word = lmtzr.lemmatize(word)
+
+		if (filter_df['words'] == word).any():
+			continue
+		else:
+
+			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
+
+			new_candidate_df = get_new_candidate_df(word, cursor)
+
+			if len(new_candidate_df) > 0:
+				new_candidate_df['substring_start_index'] = index
+				new_candidate_df['description_start_index'] = index
+				candidate_df_arr.append(new_candidate_df)
+
+			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+			results_df = results_df.append(new_results_df)
+
+	if len(results_df) > 0:
+		order_score = results_df
+
+		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
+			results_df['description_start_index'] + 1)).abs()
+
+		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'order_score']].groupby(\
+			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
+
 
 		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
@@ -94,6 +172,7 @@ def return_line_snomed_annotation(cursor, line, threshold, filter_df):
 
 		if len(final_results) > 0:
 			final_results = add_names(final_results)
+			final_results['line'] = line
 			return final_results
 
 	return None
@@ -194,6 +273,94 @@ def prune_results(scores_df):
 	else:
 		return prune_results(results_df)
 
+def prune_results_v2(scores_df, og_results):
+
+	exclude_index_arr = []
+	scores_df = scores_df.sort_values(['term_start_index'], ascending=True)
+
+	results_df = pd.DataFrame()
+	results_index = []
+	changes_made = False
+	for index, row in scores_df.iterrows():
+
+		if index not in exclude_index_arr:
+
+			exclude = scores_df.index.isin(exclude_index_arr)
+			subset_df = scores_df[~exclude].sort_values(['final_score', 'term_length'])
+
+			subset_df = subset_df[
+  				((subset_df['term_start_index'] <= row['term_start_index']) 
+  					& (subset_df['term_end_index'] >= row['term_start_index'])) 
+  				| ((subset_df['term_start_index'] <= row['term_end_index']) 
+  					& (subset_df['term_end_index'] >= row['term_end_index']))
+  				| ((subset_df['term_start_index'] >= row['term_start_index'])
+  					& ((subset_df['term_end_index'] <= row['term_end_index'])))]
+
+			subset_df = subset_df.sort_values(['final_score', 'term_length'], ascending=False)
+
+			result = subset_df.iloc[0].copy()
+			if len(subset_df) > 1:
+				changes_made = True
+				
+				new_exclude = subset_df
+
+				exclude_index_arr.append(index)
+				exclude_index_arr.extend(new_exclude.index.values)
+
+			results_df = results_df.append(result)
+
+	if not changes_made:
+		final_results = pd.DataFrame()
+		for index,row in results_df.iterrows():
+
+			expanded_res = og_results[ \
+				(og_results['term_start_index'] == row['term_start_index']) \
+				& (og_results['term_end_index'] == row['term_end_index'])]
+			
+			final_results = final_results.append(expanded_res)
+		return final_results
+	else:
+		return prune_results_v2(results_df, og_results)
+
+def resolve_conflicts(results_df):
+	results_df['index_count'] = 1
+	counts_df = results_df.groupby(['term_start_index'], as_index=False)['index_count'].sum()
+
+	conflicted_indices = counts_df[counts_df['index_count'] > 1]['term_start_index']
+
+	conflict_free_df = results_df[~results_df['term_start_index'].isin(conflicted_indices)].copy()
+
+	conflicted_df = results_df[results_df['term_start_index'].isin(conflicted_indices)].copy()
+	final_results = conflict_free_df.copy()
+
+	if len(conflict_free_df) > 0:
+		
+		conflict_free_df['concept_count'] = 1
+
+
+		concept_weights = conflict_free_df.groupby(['conceptid'], as_index=False)['concept_count'].sum()
+
+		join_weights = conflicted_df.merge(concept_weights, on=['conceptid'],how='left')
+		join_weights['concept_count'].fillna(0, inplace=True)
+		join_weights['final_score'] = join_weights['final_score'] + join_weights['concept_count']
+		join_weights = join_weights.sort_values(['term_start_index', 'final_score'], ascending=False)
+		# u.pprint(join_weights[['conceptid', 'final_score', 'term']])
+		last_term_start_index = None
+		u.pprint(final_results)
+		for index,row in join_weights.iterrows():
+			if last_term_start_index != row['term_start_index']:
+				final_results = final_results.append(row)
+				last_term_start_index = row['term_start_index']
+	else: #choosing randomly :(
+		conflicted_df = conflicted_df.sort_values(['term_start_index', 'final_score'], ascending=False)
+
+		for index,row in join_weights.iterrows():
+			if last_term_start_index != row['term_start_index']:
+				final_results = final_results.append(row)
+				last_term_start_index = row['term_start_index']
+	return final_results
+
+
 def add_names(results_df):
 	cursor = pg.return_postgres_cursor()
 	if results_df is None:
@@ -235,21 +402,37 @@ def annotate_line(line, filter_words_df):
 	line = line.replace(']', ' ')
 	line = line.replace('-', ' ')
 	line = line.replace(':', ' ')
-	annotation = return_line_snomed_annotation(cursor, line, 90, filter_words_df)
+	line = line.replace('\'', '')
+	line = line.replace('"', '')
+	annotation = return_line_snomed_annotation(cursor, line, 93, filter_words_df)
+
+	return annotation
+
+def annotate_line_v2(line, filter_words_df):
+	cursor = pg.return_postgres_cursor()
+	# line = line.encode('utf-8')
+	line = line.replace('.', '')
+	line = line.replace('!', '')
+	line = line.replace(',', '')
+	line = line.replace(';', '')
+	line = line.replace('*', '')
+	line = line.replace('[', ' ')
+	line = line.replace(']', ' ')
+	line = line.replace('-', ' ')
+	line = line.replace(':', ' ')
+	line = line.replace('\'', '')
+	line = line.replace('"', '')
+	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df)
 
 	return annotation
 
 def get_concept_synonyms_from_series(conceptid_series, cursor):
 
-	formatted_concepts_str = "("
-	for item in conceptid_series:
-		formatted_concepts_str += "'" + item + "', "
-	formatted_concepts_str = formatted_concepts_str.rstrip(", ")
-	formatted_concepts_str += ")"
+	conceptid_list = tuple(conceptid_series.tolist())
 	
-	query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s" % formatted_concepts_str
+	query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
 
-	synonym_df = pg.return_df_from_query(cursor, query, None, \
+	synonym_df = pg.return_df_from_query(cursor, query, (conceptid_list,), \
 	 ["reference_conceptid", "synonym_conceptid"])
 
 	results_list = []
@@ -297,8 +480,14 @@ if __name__ == "__main__":
 	"""
 
 	query8 = """
-		acute coronary heart disease
+		Diastolic heart failure--abnormalities in active relaxation and passive stiffness of the left ventricle.
 	"""
+	query9 = "Grave's disease"
+	query10 = "exacerbation of COPD"
+	query11= "cancer of ovary"
+	query12 = "Letter: What is \"refractory\" cardiac failure?"
+	query13 = "Step-up therapy for children with uncontrolled asthma receiving inhaled corticosteroids."
+	query14 = "angel dust PCP"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -308,7 +497,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_line(query8, filter_words_df)
+	res = annotate_line_v2(query14, filter_words_df)
 	u.pprint(add_names(res))
 
 
