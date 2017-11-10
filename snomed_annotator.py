@@ -392,36 +392,14 @@ def update_postgres_filter_words():
 
 def annotate_line(line, filter_words_df):
 	cursor = pg.return_postgres_cursor()
-	# line = line.encode('utf-8')
-	line = line.replace('.', '')
-	line = line.replace('!', '')
-	line = line.replace(',', '')
-	line = line.replace(';', '')
-	line = line.replace('*', '')
-	line = line.replace('[', ' ')
-	line = line.replace(']', ' ')
-	line = line.replace('-', ' ')
-	line = line.replace(':', ' ')
-	line = line.replace('\'', '')
-	line = line.replace('"', '')
+	line = clean_text(line)
 	annotation = return_line_snomed_annotation(cursor, line, 93, filter_words_df)
 
 	return annotation
 
 def annotate_line_v2(line, filter_words_df):
 	cursor = pg.return_postgres_cursor()
-	# line = line.encode('utf-8')
-	line = line.replace('.', '')
-	line = line.replace('!', '')
-	line = line.replace(',', '')
-	line = line.replace(';', '')
-	line = line.replace('*', '')
-	line = line.replace('[', ' ')
-	line = line.replace(']', ' ')
-	line = line.replace('-', ' ')
-	line = line.replace(':', ' ')
-	line = line.replace('\'', '')
-	line = line.replace('"', '')
+	line = clean_text(line)
 	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df)
 
 	return annotation
@@ -478,6 +456,24 @@ def query_expansion(conceptid_series, cursor):
 			results_list.extend(temp_res)
 
 	return results_list
+
+
+### UTILITY FUNCTIONS
+
+def clean_text(line):
+	line = line.replace('.', '')
+	line = line.replace('!', '')
+	line = line.replace(',', '')
+	line = line.replace(';', '')
+	line = line.replace('*', '')
+	line = line.replace('[', ' ')
+	line = line.replace(']', ' ')
+	line = line.replace('-', ' ')
+	line = line.replace(':', ' ')
+	line = line.replace('\'', '')
+	line = line.replace('"', '')
+	line = line.replace(':', '')
+	return line
 
 if __name__ == "__main__":
 

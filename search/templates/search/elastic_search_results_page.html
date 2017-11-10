@@ -2,30 +2,15 @@
 {% load app_filters %}
 {% load staticfiles %}
 
-<head>
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
-	<link rel="stylesheet" href="{% static 'css/search.css' %}">
-	<script src="{% static "js/jquery.js" %}"></script>
-	<script src="{% static "js/search-results.js" %}"></script>
-</head>
+{% include 'search/header_template.html' %}
 
 
 <div class="title_header">
 	<h1> Elastic Search </h1>
 </div>
 
-
-
-
-<div class="search-bar">
-	<form action="{% url 'search:elastic_search' %}" method="post" class="form-inline"> 
-	{% csrf_token %}
-		<label class="sr-only">search field</label>
-		<input type="text" name="query" class="search-field form-control">
-		<input type="submit" value="search" class="btn btn-primary">
-	</form>
-</div>
+{% url 'search:elastic_search' as elastic_search %}
+{% include 'search/search_bar_template.html' with action=elastic_search %}
 
 <div class="body">
 
@@ -38,41 +23,5 @@
 		</h5>
 	</div>
 
-
-	{% for a in sr_payload %}
-		<div class="abstract">
-			<div class="abstract-body">
-				<div class="row fixed-height">
-					<div class="col-sm-10"> <h2>{{a.article_title}} </h2> </div>
-					{% if a.abstract_hide is not None %}
-						<div class="col-sm-2 expand-btn"><button id="expando">expand</button></div>
-					{% endif %}
-				</div>
-
-					<div class="abstract-header">
-						<h5>{{a.journal_pub_year}}</h5>
-						<h5>{{a.score}}</h5>
-						<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">Pubmed</a></h5>
-						<h5><a href="http://localhost:9200/pubmed3/abstract/{{a.id}}?pretty"> source </a> </h5>
-					</div>
-
-					{% if a.abstract_show is not None %}
-						<div class="preview">
-							<h4><b>{{a.abstract_show.0}}</b></h4>
-							<h4>{{a.abstract_show.1}}</h4>
-						</div>
-					{% endif %}
-
-					{% if a.abstract_hide is not None %}
-						<div class="expanded">
-							{% for item in a.abstract_hide %}
-								<h4><b>{{item.0}}</b></h4>
-								<h4>{{item.1}}</h4>
-							{% endfor %}
-						</div>
-					{% endif %}
-			</div>
-		</div>
-		<hr>
-	{% endfor %}
+	{% include 'search/sr_template.html' with sr_payload=sr_payload %}
 </div>

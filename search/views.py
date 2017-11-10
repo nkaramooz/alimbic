@@ -14,7 +14,7 @@ INDEX_NAME='pubmed3'
 def home_page(request):
 	return render(request, 'search/home_page.html')
 
-### CONCEPT OVERRIDE
+### CONCEPT OVERRIDE FUNCTIONS
 def concept_override(request):
 
 	return render(request, 'search/concept_override.html')
@@ -93,9 +93,8 @@ def concept_search_results(request, query):
 	else:
 		es_query = get_text_query(query)
 		sr = es.search(index=INDEX_NAME, body=es_query)
-		print("TEXT QUERY1")
-	sr = sr['hits']['hits']
 
+	sr_payload = get_sr_payload(sr['hits']['hits'])
 
 	return render(request, 'search/concept_search_results_page.html', {'sr' : sr, 'query' : query, 'concepts' : query_concepts_dict})
 

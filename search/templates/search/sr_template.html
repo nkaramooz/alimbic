@@ -1,0 +1,38 @@
+
+
+{% for a in sr_payload %}
+		<div class="abstract">
+			<div class="abstract-body">
+				<div class="row fixed-height">
+					<div class="col-sm-10"> <h2>{{a.article_title}} </h2> </div>
+					{% if a.abstract_hide is not None %}
+						<div class="col-sm-2 expand-btn"><button id="expando">expand</button></div>
+					{% endif %}
+				</div>
+
+					<div class="abstract-header">
+						<h5>{{a.journal_pub_year}}</h5>
+						<h5>{{a.score}}</h5>
+						<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">Pubmed</a></h5>
+						<h5><a href="http://localhost:9200/pubmed3/abstract/{{a.id}}?pretty"> source </a> </h5>
+					</div>
+
+					{% if a.abstract_show is not None %}
+						<div class="preview">
+							<h4><b>{{a.abstract_show.0}}</b></h4>
+							<h4>{{a.abstract_show.1}}</h4>
+						</div>
+					{% endif %}
+
+					{% if a.abstract_hide is not None %}
+						<div class="expanded">
+							{% for item in a.abstract_hide %}
+								<h4><b>{{item.0}}</b></h4>
+								<h4>{{item.1}}</h4>
+							{% endfor %}
+						</div>
+					{% endif %}
+			</div>
+		</div>
+		<hr>
+	{% endfor %}
