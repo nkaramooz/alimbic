@@ -4,7 +4,7 @@ from elasticsearch import Elasticsearch
 from nltk.stem.wordnet import WordNetLemmatizer
 import sys 
 import codecs
-import snomed_annotator as snomed
+import snomed_annotator as ann
 import nltk.data
 import pandas as pd
 import multiprocessing as mp
@@ -321,29 +321,6 @@ def get_article_info(elem, json_str):
 
 	return json_str
 
-
-
-#This is deprecated but may be useful in the future
-def get_json(elem):
-	if elem.text is None:
-		return None
-	else:
-		new_result = {}
-
-		if elem.text.strip("\n").strip(" ") != '':
-			return elem.text
-		else:
-			for node in elem:
-				if node.tag not in new_result:
-					new_result[node.tag] = get_json(node)
-				elif type(new_result[node.tag]) != list:
-					old_dict = new_result[node.tag]
-					new_result[node.tag] = [old_dict]
-					new_result[node.tag].append(get_json(node))
-				else:
-					new_result[node.tag].append(get_json(node))
-		return new_result
-
 def get_snomed_annotation(text, filter_words_df):
 	
 	if text is None:
@@ -399,135 +376,10 @@ def calculate(func, args):
 
 def annotate_line(line, filter_words_df):
 	cursor = pg.return_postgres_cursor()
-	# line = line.encode('utf-8')
-	line = line.replace('.', '')
-	line = line.replace('!', '')
-	line = line.replace(',', '')
-	line = line.replace(';', '')
-	line = line.replace('*', '')
-	line = line.replace('[', '')
-	line = line.replace(']', '')
-	line = line.replace('-', '')
-	line = line.replace(':', '')
-	line = line.replace('\'', '')
-	line = line.replace('"', '')
-	annotation = snomed.return_line_snomed_annotation(cursor, line, 93, filter_words_df)
+	line = ann.clean_text(line)
+	annotation = ann.return_line_snomed_annotation(cursor, line, 93, filter_words_df)
 	cursor.close()
 	return annotation
-
-def update_special_characters():
-	folder_path = 'resources/production_baseline_1'
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
-	for filename in os.listdir(folder_path):
-		file_timer = u.Timer('file')
-		file_path = folder_path + '/' + filename
-		tree = ET.parse(file_path)
-
-		root = tree.getroot()
-
-		file_abstract_counter = 0
-		for elem in root:
-			# Filtering only for NEJM articles
-			if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')):
-
-				article = {}
-				pmid = get_pmid(elem, {})['pmid']
-				article = get_article_info(elem, article)
-				get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				article_id = es.search(index='pubmed', body=get_article_query)['hits']['hits'][0]['_id']
-
-				if "-" in article['article_title']:
-					title_update = {}
-					title_update['doc'] = {'title_conceptids' : get_snomed_annotation(article['article_title'], filter_words_df)}
-					title_json_str =json.dumps(title_update)
-					title_json_obj = json.loads(title_json_str)
-					es.update(index='pubmed', id=article_id, doc_type='abstract', body=title_json_obj)
-					print(article['article_title'])
-
-
-				abstract_dict = article['article_abstract']
-
-				if abstract_dict is not None:
-					for k1 in abstract_dict:
-						for k2 in abstract_dict[k1]:
-							if "-" in abstract_dict[k1][k2]:
-								sub_res_dict = {}
-								sub_res_dict[k2] = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
-								update_dict = {}
-								update_dict['doc'] = {'abstract_conceptids' : {k1 : sub_res_dict}}
-								update_json_str = json.dumps(update_dict)
-								update_json_obj = json.loads(update_json_str)
-								es.update(index='pubmed', id=article_id, doc_type='abstract', body=update_json_obj)
-								print(abstract_dict[k1][k2])
-
-
-				file_abstract_counter += 1
-		print(file_abstract_counter)
-		file_timer.stop()
-
-######### MIGRATIONS
-
-def get_article_type(elem):
-	art_list = elem.findall('./MedlineCitation/Article')
-	article_type_dict = {}
-
-	try:
-		article_elem = art_list[0]
-	except:
-		article_type_dict['article_type'] = None
-		article_type_dict['article_type_id'] = None
-
-	try:
-		article_type_elem = article_elem.findall('./PublicationTypeList/PublicationType')
-		article_type_dict['article_type'] = []
-		article_type_dict['article_type_id'] = []
-
-		for node in article_type_elem:
-			article_type_dict['article_type'].append(node.text)
-			article_type_dict['article_type_id'].append(node.attrib['UI'])
-	except:
-		article_type_dict['article_type'] = None
-		article_type_dict['article_type_id'] = None
-
-	return article_type_dict
-
-def add_article_types():
-	folder_path = 'resources/production_baseline_1'
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-
-	for filename in os.listdir(folder_path):
-		file_timer = u.Timer('file')
-		file_path = folder_path + '/' + filename
-		tree = ET.parse(file_path)
-
-		root = tree.getroot()
-
-		file_abstract_counter = 0
-		for elem in root:
-			# Filtering only for NEJM articles
-			if is_issn(elem, '0028-4793'):
-
-				json_str = {}
-				pmid = get_pmid(elem, {})['pmid']
-				json_str['doc'] = get_article_type(elem)
-
-				article_id = es.search(index='pubmed', body=get_article_query)['hits']['hits'][0]['_id']
-
-				json_str =json.dumps(json_str)
-				json_obj = json.loads(json_str)
-				
-				es.update(index='pubmed', id=article_id, doc_type='abstract', body=json_obj)
-
-
-				file_abstract_counter += 1
-		print(file_abstract_counter)
-		file_timer.stop()
-
 
 if __name__ == "__main__":
 	t = u.Timer("full")
