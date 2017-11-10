@@ -32,13 +32,15 @@
 
 }
 
-
-
-.preview h4{
+.preview-ellipsis h4{
+	padding-top: 15px;
 	overflow: hidden;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 5; /* number of lines to show */
+}
+.preview-full h4 {
+	padding-top: 15px;
 }
 
 .abstract-body .abstract-header h5 {
@@ -47,11 +49,6 @@
 
 }
 
-
-
-.preview {
-	padding-top: 15px;
-}
 
 .expand-btn {
 	text-align: center;
