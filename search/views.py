@@ -95,8 +95,8 @@ def concept_search_results(request, query):
 		sr = es.search(index=INDEX_NAME, body=es_query)
 
 	sr_payload = get_sr_payload(sr['hits']['hits'])
-
-	return render(request, 'search/concept_search_results_page.html', {'sr' : sr, 'query' : query, 'concepts' : query_concepts_dict})
+	print(sr_payload[0]['abstract_hide'])
+	return render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict})
 
 
 
@@ -137,6 +137,7 @@ def get_show_hide_components(sr_src, hit_dict):
 				else:
 					# print(hit_dict['abstract_hide'])
 					hit_dict['abstract_hide'].append((key2, value2))
+		hit_dict['abstract_hide'] = (None if len(hit_dict['abstract_hide']) == 0 else hit_dict['abstract_hide'])
 	else:
 		hit_dict['abstract_show'] = None
 		hit_dict['abstract_hide'] = None
