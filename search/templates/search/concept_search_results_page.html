@@ -1,16 +1,17 @@
 
 {% load app_filters %}
-{% load staticfiles %}
+{% load staticfiles  %}
 
 <head>
+	<link rel="stylesheet" href="{% static 'css/search.css' %}">
 	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
 	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
-	<link rel="stylesheet" href="{% static 'css/search.css' %}">
+	
 </head>
 
 
-<div class="title_header">
-<h1> Search </h1>
+<div class='title-header'>
+<h1>Concept Search dsasda</h1>
 </div>
 
 
@@ -56,7 +57,7 @@
 	<h5>score: {{hit|get:"_score"}}</h5>
 	<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{abstract|get:"pmid"}}">Pubmed</a></h5>
 	{%  endwith %}
-	<h5><a href="http://localhost:9200/pubmed/abstract/{{hit|get:"_id"}}?pretty"> source </a> </h5>
+	<h5><a href="http://localhost:9200/pubmed3/abstract/{{hit|get:"_id"}}?pretty"> source </a> </h5>
 	<br>
 	</div>
 {% endfor %}

@@ -449,6 +449,36 @@ def get_concept_synonyms_from_series(conceptid_series, cursor):
 
 	return results_list
 
+def query_expansion(conceptid_series, cursor):
+	conceptid_tup = tuple(conceptid_series.tolist())
+	syn_query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
+	syn_df = pg.return_df_from_query(cursor, syn_query, (conceptid_tup,), \
+	 ["reference_conceptid", "synonym_conceptid"])
+
+	child_query = "select supertypeid, subtypeid from snomed.curr_transitive_closure_f where subtypeid in %s limit 1000"
+	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
+		["supertypeid", "subtypeid"])
+
+	results_list = []
+
+	for item in conceptid_series:
+		temp_res = [item]
+		added_other = False
+		if len(syn_df[syn_df['reference_conceptid'] == item] > 0):
+			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['reference_conceptid'].tolist())
+			added_other = True
+
+		if len(child_df[child_df['subtypeid'] == item]) > 0:
+			temp_res.extend(child_df[child_df['subtypeid'] == item]['supertypeid'].tolist())
+			added_other = True
+
+		if added_other:
+			results_list.append(temp_res)
+		else:
+			results_list.extend(temp_res)
+
+	return results_list
+
 if __name__ == "__main__":
 
 	# query = """
