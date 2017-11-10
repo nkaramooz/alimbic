@@ -95,7 +95,7 @@ def concept_search_results(request, query):
 		sr = es.search(index=INDEX_NAME, body=es_query)
 
 	sr_payload = get_sr_payload(sr['hits']['hits'])
-	print(sr_payload[0]['abstract_hide'])
+
 	return render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict})
 
 
