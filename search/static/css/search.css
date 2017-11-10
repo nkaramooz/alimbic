@@ -1,26 +1,71 @@
+.abstract .abstract-body .expanded {
+	display: none;
+
+}
+
 .title_header {
 	text-align: center;
 }
-.body {
-	padding-left: 25%;
-	padding-right: 25%;
-	padding-top: 25px;
-}
+
 .query-display {
-	padding-bottom: 15px;
+	padding-bottom: 30px;
 }
 
 .search-field {
-	width: 600px !important;
+	width: 400px !important;
+}
 
+.body {
+	padding-top: 25px;
+	width: 800px;
+	margin: auto;
 }
 
 .search-bar {
 	text-align: center;
-	padding-bottom: 30px;
+
 }
 
-.body.abstract {
-	border: 5px solid black !important;
-	background: blue !important;
+.abstract-body {
+	border-radius: 5px;
+	margin-bottom: 40px;
+
+}
+
+
+
+.preview h4{
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 5; /* number of lines to show */
+}
+
+.abstract-body .abstract-header h5 {
+	display: inline;
+	padding-right: 20px;
+
+}
+
+
+
+.preview {
+	padding-top: 15px;
+}
+
+.expand-btn {
+	text-align: center;
+	margin-top: 20px;
+}
+
+.fixed-height {
+	display: -webkit-box;
+  	display: -webkit-flex;
+  	display: -ms-flexbox;
+  	display: flex;
+  	padding-bottom: 10px;
+}
+
+hr {
+	border-width: 2px;
 }
