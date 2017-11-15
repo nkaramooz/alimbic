@@ -10,11 +10,28 @@
 					{% endif %}
 				</div>
 
-				<div class="abstract-header">
-					<h5>{{a.journal_pub_year}}</h5>
-					<h5>{{a.score}}</h5>
-					<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">Pubmed</a></h5>
-					<h5><a href="http://localhost:9200/pubmed3/abstract/{{a.id}}?pretty"> source </a> </h5>
+				<div class="abstract-metadata">
+					<div class="row fixed-height">
+						<div class="col-sm-3">
+							<div class="pub-year">
+								<h5>{{a.journal_pub_year}}</h5>
+							</div>
+						</div>
+						<div class="col-sm-2">
+							<h5>{{a.score}}</h5>
+						</div>
+						<div class="col-sm-2">
+							<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">Pubmed</a></h5>
+						</div>
+						<div class="col-sm-2">
+							<h5><a href="http://localhost:9200/pubmed3/abstract/{{a.id}}?pretty"> source </a> </h5>
+						</div>
+						<div class="col-sm-3">
+							<div class="journal-title pull-right">
+								<h5> {{a.journal_title}} </h5>
+							</div>
+						</div>
+					</div>
 				</div>
 				{% if a.abstract_show is not None %}
 					<div class="preview-ellipsis">

@@ -6,11 +6,12 @@ import psycopg2
 from sqlalchemy import create_engine
 from fuzzywuzzy import fuzz
 from nltk.stem.wordnet import WordNetLemmatizer
+import nltk.data
 import numpy as np
 import time
 import multiprocessing as mp
 import copy
-import utils as u, pglib as pg
+import utilities.utils as u, utilities.pglib as pg
 
 
 
@@ -34,7 +35,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
 
-	line = line.lower()
+	line = line
 	ln_words = line.split()
 
 	candidate_df_arr = []
@@ -44,20 +45,25 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 
 	for index,word in enumerate(ln_words):
 
-		word = lmtzr.lemmatize(word)
+		if word.upper() != word:
+			word = word.lower()
+
+		if word.lower() != 'vs':
+			word = lmtzr.lemmatize(word)
 
 		if (filter_df['words'] == word).any():
 			continue
 		else:
 
-			candidate_df_arr = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
+			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
 
-			new_candidate_df = get_new_candidate_df(word, cursor)
 
-			if len(new_candidate_df) > 0:
-				new_candidate_df['substring_start_index'] = index
-				new_candidate_df['description_start_index'] = index
-				candidate_df_arr.append(new_candidate_df)
+			if not active_match:
+				new_candidate_df = get_new_candidate_df(word, cursor)
+				if len(new_candidate_df) > 0:
+					new_candidate_df['substring_start_index'] = index
+					new_candidate_df['description_start_index'] = index
+					candidate_df_arr.append(new_candidate_df)
 
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
 			results_df = results_df.append(new_results_df)
@@ -92,13 +98,14 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
 
 
-		
+
 		final_results = prune_results_v2(joined_results, joined_results)
-		u.pprint(final_results['final_score'])
+		
 		if len(final_results) > 0:
+
 			final_results = add_names(final_results)
 			final_results['line'] = line
-			final_results = resolve_conflicts(final_results)
+
 			return final_results
 
 	return None
@@ -216,6 +223,7 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	# ideally should also at this point be pulling out complete matches.
 
 	final_candidate_df_arr = []
+	active_match = False
 	for index, new_df in enumerate(new_candidate_df_arr):
 		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
 		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
@@ -227,9 +235,10 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 			filtered_candidates = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
 			if len(filtered_candidates) != 0:
 				final_candidate_df_arr.append(filtered_candidates)
+				active_match = True
 
 
-	return final_candidate_df_arr
+	return final_candidate_df_arr, active_match
 
 
 def prune_results(scores_df):
@@ -323,41 +332,46 @@ def prune_results_v2(scores_df, og_results):
 		return prune_results_v2(results_df, og_results)
 
 def resolve_conflicts(results_df):
+
 	results_df['index_count'] = 1
-	counts_df = results_df.groupby(['term_start_index'], as_index=False)['index_count'].sum()
+	counts_df = results_df.groupby(['term_start_index', 'ln_number'], as_index=False)['index_count'].sum()
 
-	conflicted_indices = counts_df[counts_df['index_count'] > 1]['term_start_index']
-
-	conflict_free_df = results_df[~results_df['term_start_index'].isin(conflicted_indices)].copy()
-
-	conflicted_df = results_df[results_df['term_start_index'].isin(conflicted_indices)].copy()
+	conflicted_indices = counts_df[counts_df['index_count'] > 1]
+	conflict_free_df = results_df[~((results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
+		(results_df['ln_number'].isin(conflicted_indices['ln_number'])))].copy()
+	conflicted_df = results_df[(results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
+		(results_df['ln_number'].isin(conflicted_indices['ln_number']))].copy()
+	
 	final_results = conflict_free_df.copy()
 
 	if len(conflict_free_df) > 0:
 		
 		conflict_free_df['concept_count'] = 1
-
-
 		concept_weights = conflict_free_df.groupby(['conceptid'], as_index=False)['concept_count'].sum()
 
 		join_weights = conflicted_df.merge(concept_weights, on=['conceptid'],how='left')
 		join_weights['concept_count'].fillna(0, inplace=True)
 		join_weights['final_score'] = join_weights['final_score'] + join_weights['concept_count']
-		join_weights = join_weights.sort_values(['term_start_index', 'final_score'], ascending=False)
-		# u.pprint(join_weights[['conceptid', 'final_score', 'term']])
+		join_weights = join_weights.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
+
 		last_term_start_index = None
-		u.pprint(final_results)
-		for index,row in join_weights.iterrows():
-			if last_term_start_index != row['term_start_index']:
-				final_results = final_results.append(row)
-				last_term_start_index = row['term_start_index']
-	else: #choosing randomly :(
-		conflicted_df = conflicted_df.sort_values(['term_start_index', 'final_score'], ascending=False)
+		last_ln_number = None
 
 		for index,row in join_weights.iterrows():
-			if last_term_start_index != row['term_start_index']:
+			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
 				final_results = final_results.append(row)
 				last_term_start_index = row['term_start_index']
+				last_ln_number = row['ln_number']
+	else: #choosing randomly :(
+		conflicted_df = conflicted_df.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
+		last_term_start_index = None
+		last_ln_number = None
+
+		for index,row in conflicted_df.iterrows():
+			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
+				final_results = final_results.append(row)
+				last_term_start_index = row['term_start_index']
+				last_ln_number = row['ln_number']
 	return final_results
 
 
@@ -367,10 +381,12 @@ def add_names(results_df):
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
-		search_query = "select distinct on (conceptid) conceptid, term from annotation.active_selected_concept_descriptions \
+		search_query = "select distinct on (conceptid) conceptid, term from annotation.augmented_selected_concept_descriptions \
 			where conceptid in %s"
+
 		params = (tuple(results_df['conceptid']),)
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
+
 		results_df = results_df.merge(names_df, on='conceptid')
 		return results_df
 
@@ -397,11 +413,12 @@ def annotate_line(line, filter_words_df):
 
 	return annotation
 
-def annotate_line_v2(line, filter_words_df):
+def annotate_line_v2(line, filter_words_df, ln_index):
 	cursor = pg.return_postgres_cursor()
 	line = clean_text(line)
 	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df)
-
+	if annotation is not None:
+		annotation['ln_index'] = ln_index
 	return annotation
 
 def get_concept_synonyms_from_series(conceptid_series, cursor):
@@ -457,6 +474,66 @@ def query_expansion(conceptid_series, cursor):
 
 	return results_list
 
+### Threading
+def annotate_text(text, filter_words_df):
+	number_of_processes = 8
+
+	tokenized = nltk.sent_tokenize(text)
+
+	funclist = []
+	task_list = []
+	results_df = pd.DataFrame()
+
+	
+	for ln_index, line in enumerate(tokenized):
+		params = (line, filter_words_df, ln_index)
+		task_list.append((annotate_line_v2, params))
+
+	task_queue = mp.Queue()
+	done_queue = mp.Queue()
+
+	for task in task_list:
+		task_queue.put(task)
+
+	for i in range(number_of_processes):
+		mp.Process(target=ln_worker, args=(task_queue, done_queue)).start()
+
+	for i in range(len(task_list)):
+		results_df = results_df.append(done_queue.get())
+
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	if len(results_df) > 0:
+		return results_df
+	else:
+		return None
+
+def annotate_text_not_parallel(text, filter_words_df):
+
+
+	tokenized = nltk.sent_tokenize(text)
+
+	
+	results_df = pd.DataFrame()
+
+	
+	for ln_index, line in enumerate(tokenized):
+		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_index))
+
+	if len(results_df) > 0:
+		return results_df
+	else:
+		return None
+
+def ln_worker(input, output):
+	for func, args in iter(input.get, 'STOP'):
+		result = ln_calculate(func, args)
+		output.put(result)
+
+def ln_calculate(func, args):
+	return func(*args)
+
 
 ### UTILITY FUNCTIONS
 
@@ -473,6 +550,8 @@ def clean_text(line):
 	line = line.replace('\'', '')
 	line = line.replace('"', '')
 	line = line.replace(':', '')
+	line = line.replace('(', '')
+	line = line.replace(')', '')
 	return line
 
 if __name__ == "__main__":
@@ -514,6 +593,11 @@ if __name__ == "__main__":
 	query12 = "Letter: What is \"refractory\" cardiac failure?"
 	query13 = "Step-up therapy for children with uncontrolled asthma receiving inhaled corticosteroids."
 	query14 = "angel dust PCP"
+	query15= "(vascular endothelial growth factors)"
+	text1 = """
+		Physiologically, VEGFs (vascular endothelial growth factors) and their receptors (VEGFR) play a critical role in vascular development, neogenesis, angiogenesis, endothelial function, and vascular tone. Pathologically, VEGF–VEGFR signaling induces dysregulated angiogenesis, which contributes to the growth and spread of tumors. The development of VEGF–VEGFR inhibitors (VEGFIs) has, thus, proven to be a valuable strategy in the management of several malignancies, yielding improved survival outcomes. Not surprisingly, VEGFIs are now standard of care as first-line monotherapy for some cancers and the scope of this class of drugs is growing. However with the promise of improved outcomes, VEGFIs also led to clinically relevant toxicities, especially hypertension and cardiovascular disease (CVD). As such, patients with cancer treated with VEGFIs may have improved cancer outcomes, but at the cost of an increased risk of CVD. Indeed, dose intensity and protracted use of these drugs can be limited by cardiovascular side effects and patients may require dose reduction or drug withdrawal, thus compromising anticancer efficacy and survival. Here we summarize the vascular biology of VEGF–VEGFR signaling and discuss the cardiovascular consequences and clinical impact of VEGFIs. New insights into molecular mechanisms whereby VEGFIs cause hypertension and heart disease are highlighted.
+	"""
+	query16 = "page"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -523,8 +607,14 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_line_v2(query14, filter_words_df)
-	u.pprint(add_names(res))
+	res = annotate_text(query16, filter_words_df)
+	if res is not None:
+		u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
+	else:
+		print("No matches")
+	# u.pprint(add_names(res))
+	# res['ln_number'] = 1
+	# u.pprint(add_names(resolve_conflicts(res)))
 
 
 	check_timer.stop()
