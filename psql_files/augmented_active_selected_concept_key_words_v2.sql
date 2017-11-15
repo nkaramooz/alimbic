@@ -12,7 +12,7 @@ create table augmented_active_selected_concept_key_words_v2 as (
             description_id
             ,conceptid
             ,term
-            ,lower(word) as word
+            ,case when upper(word) = word then word else lower(word) end as word
             ,word_ord
         from (
             select 

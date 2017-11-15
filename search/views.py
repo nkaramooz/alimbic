@@ -2,11 +2,12 @@ from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
 import snomed_annotator as ann
-import pglib as pg
+import utilities.pglib as pg
 from elasticsearch import Elasticsearch
 from nltk.stem.wordnet import WordNetLemmatizer
-import utils as u
+import utilities.utils as u
 import pandas as pd
+import utilities.es_utilities as es_util
 # Create your views here.
 
 INDEX_NAME='pubmed3'
@@ -169,7 +170,7 @@ def get_concept_names_dict_for_sr(sr):
 			# hit['_source']['title_conceptids'] = get_abstract_concept_arr_dict(title_df)
 	
 
-		abstract_concepts = get_flattened_abstract_concepts(hit)
+		abstract_concepts = es_util.get_flattened_abstract_concepts(hit)
 		if abstract_concepts is not None:
 			concept_df = concept_df.append(pd.DataFrame([[abstract_concepts]], columns=['conceptid']))
 
@@ -177,21 +178,7 @@ def get_concept_names_dict_for_sr(sr):
 	return sr
 	# return concept_df
 
-def get_flattened_abstract_concepts(hit):
-	abstract_concept_arr = []
-	try:
-		for key1 in hit['_source']['abstract_conceptids']:
-			for key2 in hit['_source']['abstract_conceptids'][key1]:
-				concept_df = pd.DataFrame(hit['_source']['abstract_conceptids'][key1][key2], columns=['conceptid'])
-				concept_df = ann.add_names(concept_df)
-				concept_dict_arr = get_abstract_concept_arr_dict(concept_df)
-				abstract_concept_arr.extend(concept_dict_arr)
-	except:
-		return None
-	if len(abstract_concept_arr) == 0:
-		return None
-	else:
-		return abstract_concept_arr
+
 
 def get_article_type_filters():
 	filt = [ \

@@ -43,7 +43,7 @@
 	padding-top: 15px;
 }
 
-.abstract-body .abstract-header h5 {
+.abstract-body .abstract-metadata h5 {
 	display: inline;
 	padding-right: 20px;
 
@@ -61,7 +61,39 @@
   	display: -ms-flexbox;
   	display: flex;
   	padding-bottom: 10px;
+  	align-content: center;
+
 }
+
+.abstract-metadata .row .col-sm-3 .pub-year {
+	border: 1px solid #ffd37c;
+	background-color: #ffd37c;
+	padding-left: 7px;
+	padding-right: 7px;
+	padding-top: 3px;
+	padding-bottom: 3px;
+	align-content: center;
+	border-radius: 4px;
+	width: 50px;
+	text-align: center
+}
+.abstract-metadata .row .col-sm-3 .journal-title {
+	border: 1px solid #91daff;
+	background-color: #91daff;
+	display: inline-block;
+	padding-left: 2px;
+	padding-right: 2px;
+	padding-top: 3px;
+	padding-bottom: 3px;
+	align-content: center;
+	border-radius: 4px;
+	text-align: center;
+}
+.abstract-metadata .row .col-sm-3 .journal-title h5 {
+	text-align: center !important;
+	align-content: center;
+}
+
 
 hr {
 	border-width: 2px;

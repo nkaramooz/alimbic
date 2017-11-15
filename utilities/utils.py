@@ -1,7 +1,8 @@
 import time
 import pandas as pd
-import pglib as pg
-import lemmatizer as lmtzr
+import utilities.pglib as pg
+from nltk.stem.wordnet import WordNetLemmatizer
+
 
 class Timer:
 	def __init__(self, label):
@@ -34,7 +35,7 @@ def add_description(conceptid, description, cursor):
 				cursor)
 
 			### augmented_active_selected_concept_key_words_lemmas_2
-			lmtzr.lemmatize_description_id(description_id, cursor)
+			lemmatize_description_id(description_id, cursor)
 
 			### update_white_list
 			insert_into_whitelist(conceptid, description_id, description, cursor)
@@ -74,7 +75,7 @@ def activate_description_id(description_id, cursor):
 		raise ValueError("unable to add description_id to key words table")
 
 	### augmented_active_selected_concept_key_words_lemmas_2
-	lmtzr.lemmatize_description_id(description_id, cursor)
+	lemmatize_description_id(description_id, cursor)
 
 	if is_duplicate_description_id_for_table(description_id, \
 		"description_blacklist", cursor):
@@ -163,7 +164,7 @@ def add_concept(description, cursor):
 			cursor)
 
 		### augmented_active_selected_concept_key_words_lemmas_2
-		lmtzr.lemmatize_description_id(description_id, cursor)
+		lemmatize_description_id(description_id, cursor)
 	else:
 		raise ValueError("possible duplicate")
 
@@ -321,10 +322,57 @@ def get_key_word_query(conceptid, descriptionid, description):
 
 	return query
 
+def lemma(word):
+	lmtzr = WordNetLemmatizer()
+	return lmtzr.lemmatize(word)
+
+def lemmatize_description_id(description_id, cursor):
+	query = """
+		select * from annotation.augmented_active_selected_concept_key_words_v2
+		where description_id = '%s'
+	""" % description_id
+
+	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
+	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
+
+	engine = pg.return_sql_alchemy_engine()
+	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
+		engine, schema='annotation', if_exists='append', index=False)
+
+
+def lemmatize_table():
+	query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
+	cursor = pg.return_postgres_cursor()
+
+	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
 
 
 
+	# new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
+
+	new_candidate_df.loc[new_candidate_df.word != 'vs', 'word'] = new_candidate_df.loc[new_candidate_df.word != 'vs']['word'].map(lemma)
+	engine = pg.return_sql_alchemy_engine()
+
+	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
+		engine, schema='annotation', if_exists='replace', index=False)
+
+	index_query = """
+		set schema 'annotation';
+		create index lemmas_conceptid_ind on augmented_active_selected_concept_key_words_lemmas_2(conceptid);
+		create index lemmas_description_id_ind on augmented_active_selected_concept_key_words_lemmas_2(description_id);
+		create index lemmas_term_ind on augmented_active_selected_concept_key_words_lemmas_2(term);
+		create index lemmas_word_ind on augmented_active_selected_concept_key_words_lemmas_2(word);
+		create index lemmas_word_ord_ind on augmented_active_selected_concept_key_words_lemmas_2(word_ord);
+	"""
+
+	cursor.execute(index_query, None)
+	cursor.connection.commit()
+	cursor.close()
 
 
+if __name__ == "__main__":
+	lemmatize_table()
 
 
