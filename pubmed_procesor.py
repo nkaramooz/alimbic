@@ -8,11 +8,13 @@ import snomed_annotator as ann
 import nltk.data
 import pandas as pd
 import multiprocessing as mp
-import utils as u, pglib as pg
+import utilities.utils as u, utilities.pglib as pg
 import os
 import datetime
 from multiprocessing import Pool
 import copy
+
+INDEX_NAME = 'pubmed4'
 
 def doc_worker(input, output):
 	for func,args in iter(input.get, 'STOP'):
@@ -22,44 +24,59 @@ def doc_worker(input, output):
 def doc_calculate(func, args):
 	return func(*args)
 
-def index_doc_from_elem(elem, filter_words_df):
+# "Letter"}}, \
+# 			{"match": {"article_type" : "Editorial"}}, \
+# 			{"match": {"article_type" : "Comment"}}, \
+# 			{"match": {"article_type" : "Biography"}}, \
+# 			{"match": {"article_type" : "Patient Education Handout"}}, \
+# 			{"match": {"article_type" : "News"}
+
+def index_doc_from_elem(elem, filter_words_df, filename):
 
 	if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
 		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
 		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
 		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
+
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) > 1990):
-
-				d=u.Timer("article-timer")
-				json_str = get_pmid(elem, json_str)
-				json_str = get_article_ids(elem, json_str)
+				
 				json_str = get_article_info(elem, json_str)
-				json_str['citations_pmid'] = get_article_citations(elem)
-				json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-				json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-				# json_str['index_date'] = datetime.datetime.now().strftime("%Y%%m%d")
-				# json_str['filename'] = filename
-				pmid = json_str['pmid']
-				json_str =json.dumps(json_str)
-				json_obj = json.loads(json_str)
-				d.stop()
-				# if index_exists:
-				# 	get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				# 	query_result = es.search(index=index_name, body=get_article_query)
+				
+				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
+
+					json_str = get_pmid(elem, json_str)
+
+					json_str = get_article_ids(elem, json_str)
 					
-				# 	if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
-				# 		es.index(index=index_name, doc_type='abstract', body=json_obj)
+					json_str['citations_pmid'] = get_article_citations(elem)
+
+					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
+					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+
+					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+		
+					json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
+
+					json_str['filename'] = filename
+					pmid = json_str['pmid']
+					json_str =json.dumps(json_str)
+					json_obj = json.loads(json_str)
+
+					es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+					query_result = es.search(index=INDEX_NAME, body=get_article_query)
+						
+					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
+						es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+						
+					elif query_result['hits']['total'] == 1:
+						article_id = query_result['hits']['hits'][0]['_id']
+						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 					
-				# 	elif query_result['hits']['total'] == 1:
-				# 		article_id = query_result['hits']['hits'][0]['_id']
-				# 		es.index(index=index_name, id=article_id, doc_type='abstract', body=json_obj)
-				# 	file_abstract_counter += 1
-				# else:
-				# 	es.index(index=index_name, doc_type='abstract', body=json_obj)
-				# 	index_exists = True
+
 
 def load_pubmed_updates_v3():
 	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
@@ -102,7 +119,7 @@ def load_pubmed_updates_v3():
 					params = (elem, filter_words_df)
 					task_queue.put((index_doc_from_elem, params))
 					file_abstract_counter += 1
-					# Filtering only for NEJM articles
+
 					
 				# elif elem.tag == 'DeleteCitation':
 
@@ -135,15 +152,10 @@ def load_pubmed_updates_v3():
 
 
 def load_pubmed_updates_v2():
-	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	number_of_processes = mp.cpu_count()
 	pool = Pool(processes=30)
-	# task_queue = mp.Queue()
-	# done_queue = mp.Queue()
-
-	# for i in range(number_of_processes):
-	# 	mp.Process(target=doc_worker, args=(task_queue, done_queue)).start()
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -152,10 +164,14 @@ def load_pubmed_updates_v2():
 	cursor.close()
 
 	folder_arr = ['resources/production_baseline_2']
-	index_name = 'pubmed3'
-	# index_exists = es.indices.exists(index=index_name)
+
+	index_exists = es.indices.exists(index=INDEX_NAME)
+	if not index_exists:
+		es.indices.create(index=INDEX_NAME, body={})
+
 	for folder_path in folder_arr:
 		file_counter = 0
+
 		for filename in os.listdir(folder_path):
 			file_timer = u.Timer('file')
 			file_path = folder_path + '/' + filename
@@ -167,27 +183,26 @@ def load_pubmed_updates_v2():
 			file_abstract_counter = 0
 			for elem in root:
 				if elem.tag == 'PubmedArticle':
-					# task_queue.put((index_doc_from_elem, (elem, filename, filter_words_df)))
-					pool.apply_async(index_doc_from_elem, (copy.deepcopy(elem), filter_words_df))
+
+					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, filename))
 					file_abstract_counter += 1
-					# Filtering only for NEJM articles
-					
-				# elif elem.tag == 'DeleteCitation':
 
-				# 	delete_pmid_arr = get_deleted_pmid(elem)
+				elif elem.tag == 'DeleteCitation':
 
-				# 	for pmid in delete_pmid_arr:
-				# 		get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				# 		query_result = es.search(index=index_name, body=get_article_query)
+					delete_pmid_arr = get_deleted_pmid(elem)
 
-				# 		if query_result['hits']['total'] == 0:
-				# 			continue
-				# 		elif query_result['hits']['total'] == 1:
-				# 			article_id = query_result['hits']['hits'][0]['_id']
-				# 			es.delete(index=index_name, doc_type='abstract', id=article_id)
-				# 		else:
-				# 			print("delete: more than one document found")
-				# 			print(pmid)
+					for pmid in delete_pmid_arr:
+						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+						query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+						if query_result['hits']['total'] == 0:
+							continue
+						elif query_result['hits']['total'] == 1:
+							article_id = query_result['hits']['hits'][0]['_id']
+							es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+						else:
+							print("delete: more than one document found")
+							print(pmid)
 			file_counter += 1
 			if file_counter >= 1:
 				break
@@ -478,6 +493,9 @@ def get_journal_info(elem, json_str):
 		json_str['journal_pub_month'] = None
 		json_str['journal_pub_day'] = None
 		json_str['journal_issn'] = None
+		json_str['journal_volume'] = None
+		json_str['journal_issue'] = None
+		json_str['journal_iso_abbrev'] = None
 		return json_str
 	
 	try:
@@ -493,6 +511,24 @@ def get_journal_info(elem, json_str):
 		json_str['journal_title'] = title_elem.text
 	except:
 		json_str['journal_title'] = None
+
+	try:
+		iso_elem = journal_elem.find('./ISOAbbreviation')
+		json_str['journal_iso_abbrev'] = iso_elem.text 
+	except:
+		json_str['journal_iso_abbrev'] = None
+
+	try:
+		journal_volume_elem = journal_elem.find('./JournalIssue/Volume')
+		json_str['journal_volume'] = journal_volume_elem.text
+	except:
+		json_str['journal_volume'] = None
+
+	try:
+		journal_issue_elem = journal_elem.find('./JournalIssue/Issue')
+		json_str['journal_issue'] = journal_issue_elem.text
+	except:
+		json_str['journal_issue'] = None
 
 	try:
 		year_elem = journal_elem.findall('./JournalIssue/PubDate/Year')[0]

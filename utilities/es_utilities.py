@@ -79,5 +79,97 @@ def get_flattened_abstract_concepts(hit):
 	else:
 		return abstract_concept_arr
 
+def is_child_of(child_id, parent_id, cursor):
+	query = "select subtypeid from snomed.curr_transitive_closure_f where supertypeid=%s and subtypeid=%s"
+	df = pg.return_df_from_query(cursor, query, (child_id, parent_id), ["subtypeid"])
+	if len(df) > 0:
+		return True 
+	else:
+		return False
+
+def is_parent_of(parent_id, child_id, cursor):
+	query = "select subtypeid from snomed.curr_transitive_closure_f where supertypeid=%s and subtypeid=%s"
+	df = pg.return_df_from_query(cursor, query, (child_id, parent_id), ["subtypeid"])
+	if len(df) > 0:
+		return True 
+	else:
+		return False
+
+def get_relation(conceptid_1, conceptid_2, cursor):
+	if is_child_of(conceptid_1, conceptid_2, cursor):
+		return "child"
+	elif is_parent_of(conceptid_1, conceptid_2, cursor):
+		return "parent"
+	else:
+		return None
+
+class Node():
+	def __init__(self, conceptid, label):
+		self.label = label
+		self.conceptid = conceptid
+		self.children = list()
+		self.parent = None
+
+	def add_child(self, child_node):
+		self.children.append(child_node)
+
+	def has_children(self):
+		if len(self.children) > 0:
+			return True
+		else:
+			return False
+	def __str__(self):
+		msg = self.conceptid + " : " + self.label +  " children length: " + str(len(self.children))
+		return msg
+
+class NodeTree():
+	def __init__(self):
+		self.root_list = list()
+
+	def get_root_nodes(self):
+		return self.root_node
+
+	def add(self, a_conceptid, a_label, cursor):
+		
+		self.internal_add_node(a_conceptid, a_label, self.root_list, None, cursor)
+
+	def internal_add_node(self, a_conceptid, a_label, candidate_list, parent_node, cursor):
+
+		if len(candidate_list) == 0:
+			a_node = Node(a_conceptid, a_label)
+			a_node.parent = parent_node
+			candidate_list.append(a_node)
+		else:
+			completed = False
+			for n in candidate_list:
+				if is_child_of(a_conceptid, n.conceptid, cursor):
+					child = n
+					self.internal_add_node(a_conceptid, a_label, n.children, n, cursor)
+					completed = True
+					break
+				elif is_parent_of(a_conceptid, n.conceptid, cursor):
+					a_node = Node(a_conceptid, a_label)
+					a_node.parent = parent_node
+					if parent_node is not None:
+						parent_node.children.append(a_node)
+						parent_node.children.remove(n)
+					completed = True
+					break
+			if not completed:
+				a_node = Node(a_conceptid, a_label)
+				a_node.parent = parent_node
+				candidate_list.append(a_node)
+				a_node.parent = parent_node
+
+
+	def __str__(self):
+		msg = " "
+		for item in self.root_list:
+			msg += str(item)
+		return msg
+
+
+
+
 if __name__ == "__main__":
 	update_postgres_document_concept_count()

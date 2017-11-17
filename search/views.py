@@ -70,16 +70,17 @@ def post_concept_search(request):
 
 def concept_search_results(request, query):
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	query = ann.clean_text(query)
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	query_concepts_df = ann.return_line_snomed_annotation(cursor, query, 90, filter_words_df)
+	query_concepts_df = ann.return_line_snomed_annotation_v2(cursor, query, 90, filter_words_df)
 
 	sr = {}
 	query_concepts_dict = None
 	if query_concepts_df is not None:
 		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
-		full_query_concepts_list = ann.get_concept_synonyms_from_series(query_concepts_df['conceptid'], cursor)
+		full_query_concepts_list = ann.get_concept_synonyms_list_from_series(query_concepts_df['conceptid'], cursor)
 		u.pprint(full_query_concepts_list)
 		get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
 
@@ -294,7 +295,7 @@ def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
 				 "query": \
 			 		{"bool": { \
 						"must": \
-							[{"query_string": {"fields" : ["title_conceptids"], \
+							[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
 							 "query" : get_concept_query_string(og_query_concept_list, cursor)}}], \
 						"must_not": get_article_type_filters()}}}
 
@@ -321,19 +322,39 @@ def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
 				sr_conceptid_df.columns = ['conceptid', 'count']
 				sr_conceptid_df = ann.add_names(sr_conceptid_df)
 				sr_conceptid_df = sr_conceptid_df[sr_conceptid_df['conceptid'].isin(tx_df['conceptid'].tolist())]
-				u.pprint(sr_conceptid_df)
-				
+				# tr = es_util.NodeTree()
+				# for ind,item in sr_conceptid_df.iterrows():
+				# 	tr.add(item['conceptid'], item['term'], cursor)
+				de_dupe_synonyms(sr_conceptid_df, cursor)
+				# u.pprint(tr)
+def de_dupe_synonyms(df, cursor):
+	synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
+	u.pprint(df)
+	for ind,t in df.iterrows():
+		cnt = df[df['conceptid'] == t['conceptid']]
+		ref = synonyms[synonyms['reference_conceptid'] == t['conceptid']]
+
+		if (len(cnt) == 1) and (len(ref) > 0):
+			print("replace")
+			new_conceptid = ref.iloc[0]['synonym_conceptid']
+			print("new_conceptid")
+			print(new_conceptid)
+			print(t['conceptid'])
+			df.loc[ind, 'conceptid'] = new_conceptid
+			
+	
+	u.pprint(df)	 		
 
 def get_conceptids_from_sr(sr):
 	conceptid_list = []
 	for hit in sr['hits']['hits']:
 		if hit['_source']['title_conceptids'] is not None:
 			conceptid_list.extend(hit['_source']['title_conceptids'])
-		if hit['_source']['abstract_conceptids'] is not None:
-			for key1 in hit['_source']['abstract_conceptids']:
-				for key2 in hit['_source']['abstract_conceptids'][key1]:
-					if hit['_source']['abstract_conceptids'][key1][key2] is not None:
-						conceptid_list.extend(hit['_source']['abstract_conceptids'][key1][key2])
+		# if hit['_source']['abstract_conceptids'] is not None:
+		# 	for key1 in hit['_source']['abstract_conceptids']:
+		# 		for key2 in hit['_source']['abstract_conceptids'][key1]:
+		# 			if hit['_source']['abstract_conceptids'][key1][key2] is not None:
+		# 				conceptid_list.extend(hit['_source']['abstract_conceptids'][key1][key2])
 	return conceptid_list
 
 
