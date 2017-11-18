@@ -3,10 +3,10 @@ import re
 import psycopg2
 from sqlalchemy import create_engine
 from fuzzywuzzy import fuzz
-import pglib as pg
+import utilities.pglib as pg
 import numpy as np
 import time
-import utils as u 
+import utilities.utils as u 
 
 
 # engine = pg.return_sql_alchemy_engine()

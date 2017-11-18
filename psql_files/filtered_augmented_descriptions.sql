@@ -3,7 +3,7 @@ drop table if exists filtered_augmented_descriptions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
 
 
-create table filtered_augmented_descriptions as (
+insert into filtered_augmented_descriptions
 
 select
 	distinct on (conceptid, candidate)
@@ -24,5 +24,6 @@ from (
 	    having count(distinct(conceptid)) = 1 
 	    ) dist 
       on pre.candidate = dist.candidate
+    where conceptid || pre.candidate not in (select conceptid || term from annotation.filtered_augmented_descriptions)
   ) tb
-);
+;
