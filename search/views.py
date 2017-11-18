@@ -74,15 +74,19 @@ def concept_search_results(request, query):
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	query_concepts_df = ann.return_line_snomed_annotation_v2(cursor, query, 90, filter_words_df)
+	query_concepts_df = ann.annotate_text_not_parallel(query, filter_words_df, cursor)
+	
 
 	sr = {}
 	query_concepts_dict = None
+	related_treatments_list = None
 	if query_concepts_df is not None:
 		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
 		full_query_concepts_list = ann.get_concept_synonyms_list_from_series(query_concepts_df['conceptid'], cursor)
-		u.pprint(full_query_concepts_list)
-		get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
+
+		related_df = get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
+		if related_df is not None:
+			related_treatments_list = related_df['term'].tolist()
 
 
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
@@ -98,7 +102,9 @@ def concept_search_results(request, query):
 
 	sr_payload = get_sr_payload(sr['hits']['hits'])
 
-	return render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict})
+	return render(request, 'search/concept_search_results_page.html', \
+		{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
+		'at_a_glance' : {'treatments' : related_treatments_list}})
 
 
 
@@ -297,12 +303,14 @@ def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
 						"must": \
 							[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
 							 "query" : get_concept_query_string(og_query_concept_list, cursor)}}], \
-						"must_not": get_article_type_filters()}}}
+						"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
+							"query" : '30207005'}}]}}}
 
 
 			sr = es.search(index=INDEX_NAME, body=es_query)
-			sr_conceptids = get_conceptids_from_sr(sr)
 
+			sr_conceptids = get_conceptids_from_sr(sr)
+		
 			if len(sr_conceptids) > 0:
 				dist_sr_conceptids = list(set(sr_conceptids))
 
@@ -315,38 +323,52 @@ def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
 				"""
 
 				tx_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid"])
-
+	
 				sr_conceptid_df = pd.DataFrame(sr_conceptids, columns=["conceptid"])
 				sr_conceptid_df['count'] = 1
 				sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 				sr_conceptid_df.columns = ['conceptid', 'count']
-				sr_conceptid_df = ann.add_names(sr_conceptid_df)
 				sr_conceptid_df = sr_conceptid_df[sr_conceptid_df['conceptid'].isin(tx_df['conceptid'].tolist())]
-				# tr = es_util.NodeTree()
-				# for ind,item in sr_conceptid_df.iterrows():
-				# 	tr.add(item['conceptid'], item['term'], cursor)
-				de_dupe_synonyms(sr_conceptid_df, cursor)
-				# u.pprint(tr)
+
+				if len(sr_conceptid_df) > 0:
+				
+					sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
+					sr_conceptid_df = ann.add_names(sr_conceptid_df)
+					sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+					return sr_conceptid_df
+				else:
+					return None
+					# tr = es_util.NodeTree()
+					# for ind,item in sr_conceptid_df.iterrows():
+					# 	tr.add(item['conceptid'], item['term'], cursor)
+
+					# for item in tr.root_list:
+					# 	print(item.label)
+				
+				# u.pprint(tr.root_list[0].children[0].label)
+
+# this function isn't working - see schizophrenia treatment
 def de_dupe_synonyms(df, cursor):
+
 	synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
-	u.pprint(df)
+
 	for ind,t in df.iterrows():
 		cnt = df[df['conceptid'] == t['conceptid']]
 		ref = synonyms[synonyms['reference_conceptid'] == t['conceptid']]
 
-		if (len(cnt) == 1) and (len(ref) > 0):
-			print("replace")
+		if len(ref) > 0:
 			new_conceptid = ref.iloc[0]['synonym_conceptid']
-			print("new_conceptid")
-			print(new_conceptid)
-			print(t['conceptid'])
-			df.loc[ind, 'conceptid'] = new_conceptid
-			
-	
-	u.pprint(df)	 		
+			if len(df[df['conceptid'] == new_conceptid]):
+				
+				df.loc[ind, 'conceptid'] = new_conceptid
+
+	df = df.groupby(['conceptid'], as_index=False)['count'].sum()
+
+	return df 		
 
 def get_conceptids_from_sr(sr):
 	conceptid_list = []
+
 	for hit in sr['hits']['hits']:
 		if hit['_source']['title_conceptids'] is not None:
 			conceptid_list.extend(hit['_source']['title_conceptids'])

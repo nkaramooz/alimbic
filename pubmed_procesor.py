@@ -605,11 +605,11 @@ def get_article_info(elem, json_str):
 	return json_str
 
 def get_snomed_annotation(text, filter_words_df):
-	
+	cursor = pg.return_postgres_cursor()
 	if text is None:
 		return None
 	else:
-		annotation = ann.annotate_text_not_parallel(text, filter_words_df)
+		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor)
 
 		if annotation is not None:
 			return annotation['conceptid'].tolist()

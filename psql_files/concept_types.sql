@@ -70,6 +70,7 @@ create table concept_types as (
 				when subtypeid = '386637004' then 'treatment' -- obstetric procedure
 				when subtypeid = '243120004' then 'treatment' -- Regimes and therapies 
 				when subtypeid = '409002' then 'treatment' -- Food allergy diet 
+				when subtypeid = '410942007' then 'treatment'
 
 				when subtypeid = '386811000' then 'diagnostic' -- Fetal procedure DIAGNOSTIC
 				when subtypeid = '243773009' then 'diagnostic' -- Fetal blood sampling

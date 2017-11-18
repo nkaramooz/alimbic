@@ -21,6 +21,17 @@
 			{% endfor %} 
 		</h5>
 	</div>
+
+
+	{% if at_a_glance.treatments is not None %}
+		<div class="glance">
+			<h5> At a glance </h5>
+			<div class="list-group">
+				{% for a in at_a_glance.treatments %}
+					<a href="#" class="list-group-item list-group-item-action"> {{a}} </a>
+				{% endfor %}
+			</div>
+	{% endif %}
 	
 	{% include 'search/sr_template.html' with sr_payload=sr_payload %}
 </div>

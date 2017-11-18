@@ -88,7 +88,7 @@ def is_child_of(child_id, parent_id, cursor):
 		return False
 
 def is_parent_of(parent_id, child_id, cursor):
-	query = "select subtypeid from snomed.curr_transitive_closure_f where supertypeid=%s and subtypeid=%s"
+	query = "select subtypeid from snomed.curr_transitive_closure_f where subtypeid=%s and supertypeid=%s"
 	df = pg.return_df_from_query(cursor, query, (child_id, parent_id), ["subtypeid"])
 	if len(df) > 0:
 		return True 
@@ -112,15 +112,15 @@ class Node():
 
 	def add_child(self, child_node):
 		self.children.append(child_node)
+	def remove_child(self, child_node):
+		self.children.remove(child_node)
 
 	def has_children(self):
 		if len(self.children) > 0:
 			return True
 		else:
 			return False
-	def __str__(self):
-		msg = self.conceptid + " : " + self.label +  " children length: " + str(len(self.children))
-		return msg
+
 
 class NodeTree():
 	def __init__(self):
@@ -151,8 +151,8 @@ class NodeTree():
 					a_node = Node(a_conceptid, a_label)
 					a_node.parent = parent_node
 					if parent_node is not None:
-						parent_node.children.append(a_node)
-						parent_node.children.remove(n)
+						parent_node.add_child(a_node)
+						parent_node.remove_child(n)
 					completed = True
 					break
 			if not completed:
@@ -161,12 +161,6 @@ class NodeTree():
 				candidate_list.append(a_node)
 				a_node.parent = parent_node
 
-
-	def __str__(self):
-		msg = " "
-		for item in self.root_list:
-			msg += str(item)
-		return msg
 
 
 

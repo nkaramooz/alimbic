@@ -57,7 +57,9 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
 
 			if not active_match:
+
 				new_candidate_df = get_new_candidate_df(word, cursor)
+
 				if len(new_candidate_df) > 0:
 					new_candidate_df['substring_start_index'] = index
 					new_candidate_df['description_start_index'] = index
@@ -256,10 +258,9 @@ def prune_results_v2(scores_df, og_results):
 		return prune_results_v2(results_df, og_results)
 
 def resolve_conflicts(results_df):
-
 	results_df['index_count'] = 1
 	counts_df = results_df.groupby(['term_start_index', 'ln_number'], as_index=False)['index_count'].sum()
-
+	
 	conflicted_indices = counts_df[counts_df['index_count'] > 1]
 	conflict_free_df = results_df[~((results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
 		(results_df['ln_number'].isin(conflicted_indices['ln_number'])))].copy()
@@ -337,12 +338,14 @@ def annotate_line(line, filter_words_df):
 
 	return annotation
 
-def annotate_line_v2(line, filter_words_df, ln_index):
-	cursor = pg.return_postgres_cursor()
+def annotate_line_v2(line, filter_words_df, ln_number, cursor):
+
 	line = clean_text(line)
 	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df)
+
 	if annotation is not None:
-		annotation['ln_index'] = ln_index
+		annotation['ln_number'] = ln_number
+		annotation = resolve_conflicts(annotation)
 	return annotation
 
 def get_concept_synonyms_list_from_series(conceptid_series, cursor):
@@ -418,8 +421,8 @@ def annotate_text(text, filter_words_df):
 	results_df = pd.DataFrame()
 
 	
-	for ln_index, line in enumerate(tokenized):
-		params = (line, filter_words_df, ln_index)
+	for ln_number, line in enumerate(tokenized):
+		params = (line, filter_words_df, ln_number)
 		task_list.append((annotate_line_v2, params))
 
 	task_queue = mp.Queue()
@@ -442,7 +445,7 @@ def annotate_text(text, filter_words_df):
 	else:
 		return None
 
-def annotate_text_not_parallel(text, filter_words_df):
+def annotate_text_not_parallel(text, filter_words_df, cursor):
 
 
 	tokenized = nltk.sent_tokenize(text)
@@ -451,13 +454,15 @@ def annotate_text_not_parallel(text, filter_words_df):
 	results_df = pd.DataFrame()
 
 	
-	for ln_index, line in enumerate(tokenized):
-		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_index))
+	for ln_number, line in enumerate(tokenized):
+		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_number, cursor))
 
 	if len(results_df) > 0:
 		return results_df
 	else:
 		return None
+
+
 
 def ln_worker(input, output):
 	for func, args in iter(input.get, 'STOP'):
@@ -528,9 +533,10 @@ if __name__ == "__main__":
 	query14 = "angel dust PCP"
 	query15= "(vascular endothelial growth factors)"
 	text1 = """
-		Physiologically, VEGFs (vascular endothelial growth factors) and their receptors (VEGFR) play a critical role in vascular development, neogenesis, angiogenesis, endothelial function, and vascular tone. Pathologically, VEGF–VEGFR signaling induces dysregulated angiogenesis, which contributes to the growth and spread of tumors. The development of VEGF–VEGFR inhibitors (VEGFIs) has, thus, proven to be a valuable strategy in the management of several malignancies, yielding improved survival outcomes. Not surprisingly, VEGFIs are now standard of care as first-line monotherapy for some cancers and the scope of this class of drugs is growing. However with the promise of improved outcomes, VEGFIs also led to clinically relevant toxicities, especially hypertension and cardiovascular disease (CVD). As such, patients with cancer treated with VEGFIs may have improved cancer outcomes, but at the cost of an increased risk of CVD. Indeed, dose intensity and protracted use of these drugs can be limited by cardiovascular side effects and patients may require dose reduction or drug withdrawal, thus compromising anticancer efficacy and survival. Here we summarize the vascular biology of VEGF–VEGFR signaling and discuss the cardiovascular consequences and clinical impact of VEGFIs. New insights into molecular mechanisms whereby VEGFIs cause hypertension and heart disease are highlighted.
+		Complement factor H polymorphism, complement activators, and risk of age-related macular degeneration.
 	"""
 	query16 = "page"
+	query17="feeling cold"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -540,14 +546,15 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text(text1, filter_words_df)
+	res = annotate_text_not_parallel(text1, filter_words_df, cursor)
 	if res is not None:
-		u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
+		# u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
+		u.pprint(res)
+		# u.pprint(add_names(resolve_conflicts(res)))
 	else:
 		print("No matches")
 	# u.pprint(add_names(res))
-	# res['ln_number'] = 1
-	# u.pprint(add_names(resolve_conflicts(res)))
+	
 
 
 	check_timer.stop()
