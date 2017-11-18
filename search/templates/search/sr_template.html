@@ -42,7 +42,9 @@
 				{% if a.abstract_hide is not None %}
 					<div class="expanded">
 						{% for item in a.abstract_hide %}
-							<h4><b>{{item.0}}</b></h4>
+							{% if item.0 != "text" %}
+								<h4><b>{{item.0}}</b></h4>
+							{% endif %}
 							<h4>{{item.1}}</h4>
 						{% endfor %}
 					</div>

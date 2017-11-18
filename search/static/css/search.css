@@ -94,6 +94,9 @@
 	align-content: center;
 }
 
+.body .glance {
+	padding-bottom: 40px;
+}
 
 hr {
 	border-width: 2px;
