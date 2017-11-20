@@ -1,6 +1,6 @@
 import time
 import pandas as pd
-import pglib as pg
+import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
 
 
