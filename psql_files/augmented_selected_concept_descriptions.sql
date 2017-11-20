@@ -1,5 +1,4 @@
 set schema 'annotation';
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
 
 insert into augmented_selected_concept_descriptions
 	select
@@ -8,57 +7,12 @@ insert into augmented_selected_concept_descriptions
 	    ,term
 	    ,active
 	    ,case when effectivetime is null then now() else effectivetime end as effectivetime
-	from (
-		select 
-			distinct on (conceptid, term)
-			id
-		  	,conceptid
-		    ,term
-		    ,'1'::text as active
-		    ,null::timestamp as effectivetime
-		from annotation.active_cleaned_selected_concept_descriptions
-
-		union
-
-		select
-			id::text
-		    ,conceptid
-		    ,term
-		    ,'1'::text as active
-		    ,null::timestamp as effectivetime
-		from annotation.filtered_augmented_descriptions
-
-		union
-
-		select 
-			description_id as id
-		    ,conceptid
-		    ,term
-		    ,'1'::text as active
-		    ,null::timestamp as effectivetime
-		from annotation.description_whitelist
-
-		union 
-
-		select 
-			description_id as id
-			,conceptid 
-			,description as term 
-			,'1'::text as active
-			,effectivetime
-		from annotation.new_concepts
-
-		union
-
-		select 
-			description_id as id
-			,conceptid 
-			,term 
-			,'0'::text as active
-			,null::timestamp as effectivetime 			
-		from annotation.description_blacklist 
-		) tb 
-	where id || active || effectivetime  not in (select description_id || active || effectivetime from annotation.augmented_selected_concept_descriptions);
+	from annotation.prelim_augmented_selected_concept_descriptions
+ 	where not exists (
+ 		select description_id from annotation.augmented_selected_concept_descriptions
+        where annotation.prelim_augmented_selected_concept_descriptions.id = annotation.augmented_selected_concept_descriptions.description_id
+        and annotation.prelim_augmented_selected_concept_descriptions.active = annotation.augmented_selected_concept_descriptions.active           
+        );
 
 create index if not exists ascd_conceptid_ind on augmented_selected_concept_descriptions(conceptid);
 create index if not exists ascd_description_id_ind on augmented_selected_concept_descriptions(description_id);

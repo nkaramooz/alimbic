@@ -8,101 +8,118 @@ create table concept_types as (
 		,concept_type
 	from (
 		select 
-			supertypeid as conceptid, 
+			subtypeid as conceptid, 
 			case 
-				when subtypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
-				when subtypeid = '417176000' then 'treatment' -- growth substance
-				when subtypeid = '17948008' then 'treatment' -- hematopoietic factor
-				when subtypeid = '106205006' then 'treatment' -- hemostasis related substance
-				when subtypeid = '373244000' then 'treatment' -- immunologic substance ? cause
-				when subtypeid = '85860001' then 'treatment' -- nervous system hormone-like substance
-				when subtypeid = '35069000' then 'treatment' -- neurotransmitter
-				when subtypeid = '226355009' then 'treatment' -- nutrients
-				when subtypeid = '226355009' then 'treatment' -- nutrients
-				when subtypeid = '362958002' then 'treatment' -- procedure by site
-				when subtypeid = '180045004' then 'treatment' -- Amputation stump procedure
-				when subtypeid = '127599007' then 'treatment' -- Application of hip spica cast
-				when subtypeid = '408816000' then 'treatment' --  Artificial rupture of membranes
-				when subtypeid = '238164007' then 'treatment' --  Body wall and cavity procedures
-				when subtypeid = '363006003' then 'treatment' -- Cauterization by anatomic site
-				when subtypeid = '363066000' then 'treatment' -- Destructive procedure by anatomic site
-				when subtypeid = '363072000' then 'treatment' --  Diagnostic procedure by site
-				when subtypeid = '363076002' then 'treatment' --  Diathermy procedure by body site
-				when subtypeid = '447854000' then 'treatment' --  Dilation of enterostomy stoma
-				when subtypeid = '75503001' then 'treatment' -- Excision of cyst of Gartner's duct
-				when subtypeid = '31075001' then 'treatment' -- Excision of cyst of Müllerian duct in male 
-				when subtypeid = '66136000' then 'treatment' -- Excision of Müllerian duct
-				when subtypeid = '30700006' then 'treatment' -- Excision of transplanted tissue or organ
-				when subtypeid = '8253009' then 'treatment' -- Excision of Wolffian duct
-				when subtypeid = '66201006' then 'treatment' -- Extraction of fetus
-				when subtypeid = '266783009' then 'treatment' -- Face to pubes conversion
-				when subtypeid = '182656008' then 'treatment' -- General body warming therapy
-				when subtypeid = '26667003' then 'treatment' -- Incision and packing of wound
-				when subtypeid = '285837007' then 'treatment' -- Injection into body site
-				when subtypeid = '76790002' then 'treatment' --  Insertion of tissue expander
-				when subtypeid = '363186003' then 'treatment' --  Introduction of substance by body site 
-				when subtypeid = '182655007' then 'treatment' --  Local heating - infrared irradiation
-				when subtypeid = '363195006' then 'treatment' -- Manipulation procedure by body site
-				when subtypeid = '177203002' then 'treatment' -- Manual removal of products of conception from delivered uterus
-				when subtypeid = '9803001' then 'treatment' -- Medical procedure on body region
-				when subtypeid = '229319000' then 'treatment' --  Mobilizing of body part 
-				when subtypeid = '179986009' then 'treatment' -- Multisystem procedure 
-				when subtypeid = '91097001' then 'treatment' -- Neuromuscular procedure
-				when subtypeid = '448779009' then 'treatment' -- Occlusion of systemic to pulmonary artery shunt using transluminal embolic device 
-				when subtypeid = '233233001' then 'treatment' -- Operation on systemic to pulmonary artery shunt 
-				when subtypeid = '236994008' then 'treatment' -- Placental delivery procedure
-				when subtypeid = '129152004' then 'treatment' --  Procedure on back 
-				when subtypeid = '118664000' then 'treatment' -- Procedure on body system
-				when subtypeid = '118949002' then 'treatment' -- Procedure on extremity 
-				when subtypeid = '118754003' then 'treatment' -- Procedure on gland 
-				when subtypeid = '118950002' then 'treatment' -- Procedure on head AND/OR neck
-				when subtypeid = '118717007' then 'treatment' -- Procedure on organ 
-				when subtypeid = '699465002' then 'treatment' -- Procedure on region of shoulder girdle
-				when subtypeid = '118738001' then 'treatment' -- Procedure on soft tissue 
-				when subtypeid = '118694006' then 'treatment' -- Procedure on trunk 
-				when subtypeid = '78699000' then 'treatment' -- Radical amputation 
-				when subtypeid = '429685005' then 'treatment' --  Radiotherapy by body site
-				when subtypeid = '405450003' then 'treatment' -- Revision of hindquarter amputation
-				when subtypeid = '307991006' then 'treatment' -- Revision of mastectomy scar
-				when subtypeid = '363312001' then 'treatment' -- Stimulation procedure by body site
-				when subtypeid = '363320004' then 'treatment' -- Surgical repair procedure by body site 
-				when subtypeid = '442460002' then 'treatment' -- procedure on wound
-				when subtypeid = '386637004' then 'treatment' -- obstetric procedure
-				when subtypeid = '243120004' then 'treatment' -- Regimes and therapies 
-				when subtypeid = '409002' then 'treatment' -- Food allergy diet 
-				when subtypeid = '410942007' then 'treatment'
+				when supertypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
+				when supertypeid = '417176000' then 'treatment' -- growth substance
+				when supertypeid = '17948008' then 'treatment' -- hematopoietic factor
+				when supertypeid = '106205006' then 'treatment' -- hemostasis related substance
+				when supertypeid = '373244000' then 'treatment' -- immunologic substance ? cause
+				when supertypeid = '85860001' then 'treatment' -- nervous system hormone-like substance
+				when supertypeid = '35069000' then 'treatment' -- neurotransmitter
+				when supertypeid = '226355009' then 'treatment' -- nutrients
+				when supertypeid = '226355009' then 'treatment' -- nutrients
+				when supertypeid = '180045004' then 'treatment' -- Amputation stump procedure
+				when supertypeid = '127599007' then 'treatment' -- Application of hip spica cast
+				when supertypeid = '408816000' then 'treatment' --  Artificial rupture of membranes
+				when supertypeid = '238164007' then 'treatment' --  Body wall and cavity procedures
+				when supertypeid = '363006003' then 'treatment' -- Cauterization by anatomic site
+				when supertypeid = '363066000' then 'treatment' -- Destructive procedure by anatomic site
+				when supertypeid = '363072000' then 'treatment' --  Diagnostic procedure by site
+				when supertypeid = '363076002' then 'treatment' --  Diathermy procedure by body site
+				when supertypeid = '447854000' then 'treatment' --  Dilation of enterostomy stoma
+				when supertypeid = '75503001' then 'treatment' -- Excision of cyst of Gartner's duct
+				when supertypeid = '31075001' then 'treatment' -- Excision of cyst of Müllerian duct in male 
+				when supertypeid = '66136000' then 'treatment' -- Excision of Müllerian duct
+				when supertypeid = '30700006' then 'treatment' -- Excision of transplanted tissue or organ
+				when supertypeid = '8253009' then 'treatment' -- Excision of Wolffian duct
+				when supertypeid = '66201006' then 'treatment' -- Extraction of fetus
+				when supertypeid = '266783009' then 'treatment' -- Face to pubes conversion
+				when supertypeid = '182656008' then 'treatment' -- General body warming therapy
+				when supertypeid = '26667003' then 'treatment' -- Incision and packing of wound
+				when supertypeid = '285837007' then 'treatment' -- Injection into body site
+				when supertypeid = '76790002' then 'treatment' --  Insertion of tissue expander
+				when supertypeid = '363186003' then 'treatment' --  Introduction of substance by body site 
+				when supertypeid = '182655007' then 'treatment' --  Local heating - infrared irradiation
+				when supertypeid = '363195006' then 'treatment' -- Manipulation procedure by body site
+				when supertypeid = '177203002' then 'treatment' -- Manual removal of products of conception from delivered uterus
+				when supertypeid = '9803001' then 'treatment' -- Medical procedure on body region
+				when supertypeid = '229319000' then 'treatment' --  Mobilizing of body part 
+				when supertypeid = '179986009' then 'treatment' -- Multisystem procedure 
+				when supertypeid = '91097001' then 'treatment' -- Neuromuscular procedure
+				when supertypeid = '448779009' then 'treatment' -- Occlusion of systemic to pulmonary artery shunt using transluminal embolic device 
+				when supertypeid = '233233001' then 'treatment' -- Operation on systemic to pulmonary artery shunt 
+				when supertypeid = '236994008' then 'treatment' -- Placental delivery procedure
+				when supertypeid = '129152004' then 'treatment' --  Procedure on back 
+				when supertypeid = '118664000' then 'treatment' -- Procedure on body system
+				when supertypeid = '118949002' then 'treatment' -- Procedure on extremity 
+				when supertypeid = '118754003' then 'treatment' -- Procedure on gland 
+				when supertypeid = '118950002' then 'treatment' -- Procedure on head AND/OR neck
+				when supertypeid = '118717007' then 'treatment' -- Procedure on organ 
+				when supertypeid = '699465002' then 'treatment' -- Procedure on region of shoulder girdle
+				when supertypeid = '118738001' then 'treatment' -- Procedure on soft tissue 
+				when supertypeid = '118694006' then 'treatment' -- Procedure on trunk 
+				when supertypeid = '78699000' then 'treatment' -- Radical amputation 
+				when supertypeid = '429685005' then 'treatment' --  Radiotherapy by body site
+				when supertypeid = '405450003' then 'treatment' -- Revision of hindquarter amputation
+				when supertypeid = '307991006' then 'treatment' -- Revision of mastectomy scar
+				when supertypeid = '363312001' then 'treatment' -- Stimulation procedure by body site
+				when supertypeid = '363320004' then 'treatment' -- Surgical repair procedure by body site 
+				when supertypeid = '442460002' then 'treatment' -- procedure on wound
+				when supertypeid = '386637004' then 'treatment' -- obstetric procedure
+				when supertypeid = '243120004' then 'treatment' -- Regimes and therapies 
+				when supertypeid = '409002' then 'treatment' -- Food allergy diet 
+				when supertypeid = '410942007' then 'treatment' --  Drug or medicament (substance)
+				when supertypeid = '277132007' then 'treatment' -- Therapeutic procedure
+				when supertypeid = '445839007' then 'treatment' --  Insertion of nasogastric feeding tube using endoscopy for upper gastrointestinal tract guidance (procedure)
+				when supertypeid = '309041002' then 'treatment' -- Operations by intention (procedure)
+				when supertypeid = '362964009' then 'treatment' -- Palliative procedure (procedure)
+				when supertypeid = '277132007' then 'treatment' -- Therapeutic procedure (procedure)
 
-				when subtypeid = '386811000' then 'diagnostic' -- Fetal procedure DIAGNOSTIC
-				when subtypeid = '243773009' then 'diagnostic' -- Fetal blood sampling
-				when subtypeid = '371571005' then 'diagnostic' -- Imaging by body site DIAGNOSTIC
-				when subtypeid = '363244004' then 'diagnostic' -- Nuclear medicine study by site
-				when subtypeid = '5880005' then 'diagnostic'  --  Physical examination procedure Diagnostic
-				when subtypeid = '302381002' then 'diagnostic' -- Placental biopsy  Diagnostic
-				when subtypeid = '285579008' then 'diagnostic' --  Taking swab from body site
+				when supertypeid = '169443000' then 'prevention' --  Preventive procedure (procedure)
+				when supertypeid = '20135006' then 'screening' -- Screening procedure (procedure)
 
-				when subtypeid = '108252007' then 'diagnostic' -- laboratory procedure
-				when subtypeid = '362961001' then 'diagnostic' -- procedure by intent
+				when supertypeid = '386811000' then 'diagnostic' -- Fetal procedure DIAGNOSTIC
+				when supertypeid = '243773009' then 'diagnostic' -- Fetal blood sampling
+				when supertypeid = '371571005' then 'diagnostic' -- Imaging by body site DIAGNOSTIC
+				when supertypeid = '363244004' then 'diagnostic' -- Nuclear medicine study by site
+				when supertypeid = '5880005' then 'diagnostic'  --  Physical examination procedure Diagnostic
+				when supertypeid = '302381002' then 'diagnostic' -- Placental biopsy  Diagnostic
+				when supertypeid = '285579008' then 'diagnostic' --  Taking swab from body site
 
-				when subtypeid = '410607006' then 'cause' -- organism
-				when subtypeid = '88878007' then 'cause' -- protein
-				when subtypeid = '106197002' then 'cause'
-				when subtypeid = '106192008' then 'cause'
-				when subtypeid = '7120007' then 'cause'
+				when supertypeid = '108252007' then 'diagnostic' -- laboratory procedure
+				when supertypeid = '362961001' then 'diagnostic' -- procedure by intent
+				when supertypeid = '104464008' then 'diagnostic'-- Acid phosphatase measurement, forensic examination
+				when supertypeid = '432442004' then 'diagnostic' -- Collection of forensic data (procedure)
+				when supertypeid = '21268002' then 'diagnostic'  -- Cytopathology procedure, forensic (procedure)
+				when supertypeid = '103693007' then 'diagnostic' --  Diagnostic procedure (procedure)
+				when supertypeid = '5785009' then 'diagnostic' -- Forensic autopsy (procedure)
+				when supertypeid = '446185002' then 'diagnostic' --  Forensic computed tomography (procedure)
+				when supertypeid = '446186001' then 'diagnostic' -- Forensic magnetic resonance imaging (procedure)
+				when supertypeid = '446181006' then 'diagnostic' -- Forensic X-ray (procedure)
+				when supertypeid = '10821005' then 'diagnostic' -- Gastric fluid analysis, food, forensic (procedure)
+				when supertypeid = '258174001' then 'diagnostic' -- Imaging guidance procedure (procedure)
 
-				when subtypeid = '404684003' then 'symptom' -- clinical finding
+				when supertypeid = '410607006' then 'cause' -- organism
+				when supertypeid = '88878007' then 'cause' -- protein
+				when supertypeid = '106197002' then 'cause' -- Mediator of immune response AND/OR inflammation (substance)
+				when supertypeid = '106192008' then 'cause' -- Complement related substance (substance)
+				when supertypeid = '7120007' then 'cause' --  Antigen (substance)
 
-				when subtypeid = '123037004' then 'anatomy' -- body structure
+				when supertypeid = '404684003' then 'symptom' -- clinical finding
+
+				when supertypeid = '123037004' then 'anatomy' -- body structure
 				
-				when subtypeid = '363787002' then 'observable' -- observable entity
+				when supertypeid = '363787002' then 'observable' -- observable entity
 
-				when subtypeid = '362981000' then 'qualifier' -- qualifier value
+				when supertypeid = '362981000' then 'qualifier' -- qualifier value
 
-	   			when subtypeid = '64572001' then 'condition' -- disease
+	   			when supertypeid = '64572001' then 'condition' -- disease
 	   		end as concept_type
 
 		from snomed.curr_transitive_closure_f
 	) tb
-	where concept_type is not null
+	where concept_type is not null and conceptid not in ('182813001', '276239002')
 );
 
 create index ct_conceptid on concept_types(conceptid);

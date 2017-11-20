@@ -82,8 +82,11 @@ def concept_search_results(request, query):
 	related_treatments_list = None
 	if query_concepts_df is not None:
 		unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
-		full_query_concepts_list = ann.get_concept_synonyms_list_from_series(query_concepts_df['conceptid'], cursor)
-
+		# full_query_concepts_list = ann.get_concept_synonyms_list_fquery_expansionrom_series(query_concepts_df['conceptid'], cursor)
+		full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+		u.pprint(query_concepts_df)
+		u.pprint('break')
+		u.pprint(full_query_concepts_list)
 		related_df = get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
 		if related_df is not None:
 			related_treatments_list = related_df['term'].tolist()

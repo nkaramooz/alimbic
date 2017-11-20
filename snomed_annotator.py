@@ -386,9 +386,22 @@ def query_expansion(conceptid_series, cursor):
 	syn_df = pg.return_df_from_query(cursor, syn_query, (conceptid_tup,), \
 	 ["reference_conceptid", "synonym_conceptid"])
 
-	child_query = "select supertypeid, subtypeid from snomed.curr_transitive_closure_f where subtypeid in %s limit 1000"
+	child_query = """
+		select 
+			subtypeid as conceptid
+			,supertypeid
+		from (
+			select subtypeid, supertypeid
+			from snomed.curr_transitive_closure_f where supertypeid in %s
+		) tb
+		join annotation.concept_counts ct
+		  on tb.subtypeid = ct.conceptid
+		order by ct.cnt desc
+		limit 5
+	"""
+
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
-		["supertypeid", "subtypeid"])
+		["conceptid", "supertypeid"])
 
 	results_list = []
 
@@ -399,8 +412,8 @@ def query_expansion(conceptid_series, cursor):
 			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['reference_conceptid'].tolist())
 			added_other = True
 
-		if len(child_df[child_df['subtypeid'] == item]) > 0:
-			temp_res.extend(child_df[child_df['subtypeid'] == item]['supertypeid'].tolist())
+		if len(child_df[child_df['supertypeid'] == item]) > 0:
+			temp_res.extend(child_df[child_df['supertypeid'] == item]['conceptid'].tolist())
 			added_other = True
 
 		if added_other:
