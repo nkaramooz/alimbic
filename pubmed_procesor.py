@@ -609,7 +609,7 @@ def get_snomed_annotation(text, filter_words_df):
 	if text is None:
 		return None
 	else:
-		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor)
+		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor, True)
 
 		if annotation is not None:
 			return annotation['conceptid'].tolist()
