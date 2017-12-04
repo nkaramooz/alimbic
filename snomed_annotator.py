@@ -15,21 +15,30 @@ import utilities.utils as u, utilities.pglib as pg
 
 
 
-def get_new_candidate_df(word, cursor):
+def get_new_candidate_df(word, cursor, case_sensitive):
 
 	#Knocks off a second off a sentence by selecting for word_ord=1
+	new_candidate_query = ""
 
-	new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
-		description_id in \
-		(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
-			(word_ord = 1 or word_ord = 2))"
+	if case_sensitive:
+		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+			case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+			description_id in \
+			(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
+				(word_ord = 1 or word_ord = 2))"
+	else:
+		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+			case when word ilike %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+			description_id in \
+			(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word ilike %s and \
+				(word_ord = 1 or word_ord = 2))"
+
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
 
 	return new_candidate_df
 
-def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
+def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive):
 
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
@@ -54,11 +63,11 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df):
 			if word.lower() != 'vs':
 				word = lmtzr.lemmatize(word)
 			
-			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold)
+			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 			if not active_match:
 
-				new_candidate_df = get_new_candidate_df(word, cursor)
+				new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
 
 				if len(new_candidate_df) > 0:
 					new_candidate_df['substring_start_index'] = index
@@ -126,7 +135,7 @@ def get_results(candidate_df_arr):
 	return new_candidate_df_arr,results_df
 
 
-def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold):
+def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
 
 	new_candidate_df_arr = []
 	for index,df in enumerate(candidate_df_arr):
@@ -134,7 +143,11 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 		df_copy = df.copy()
 		for index,row in df_copy.iterrows():
 
-			l_dist = fuzz.ratio(word, row['word'])
+			l_dist = float()
+			if case_sensitive:
+				l_dist = fuzz.ratio(word, row['word'])
+			else:
+				l_dist = fuzz.ratio(word.lower(), row['word'].lower())
 
 			
 			# assign l_dist to only those that pass threshold
@@ -338,10 +351,10 @@ def annotate_line(line, filter_words_df):
 
 	return annotation
 
-def annotate_line_v2(line, filter_words_df, ln_number, cursor):
+def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive):
 
 	line = clean_text(line)
-	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df)
+	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df, case_sensitive)
 
 	if annotation is not None:
 		annotation['ln_number'] = ln_number
@@ -458,7 +471,7 @@ def annotate_text(text, filter_words_df):
 	else:
 		return None
 
-def annotate_text_not_parallel(text, filter_words_df, cursor):
+def annotate_text_not_parallel(text, filter_words_df, cursor, case_sensitive):
 
 
 	tokenized = nltk.sent_tokenize(text)
@@ -468,7 +481,7 @@ def annotate_text_not_parallel(text, filter_words_df, cursor):
 
 	
 	for ln_number, line in enumerate(tokenized):
-		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_number, cursor))
+		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive))
 
 	if len(results_df) > 0:
 		return results_df
