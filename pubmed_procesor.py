@@ -155,7 +155,7 @@ def load_pubmed_updates_v2():
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
 	number_of_processes = mp.cpu_count()
-	pool = Pool(processes=30)
+	pool = Pool(processes=10)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -163,7 +163,7 @@ def load_pubmed_updates_v2():
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
 
-	folder_arr = ['resources/production_baseline_2']
+	folder_arr = ['resources/production_baseline_1']
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
