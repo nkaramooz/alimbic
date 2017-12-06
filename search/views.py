@@ -10,7 +10,7 @@ import pandas as pd
 import utilities.es_utilities as es_util
 # Create your views here.
 
-INDEX_NAME='pubmed3'
+INDEX_NAME='pubmed'
 
 def home_page(request):
 	return render(request, 'search/home_page.html')
@@ -50,7 +50,7 @@ def post_elastic_search(request):
 	return HttpResponseRedirect(reverse('search:elastic_search_results', args=(query,)))
 
 def elastic_search_results(request, query):
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 
 	es_query = get_text_query(query)
 	sr = es.search(index=INDEX_NAME, body=es_query)['hits']['hits']
@@ -69,7 +69,7 @@ def post_concept_search(request):
 	return HttpResponseRedirect(reverse('search:concept_search_results', args=(query,)))
 
 def concept_search_results(request, query):
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 	query = ann.clean_text(query)
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
@@ -293,7 +293,7 @@ def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
 
 	result_dict = dict()
 	for cid in flattened_query_concept_list:
-		es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+		es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 		es_query = ""
 		if query_concept_type_df[query_concept_type_df['conceptid'] == cid]['concept_type'].any() == 'condition':
 			es_query = {"from" : 0, \
