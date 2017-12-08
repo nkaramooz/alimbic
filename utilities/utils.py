@@ -19,6 +19,25 @@ def pprint(data_frame):
 		pd.set_option('display.width', 1000)
 		print(data_frame)
 
+def get_conceptid_name(conceptid, cursor):
+	search_query = """
+		select 
+			term
+		from (
+		select 
+			length(term)
+    		,term
+    		,conceptid
+    		, row_number () over (partition by conceptid order by length(term) desc) as row_num
+		from annotation.augmented_selected_concept_descriptions 
+		where conceptid = '%s'
+		) tb
+		where row_num = 1
+	""" % conceptid
+
+	name = pg.return_df_from_query(cursor, search_query, None, ['term'])['term'].to_string(index=False)
+	return name
+
 
 def add_description(conceptid, description, cursor):
 

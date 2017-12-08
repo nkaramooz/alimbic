@@ -85,7 +85,7 @@ def concept_search_results(request, query):
 		
 		full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
-		related_df = get_treatment_conceptids(full_query_concepts_list, unmatched_terms, cursor)
+		related_df = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor)
 		if related_df is not None:
 			related_treatments_list = related_df['term'].tolist()
 
@@ -282,70 +282,81 @@ def get_query_arr_dict(query_concept_list):
 	else:
 		return dict_arr
 
-def get_treatment_conceptids(og_query_concept_list, unmatched_terms, cursor):
+def get_related_conceptids(og_query_concept_list, unmatched_terms, cursor):
 	# og_query_concept_list = og_query_concept_df['conceptid'].tolist()
-	u.pprint(og_query_concept_list)
+
 	concept_type_query_string = "select * from annotation.concept_types where conceptid in %s"
 
 	flattened_query_concept_list = [item for sublist in og_query_concept_list for item in sublist]
-	u.pprint(flattened_query_concept_list)
-	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (tuple(flattened_query_concept_list),), ["conceptid", "concept_type"])
+	# u.pprint(flattened_query_concept_list)
+	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
+		(tuple(flattened_query_concept_list),), ["conceptid", "concept_type"])
 
 	result_dict = dict()
-	for cid in flattened_query_concept_list:
-		es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-		es_query = ""
-		if query_concept_type_df[query_concept_type_df['conceptid'] == cid]['concept_type'].any() == 'condition':
-			es_query = {"from" : 0, \
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+
+	for cid in og_query_concept_list:
+		if isinstance(cid, list):	
+			root_concept = u.get_conceptid_name(cid[0], cursor)
+
+			if 'condition' in query_concept_type_df[query_concept_type_df['conceptid'].isin(cid)]['concept_type'].tolist():
+				treatments_query = 	es_query = {"from" : 0, \
 				 "size" : 400, \
 				 "query": \
 			 		{"bool": { \
 						"must": \
 							[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
-							 "query" : cid}}], \
+							 "query" : get_concept_query_string([cid], cursor)}}], \
 						"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
 							"query" : '30207005'}}]}}}
-		else:
-			es_query = {"from" : 0, \
-				 "size" : 400, \
-				 "query": \
-			 		{"bool": { \
-						"must": \
-							[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
-							 "query" : cid}}], \
-						"must_not": [get_article_type_filters()]}}}
+				sr = es.search(index=INDEX_NAME, body=treatments_query)
+				sr_conceptids = get_conceptids_from_sr(sr)
+				if len(sr_conceptids) > 0:
 
-		
-		sr = es.search(index=INDEX_NAME, body=es_query)
+					dist_sr_conceptids = list(set(sr_conceptids))
 
-		sr_conceptids = get_conceptids_from_sr(sr)
-		
-		if len(sr_conceptids) > 0:
-			dist_sr_conceptids = list(set(sr_conceptids))
-
-			sr_concept_type_query = """
-					select
-						conceptid 
-						,concept_type
-					from annotation.concept_types 
-					where conceptid in %s
+					sr_concept_type_query = """
+							select
+								conceptid 
+								,concept_type
+							from annotation.concept_types 
+							where conceptid in %s and concept_type in ('treatment', 'diagnostic')
+						"""
+					agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
 					
-				"""
-			agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
+					concept_types = list(set(agg_df['concept_type'].tolist()))
+					result_dict[root_concept] = []
+					
+					for concept_type in concept_types:
+						if concept_type == 'treatment':
+							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
+							sr_conceptid_df['count'] = 1
+							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-			concept_types = list(set(agg_df['concept_type'].tolist()))
-			u.pprint(concept_types)
-			for concept_type in concept_types:
-				if concept_type == 'treatment':
-					sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-					sr_conceptid_df['count'] = 1
-					sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
+							if len(sr_conceptid_df) > 0:
+								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
+								sr_conceptid_df = ann.add_names(sr_conceptid_df)
+								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+								
+								result_dict[root_concept].append({'treatment' : sr_conceptid_df['term'].tolist()})
+						
+						if concept_type == 'diagnostic':
+							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
+							sr_conceptid_df['count'] = 1
+							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-					if len(sr_conceptid_df) > 0:
-						sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-						sr_conceptid_df = ann.add_names(sr_conceptid_df)
-						sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
-						result_dict[cid] = sr_conceptid_df['term'].tolist()
+							if len(sr_conceptid_df) > 0:
+								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
+								sr_conceptid_df = ann.add_names(sr_conceptid_df)
+								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+
+								result_dict[root_concept].append({'diagnostic' : sr_conceptid_df['term'].tolist()})
+
+							
+
+			else:
+				print('false')
+		
 
 	print(result_dict)
 	return None
