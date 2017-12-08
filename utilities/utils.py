@@ -2,7 +2,7 @@ import time
 import pandas as pd
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
-
+from elasticsearch import Elasticsearch
 
 class Timer:
 	def __init__(self, label):
@@ -390,6 +390,12 @@ def lemmatize_table():
 	cursor.connection.commit()
 	cursor.close()
 
+
+def get_es_client():
+	es = Elasticsearch(hosts=[{'host': \
+		'vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', \
+		'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	return es
 
 if __name__ == "__main__":
 	lemmatize_table()
