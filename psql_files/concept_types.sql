@@ -51,7 +51,37 @@ create table concept_types as (
 				when supertypeid = '233233001' then 'treatment' -- Operation on systemic to pulmonary artery shunt 
 				when supertypeid = '236994008' then 'treatment' -- Placental delivery procedure
 				when supertypeid = '129152004' then 'treatment' --  Procedure on back 
-				when supertypeid = '118664000' then 'treatment' -- Procedure on body system
+				--when supertypeid = '118664000' then 'treatment' -- Procedure on body system
+
+				when supertypeid = '56402004' then 'diagnostic' --  Biopsy of mucous membrane (procedure)
+				when supertypeid = '392089008' then 'treatment' -- Breast procedure (procedure)
+
+				when supertypeid = '303679003' then 'diagnostic' -- Computed tomography of systems (procedure)
+				when supertypeid = '265244003' then 'treatment' -- Endocrine system and/or breast operations (procedure)
+				when supertypeid = '284366008' then 'diagnostic' -- Examination of body system (procedure)
+				when supertypeid = '303942004' then 'diagnostic' -- Fluoroscopy of systems (procedure)
+				when supertypeid = '265045007' then 'treatment' -- Lung and/or mediastinum operations (procedure)
+				when supertypeid = '234244004' then 'treatment' -- Lymphatic, spleen and bone marrow procedures (procedure)
+				when supertypeid = '241619004' then 'diagnostic' -- Magnetic resonance imaging of thoracic inlet (procedure)
+				when supertypeid = '303859008' then 'diagnostic' -- Nuclear medicine study of systems (procedure)
+				when supertypeid = '108108009' then 'treatment' -- Obstetrics manipulation (procedure)
+				when supertypeid = '118672003' then 'treatment' --  Procedure on cardiovascular system (procedure)
+				when supertypeid = '118673008' then 'diagnostic' -- Procedure on digestive system (procedure)
+				when supertypeid = '118683007' then 'diagnostic' -- Procedure on ear and related structures (procedure)
+				when supertypeid = '118681009' then 'treatment' -- Procedure on endocrine system (procedure)
+				when supertypeid = '118685000' then 'treatment' -- Procedure on hematopoietic system (procedure)
+				when supertypeid = '118686004' then 'diagnostic' -- Procedure on immune system (procedure)
+				when supertypeid = '118665004' then 'treatment' -- Procedure on integumentary system (procedure)
+				when supertypeid = '118688003' then 'treatment' -- Procedure on lymphatic system (procedure)
+				when supertypeid = '118696008' then 'treatment' -- Procedure on mediastinum (procedure)
+				when supertypeid = '118666003' then 'treatment' -- Procedure on musculoskeletal system (procedure)
+				when supertypeid = '118678004' then 'diagnostic' -- Procedure on nervous system (procedure)
+				when supertypeid = '118669005' then 'treatment' -- Procedure on respiratory system (procedure)
+				when supertypeid = '371560009' then 'diagnostic' -- Procedure on visual system (procedure)
+				when supertypeid = '168600009' then 'diagnostic' -- Thoracic inlet X-ray (procedure)
+				when supertypeid = '231345002' then 'treatment' -- Topical local anesthetic to mucous membrane (procedure)
+				when supertypeid = '303911009' then 'diagnostic' -- Ultrasound studies of systems (procedure)
+
 				when supertypeid = '118949002' then 'treatment' -- Procedure on extremity 
 				when supertypeid = '118754003' then 'treatment' -- Procedure on gland 
 				when supertypeid = '118950002' then 'treatment' -- Procedure on head AND/OR neck
@@ -70,7 +100,6 @@ create table concept_types as (
 				when supertypeid = '243120004' then 'treatment' -- Regimes and therapies 
 				when supertypeid = '409002' then 'treatment' -- Food allergy diet 
 				when supertypeid = '410942007' then 'treatment' --  Drug or medicament (substance)
-				when supertypeid = '277132007' then 'treatment' -- Therapeutic procedure
 				when supertypeid = '445839007' then 'treatment' --  Insertion of nasogastric feeding tube using endoscopy for upper gastrointestinal tract guidance (procedure)
 				when supertypeid = '309041002' then 'treatment' -- Operations by intention (procedure)
 				when supertypeid = '362964009' then 'treatment' -- Palliative procedure (procedure)
@@ -88,7 +117,15 @@ create table concept_types as (
 				when supertypeid = '285579008' then 'diagnostic' --  Taking swab from body site
 
 				when supertypeid = '108252007' then 'diagnostic' -- laboratory procedure
-				when supertypeid = '362961001' then 'diagnostic' -- procedure by intent
+				
+				when supertypeid = '104464008' then 'diagnostic' -- Acid phosphatase measurement, forensic examination (procedure)
+				when supertypeid = '103693007' then 'diagnostic' -- Diagnostic procedure (procedure)
+				when supertypeid = '258174001' then 'diagnostic' -- Imaging guidance procedure (procedure)
+				when supertypeid = '362964009' then 'treatment' -- Palliative procedure (procedure)
+				when supertypeid = '20135006' then 'diagnostic' --  Screening procedure (procedure)
+				when supertypeid = '277132007' then 'treatment' -- Therapeutic procedure (procedure)
+
+
 				when supertypeid = '104464008' then 'diagnostic'-- Acid phosphatase measurement, forensic examination
 				when supertypeid = '432442004' then 'diagnostic' -- Collection of forensic data (procedure)
 				when supertypeid = '21268002' then 'diagnostic'  -- Cytopathology procedure, forensic (procedure)
@@ -99,6 +136,9 @@ create table concept_types as (
 				when supertypeid = '446181006' then 'diagnostic' -- Forensic X-ray (procedure)
 				when supertypeid = '10821005' then 'diagnostic' -- Gastric fluid analysis, food, forensic (procedure)
 				when supertypeid = '258174001' then 'diagnostic' -- Imaging guidance procedure (procedure)
+				when supertypeid = '122869004' then 'diagnostic' -- Measurement procedure (procedure)
+				when supertypeid = '14766002' then 'diagnostic' -- Aspiration (procedure)
+				when supertypeid = '86273004' then 'diagnostic' -- Biopsy (procedure)
 
 				when supertypeid = '410607006' then 'cause' -- organism
 				when supertypeid = '88878007' then 'cause' -- protein
