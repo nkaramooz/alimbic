@@ -3,7 +3,6 @@ from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
 import snomed_annotator as ann
 import utilities.pglib as pg
-from elasticsearch import Elasticsearch
 from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
 import pandas as pd
@@ -50,8 +49,7 @@ def post_elastic_search(request):
 	return HttpResponseRedirect(reverse('search:elastic_search_results', args=(query,)))
 
 def elastic_search_results(request, query):
-	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
-
+	es = u.get_es_client()
 	es_query = get_text_query(query)
 	sr = es.search(index=INDEX_NAME, body=es_query)['hits']['hits']
 	sr_payload = get_sr_payload(sr)
@@ -69,7 +67,7 @@ def post_concept_search(request):
 	return HttpResponseRedirect(reverse('search:concept_search_results', args=(query,)))
 
 def concept_search_results(request, query):
-	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
+	es = u.get_es_client()	
 	query = ann.clean_text(query)
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
@@ -295,7 +293,7 @@ def get_related_conceptids(og_query_concept_list, unmatched_terms, cursor):
 	result_dict = dict()
 
 	for cid in flattened_query_concept_list:
-		es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
+		es = u.get_es_client()
 		es_query = ""
 		if query_concept_type_df[query_concept_type_df['conceptid'] == cid]['concept_type'].any() == 'condition':
 			es_query = {"from" : 0, \
