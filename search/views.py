@@ -306,56 +306,55 @@ def get_related_conceptids(og_query_concept_list, unmatched_terms, cursor):
 							 "query" : get_concept_query_string([cid], cursor)}}], \
 						"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
 							"query" : '30207005'}}]}}}
-				sr = es.search(index=INDEX_NAME, body=treatments_query)
-				sr_conceptids = get_conceptids_from_sr(sr)
-				if len(sr_conceptids) > 0:
+			sr = es.search(index=INDEX_NAME, body=treatments_query)
+			sr_conceptids = get_conceptids_from_sr(sr)
+			if len(sr_conceptids) > 0:
 
-					dist_sr_conceptids = list(set(sr_conceptids))
+				dist_sr_conceptids = list(set(sr_conceptids))
 
-					sr_concept_type_query = """
+				sr_concept_type_query = """
 							select
 								conceptid 
 								,concept_type
 							from annotation.concept_types 
 							where conceptid in %s and concept_type in ('treatment', 'diagnostic')
 						"""
-					agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
+				agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
 					
-					concept_types = list(set(agg_df['concept_type'].tolist()))
-					result_dict[root_concept] = []
+				concept_types = list(set(agg_df['concept_type'].tolist()))
+				result_dict[root_concept] = []
 					
-					for concept_type in concept_types:
-						if concept_type == 'treatment':
-							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-							sr_conceptid_df['count'] = 1
-							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
+				for concept_type in concept_types:
+					if concept_type == 'treatment':
+						sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
+						sr_conceptid_df['count'] = 1
+						sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-							if len(sr_conceptid_df) > 0:
-								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-								sr_conceptid_df = ann.add_names(sr_conceptid_df)
-								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+						if len(sr_conceptid_df) > 0:
+							sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
+							sr_conceptid_df = ann.add_names(sr_conceptid_df)
+							sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
 								
-								result_dict[root_concept].append({'treatment' : sr_conceptid_df['term'].tolist()})
+							result_dict[root_concept].append({'treatment' : sr_conceptid_df['term'].tolist()})
 						
-						if concept_type == 'diagnostic':
-							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-							sr_conceptid_df['count'] = 1
-							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
+					if concept_type == 'diagnostic':
+						sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
+						sr_conceptid_df['count'] = 1
+						sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-							if len(sr_conceptid_df) > 0:
-								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-								sr_conceptid_df = ann.add_names(sr_conceptid_df)
-								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+						if len(sr_conceptid_df) > 0:
+							sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
+							sr_conceptid_df = ann.add_names(sr_conceptid_df)
+							sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
 
-								result_dict[root_concept].append({'diagnostic' : sr_conceptid_df['term'].tolist()})
+							result_dict[root_concept].append({'diagnostic' : sr_conceptid_df['term'].tolist()})
 
 							
 
-			else:
-				print('false')
+
 		
 
-	print(result_dict)
+	
 	return None
 
 # this function isn't working - see schizophrenia treatment
