@@ -14,7 +14,7 @@ import datetime
 from multiprocessing import Pool
 import copy
 
-INDEX_NAME = 'pubmed4'
+INDEX_NAME = 'pubmed'
 
 def doc_worker(input, output):
 	for func,args in iter(input.get, 'STOP'):
@@ -65,7 +65,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str =json.dumps(json_str)
 					json_obj = json.loads(json_str)
 
-					es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+					es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
 						
@@ -152,7 +152,7 @@ def load_pubmed_updates_v3():
 
 
 def load_pubmed_updates_v2():
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 	
 	number_of_processes = mp.cpu_count()
 	pool = Pool(processes=10)
@@ -275,7 +275,7 @@ def og_pubmed_test():
 
 
 def load_pubmed_updates():
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 	
 	cursor = pg.return_postgres_cursor()
 	
@@ -361,7 +361,7 @@ def load_pubmed_updates():
 			file_timer.stop()
 
 def update_abstracts_with_conceptids():
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 	page = es.search(index='pubmed', doc_type='abstract', scroll='1000m', \
 		size=1000, body={"query" : {"match_all" : {}}})
 
@@ -390,7 +390,7 @@ def abstract_conceptid_update_iterator(sr):
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'https://vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', 'port' : 80}])
 
 	for abstract in sr['hits']['hits']:
 		title_conceptids = get_abstract_title_conceptids(abstract['_source']['article_title'], \
