@@ -80,7 +80,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 def load_pubmed_updates_v3():
 	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	
-	number_of_processes = 15
+	number_of_processes = 40
 	
 	task_queue = mp.Queue()
 	done_queue = mp.Queue()
