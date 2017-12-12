@@ -31,12 +31,12 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
 		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
 		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
-
+		print('correct journal')
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) > 1990):
-				
+				print('correct year')
 				json_str = get_article_info(elem, json_str)
 				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
@@ -46,13 +46,13 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str = get_article_ids(elem, json_str)
 					
 					json_str['citations_pmid'] = get_article_citations(elem)
-
+					print('before concept')
 					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
 					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-
-					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+					print('after concept')
+					# json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
 		
-					json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
+					# json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
 
 					json_str['filename'] = filename
 					pmid = json_str['pmid']
@@ -75,7 +75,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
 	number_of_processes = mp.cpu_count()
-	pool = Pool(processes=40)
+	pool = Pool(processes=1)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -93,12 +93,12 @@ def load_pubmed_updates_v2():
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	# for object in bucket.objects.all():
-	bucket.download_file(object.key, object.key)
-
+	# bucket.download_file(object.key, object.key)
+	bucket.download_file('medline17n0600.xml', 'medline17n0600.xml')
 	file_timer = u.Timer('file')
 
-	tree = ET.parse(object.key)
-
+	# tree = ET.parse(object.key)
+	tree = ET.parse('medline17n0600.xml')
 	root = tree.getroot()
 
 	file_abstract_counter = 0
