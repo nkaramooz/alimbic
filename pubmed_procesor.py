@@ -101,9 +101,10 @@ def load_pubmed_updates_v2():
 	# tree = ET.parse(object.key)
 	tree = ET.parse('medline17n0600.xml')
 	root = tree.getroot()
-
+	print('got root')
 	file_abstract_counter = 0
 	for elem in root:
+		print('elem iterator')
 		if elem.tag == 'PubmedArticle':
 
 			pool.apply_async(index_doc_from_elem, (elem, filter_words_df, filename))
