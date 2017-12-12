@@ -12,6 +12,7 @@ import os
 import datetime
 from multiprocessing import Pool
 import copy
+import boto3
 
 INDEX_NAME = 'pubmed'
 
@@ -23,12 +24,6 @@ def doc_worker(input, output):
 def doc_calculate(func, args):
 	return func(*args)
 
-# "Letter"}}, \
-# 			{"match": {"article_type" : "Editorial"}}, \
-# 			{"match": {"article_type" : "Comment"}}, \
-# 			{"match": {"article_type" : "Biography"}}, \
-# 			{"match": {"article_type" : "Patient Education Handout"}}, \
-# 			{"match": {"article_type" : "News"}
 
 def index_doc_from_elem(elem, filter_words_df, filename):
 
@@ -77,83 +72,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					
 
 
-def load_pubmed_updates_v3():
-	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
-	
-	number_of_processes = 40
-	
-	task_queue = mp.Queue()
-	done_queue = mp.Queue()
-	pool = []
-
-	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue, done_queue))
-		p.daemon = False
-		pool.append(p)
-		p.start()
-
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
-
-	folder_arr = ['resources/production_baseline_2']
-
-	# index_exists = es.indices.exists(index=index_name)
-	for folder_path in folder_arr:
-		file_counter = 0
-		for filename in os.listdir(folder_path):
-			file_timer = u.Timer('file')
-			file_path = folder_path + '/' + filename
-
-			tree = ET.parse(file_path)
-
-			root = tree.getroot()
-
-			file_abstract_counter = 0
-			for elem in root:
-				if elem.tag == 'PubmedArticle':
-					# task_queue.put((index_doc_from_elem, (elem, filename, filter_words_df)))
-					params = (elem, filter_words_df)
-					task_queue.put((index_doc_from_elem, params))
-					file_abstract_counter += 1
-
-					
-				# elif elem.tag == 'DeleteCitation':
-
-				# 	delete_pmid_arr = get_deleted_pmid(elem)
-
-				# 	for pmid in delete_pmid_arr:
-				# 		get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				# 		query_result = es.search(index=index_name, body=get_article_query)
-
-				# 		if query_result['hits']['total'] == 0:
-				# 			continue
-				# 		elif query_result['hits']['total'] == 1:
-				# 			article_id = query_result['hits']['hits'][0]['_id']
-				# 			es.delete(index=index_name, doc_type='abstract', id=article_id)
-				# 		else:
-				# 			print("delete: more than one document found")
-				# 			print(pmid)
-			file_counter += 1
-			if file_counter >= 1:
-				break
-			print(file_abstract_counter)
-			file_timer.stop()
-	for i in range(number_of_processes):
-		task_queue.put('STOP')
-	for p in pool:
-		p.join()
-
-	# for p in pool:
-	# 	p.join()
-
-
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
 	number_of_processes = mp.cpu_count()
-	pool = Pool(processes=10)
+	pool = Pool(processes=40)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -161,56 +83,55 @@ def load_pubmed_updates_v2():
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
 
-	folder_arr = ['resources/production_baseline_1']
+	
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
 		es.indices.create(index=INDEX_NAME, body={})
 
-	for folder_path in folder_arr:
-		file_counter = 0
 
-		for filename in os.listdir(folder_path):
-			file_timer = u.Timer('file')
-			file_path = folder_path + '/' + filename
+	s3 = boto3.resource('s3')
+	bucket = s3.Bucket('pubmed-baseline-1')
+	for object in bucket.objects.all():
+		bucket.download_file(object.key, object.key)
 
-			tree = ET.parse(file_path)
+		file_timer = u.Timer('file')
 
-			root = tree.getroot()
+		tree = ET.parse(object.key)
 
-			file_abstract_counter = 0
-			for elem in root:
-				if elem.tag == 'PubmedArticle':
+		root = tree.getroot()
 
-					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, filename))
-					file_abstract_counter += 1
+		file_abstract_counter = 0
+		for elem in root:
+			if elem.tag == 'PubmedArticle':
 
-				elif elem.tag == 'DeleteCitation':
+				pool.apply_async(index_doc_from_elem, (elem, filter_words_df, filename))
+				file_abstract_counter += 1
 
-					delete_pmid_arr = get_deleted_pmid(elem)
+			elif elem.tag == 'DeleteCitation':
 
-					for pmid in delete_pmid_arr:
-						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-						query_result = es.search(index=INDEX_NAME, body=get_article_query)
+				delete_pmid_arr = get_deleted_pmid(elem)
 
-						if query_result['hits']['total'] == 0:
-							continue
-						elif query_result['hits']['total'] == 1:
-							article_id = query_result['hits']['hits'][0]['_id']
-							es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-						else:
-							print("delete: more than one document found")
-							print(pmid)
-			file_counter += 1
-			if file_counter >= 1:
-				break
-			print(file_abstract_counter)
-			file_timer.stop()
+				for pmid in delete_pmid_arr:
+					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+					query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+					if query_result['hits']['total'] == 0:
+						continue
+					elif query_result['hits']['total'] == 1:
+						article_id = query_result['hits']['hits'][0]['_id']
+						es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+					else:
+						print("delete: more than one document found")
+						print(pmid)
+		
+		os.remove(object.key)	
+			
+		file_timer.stop()
 	pool.close()
 	pool.join()
 
-	# for i in range(number_of_processes):
-	# 	task_queue.put('STOP')
+
 def og_pubmed_test():
 
 	cursor = pg.return_postgres_cursor()
@@ -255,7 +176,7 @@ def og_pubmed_test():
 								json_str['citations_pmid'] = get_article_citations(elem)
 								json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
 								json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-								# json_str['original_index_time'] = datetime.datetime.now()
+								json_str['original_index_time'] = datetime.datetime.now()
 								json_str['filename'] = filename
 								pmid = json_str['pmid']
 								json_str =json.dumps(json_str)
