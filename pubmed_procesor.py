@@ -73,6 +73,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 
 def load_pubmed_updates_v2():
+	print('called function')
 	es = u.get_es_client()
 	number_of_processes = mp.cpu_count()
 	pool = Pool(processes=1)
@@ -82,7 +83,7 @@ def load_pubmed_updates_v2():
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
-
+	print('closed cursor')
 	
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
