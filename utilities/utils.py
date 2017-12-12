@@ -2,7 +2,7 @@ import time
 import pandas as pd
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 class Timer:
 	def __init__(self, label):
