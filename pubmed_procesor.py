@@ -40,7 +40,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 				json_str = get_article_info(elem, json_str)
 				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
-					print('correct art')
+
 					json_str = get_pmid(elem, json_str)
 
 					json_str = get_article_ids(elem, json_str)
@@ -77,7 +77,7 @@ def load_pubmed_updates_v2():
 	print('called function')
 	es = u.get_es_client()
 
-	pool = Pool(processes=60)
+	pool = Pool(processes=40)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -94,7 +94,7 @@ def load_pubmed_updates_v2():
 	bucket = s3.Bucket('pubmed-baseline-1')
 	for object in bucket.objects.all():
 		bucket.download_file(object.key, object.key)
-
+		print(object.key)
 	
 		file_timer = u.Timer('file')
 
@@ -125,7 +125,7 @@ def load_pubmed_updates_v2():
 						print(pmid)
 		os.remove(object.key)		
 		file_timer.stop()
-		
+
 	pool.close()
 	pool.join()
 
