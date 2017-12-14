@@ -46,19 +46,19 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str = get_article_ids(elem, json_str)
 					
 					json_str['citations_pmid'] = get_article_citations(elem)
-					print('before concept')
+
 					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
 					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-					print('after concept')
-					# json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+
+					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
 		
-					# json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
+					json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
 
 					json_str['filename'] = filename
 					pmid = json_str['pmid']
 					json_str =json.dumps(json_str)
 					json_obj = json.loads(json_str)
-					print(json_obj)
+
 					es = u.get_es_client()
 					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
@@ -93,41 +93,41 @@ def load_pubmed_updates_v2():
 
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
-	# for object in bucket.objects.all():
-	# bucket.download_file(object.key, object.key)
-	bucket.download_file('medline17n0600.xml', 'medline17n0600.xml')
-	file_timer = u.Timer('file')
+	for object in bucket.objects.all():
+		bucket.download_file(object.key, object.key)
 
-	# tree = ET.parse(object.key)
-	tree = ET.parse('medline17n0600.xml')
-	root = tree.getroot()
-	print('got root')
-	file_abstract_counter = 0
-	for elem in root:
-		print('elem iterator')
-		if elem.tag == 'PubmedArticle':
+		file_timer = u.Timer('file')
 
-			pool.apply_async(index_doc_from_elem, (elem, filter_words_df, filename))
-			file_abstract_counter += 1
+		tree = ET.parse(object.key)
+	# tree = ET.parse('medline17n0600.xml')
+		root = tree.getroot()
 
-		elif elem.tag == 'DeleteCitation':
+		file_abstract_counter = 0
+		for elem in root:
 
-			delete_pmid_arr = get_deleted_pmid(elem)
+			if elem.tag == 'PubmedArticle':
 
-			for pmid in delete_pmid_arr:
-				get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				query_result = es.search(index=INDEX_NAME, body=get_article_query)
+				pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
+				file_abstract_counter += 1
 
-				if query_result['hits']['total'] == 0:
-					continue
-				elif query_result['hits']['total'] == 1:
-					article_id = query_result['hits']['hits'][0]['_id']
-					es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-				else:
-					print("delete: more than one document found")
-					print(pmid)
+			elif elem.tag == 'DeleteCitation':
+
+				delete_pmid_arr = get_deleted_pmid(elem)
+
+				for pmid in delete_pmid_arr:
+					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+					query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+					if query_result['hits']['total'] == 0:
+						continue
+					elif query_result['hits']['total'] == 1:
+						article_id = query_result['hits']['hits'][0]['_id']
+						es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+					else:
+						print("delete: more than one document found")
+						print(pmid)
 		
-	os.remove(object.key)	
+		os.remove(object.key)	
 			
 	file_timer.stop()
 	pool.close()

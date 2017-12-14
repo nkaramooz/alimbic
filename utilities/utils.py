@@ -393,7 +393,7 @@ def lemmatize_table():
 
 def get_es_client():
 	es = Elasticsearch(hosts=[{'host': \
-		'vpc-elasticsearch-nejbxkcdp2kfxl7je72jqeotzu.us-west-1.es.amazonaws.com', \
+		'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', \
 		'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
 	return es
 
