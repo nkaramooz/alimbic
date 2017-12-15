@@ -13,6 +13,7 @@ import datetime
 from multiprocessing import Pool
 import copy
 import boto3
+import re
 
 INDEX_NAME = 'pubmed'
 
@@ -93,6 +94,8 @@ def load_pubmed_updates_v2():
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	for object in bucket.objects.all():
+		file_num = re.findall('medline17n(.*).xml', object.key)
+
 		bucket.download_file(object.key, object.key)
 		print(object.key)
 	
@@ -536,4 +539,21 @@ if __name__ == "__main__":
 	# add_article_types()
 	load_pubmed_updates_v2()
 	t.stop()
+
+	# tree = ET.parse('medline17n0028.xml')		
+	# root = tree.getroot()
+	# for elem in root:
+	# 	if elem.tag == 'PubmedArticle':
+
+	# 		if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
+	# 			or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
+	# 			or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
+	# 			or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
+	# 			print('journal')
+	# 			json_str = {}
+	# 			json_str = get_journal_info(elem, json_str)
+	# 			if json_str['journal_pub_year'] is not None:
+	# 				if (int(json_str['journal_pub_year']) > 1990):
+	# 					print('true')
+
 
