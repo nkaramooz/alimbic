@@ -95,7 +95,6 @@ def load_pubmed_updates_v2():
 
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
-
 	for object in bucket.objects.all():
 		pool = Pool(processes=40)
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
@@ -113,12 +112,12 @@ def load_pubmed_updates_v2():
 
 			file_abstract_counter = 0
 
-			for event, elem in ET.iterparse(object.key, events=('start', 'end')):
-				if event == 'start' and elem.tag == 'PubmedArticle':
+			for elem in root:
+				if elem.tag == 'PubmedArticle':
 					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
 					file_abstract_counter += 1
 
-				elif event == 'start' and elem.tag == 'DeleteCitation':
+				elif elem.tag == 'DeleteCitation':
 					delete_pmid_arr = get_deleted_pmid(elem)
 
 					for pmid in delete_pmid_arr:
@@ -136,6 +135,8 @@ def load_pubmed_updates_v2():
 					elem.clear()
 				else:
 					elem.clear()
+
+	
 
 			os.remove(object.key)
 	
