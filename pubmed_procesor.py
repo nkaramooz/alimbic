@@ -17,6 +17,7 @@ import re
 import gc
 
 INDEX_NAME = 'pubmed'
+JOBS_COMPLETED = 0
 
 def doc_worker(input, output):
 	for func,args in iter(input.get, 'STOP'):
@@ -76,6 +77,8 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 	elem.clear()
 
+def jobs_callback():
+	JOBS_COMPLETED += 1
 
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
@@ -92,11 +95,13 @@ def load_pubmed_updates_v2():
 
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
+
 	for object in bucket.objects.all():
 		pool = Pool(processes=40)
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
-		if file_num >= 600:
+		if file_num >= 0:
+			JOBS_COMPLETED = 0
 
 			bucket.download_file(object.key, object.key)
 			print(object.key)
@@ -108,12 +113,12 @@ def load_pubmed_updates_v2():
 
 			file_abstract_counter = 0
 
-			for elem in root:
-				if elem.tag == 'PubmedArticle':
+			for event, elem in ET.iterparse(object.key, events=('start', 'end')):
+				if event == 'start' and elem.tag == 'PubmedArticle':
 					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
 					file_abstract_counter += 1
 
-				elif elem.tag == 'DeleteCitation':
+				elif event == 'start' and elem.tag == 'DeleteCitation':
 					delete_pmid_arr = get_deleted_pmid(elem)
 
 					for pmid in delete_pmid_arr:
@@ -133,160 +138,14 @@ def load_pubmed_updates_v2():
 					elem.clear()
 
 			os.remove(object.key)
-			# tree = None
-			# root = None
-			gc.collect()		
-			file_timer.stop()
-
-			pool.close()
-			pool.join()
-
-
-def og_pubmed_test():
-
-	cursor = pg.return_postgres_cursor()
 	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
-
-	folder_arr = ['resources/production_baseline_2']
-
-
-	for folder_path in folder_arr:
-		file_counter = 0
-		for filename in os.listdir(folder_path):
-			file_timer = u.Timer('file')
-			file_path = folder_path + '/' + filename
-
-			tree = ET.parse(file_path)
-
-			root = tree.getroot()
-
-			file_abstract_counter = 0
-			for elem in root:
-				if elem.tag == 'PubmedArticle':
-
-					# Filtering only for NEJM articles
-					if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
-						or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-						or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-						or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
-
-						json_str = {}
-						json_str = get_journal_info(elem, json_str)
-						
-						if json_str['journal_pub_year'] is not None:
-							if (int(json_str['journal_pub_year']) > 1990):
-								d=u.Timer("article-timer")
-								json_str = get_pmid(elem, json_str)
-								json_str = get_article_ids(elem, json_str)
-								
-								json_str = get_article_info(elem, json_str)
-								json_str['citations_pmid'] = get_article_citations(elem)
-								json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-								json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-								json_str['original_index_time'] = datetime.datetime.now()
-								json_str['filename'] = filename
-								pmid = json_str['pmid']
-								json_str =json.dumps(json_str)
-								json_obj = json.loads(json_str)
-								d.stop()
-
-								
-				
-			file_counter += 1
-			if file_counter >= 1:
-				break
-			print(file_abstract_counter)
 			file_timer.stop()
 
+	pool.close()
+	pool.join()
 
 
-def load_pubmed_updates():
-	es = u.get_es_client()
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
 
-	folder_arr = ['resources/production_baseline_1', 'resources/production_baseline_2', 'resources/production_updates_10_21_17']
-	index_name = 'pubmed3'
-	index_exists = es.indices.exists(index=index_name)
-	for folder_path in folder_arr:
-
-		for filename in os.listdir(folder_path):
-			file_timer = u.Timer('file')
-			file_path = folder_path + '/' + filename
-
-			tree = ET.parse(file_path)
-
-			root = tree.getroot()
-
-			file_abstract_counter = 0
-			for elem in root:
-				if elem.tag == 'PubmedArticle':
-
-					# Filtering only for NEJM articles
-					if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
-						or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-						or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-						or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
-
-						json_str = {}
-						json_str = get_journal_info(elem, json_str)
-						
-						if json_str['journal_pub_year'] is not None:
-							if (int(json_str['journal_pub_year']) > 1990):
-								d=u.Timer("article-timer")
-								json_str = get_pmid(elem, json_str)
-								json_str = get_article_ids(elem, json_str)
-								
-								json_str = get_article_info(elem, json_str)
-								json_str['citations_pmid'] = get_article_citations(elem)
-								json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-								json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
-								json_str['original_index_time'] = datetime.datetime.now()
-								json_str['filename'] = filename
-								pmid = json_str['pmid']
-								json_str =json.dumps(json_str)
-								json_obj = json.loads(json_str)
-								d.stop()
-
-								if index_exists:
-									get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-									query_result = es.search(index=index_name, body=get_article_query)
-
-									if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
-										es.index(index=index_name, doc_type='abstract', body=json_obj)
-									
-									elif query_result['hits']['total'] == 1:
-										article_id = query_result['hits']['hits'][0]['_id']
-										es.index(index=index_name, id=article_id, doc_type='abstract', body=json_obj)
-									file_abstract_counter += 1
-								else:
-									es.index(index=index_name, doc_type='abstract', body=json_obj)
-									index_exists = True
-				elif elem.tag == 'DeleteCitation':
-
-					delete_pmid_arr = get_deleted_pmid(elem)
-
-					for pmid in delete_pmid_arr:
-						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-						query_result = es.search(index=index_name, body=get_article_query)
-
-						if query_result['hits']['total'] == 0:
-							continue
-						elif query_result['hits']['total'] == 1:
-							article_id = query_result['hits']['hits'][0]['_id']
-							es.delete(index=index_name, doc_type='abstract', id=article_id)
-						else:
-							print("delete: more than one document found")
-							print(pmid)
-				
-			print(file_abstract_counter)
-			file_timer.stop()
 
 def update_abstracts_with_conceptids():
 	es =u.get_es_client()
