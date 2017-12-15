@@ -28,6 +28,8 @@ def doc_calculate(func, args):
 
 
 def index_doc_from_elem(elem, filter_words_df, filename):
+	if elem.tag != 'PubMedArticle'
+		raise ValueError('lost element')
 
 	if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
 		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
@@ -72,14 +74,11 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					elif query_result['hits']['total'] == 1:
 						article_id = query_result['hits']['hits'][0]['_id']
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
-					
+	elem.clear()
 
 
 def load_pubmed_updates_v2():
-	print('called function')
 	es = u.get_es_client()
-
-	pool = Pool(processes=40)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -91,13 +90,13 @@ def load_pubmed_updates_v2():
 	if not index_exists:
 		es.indices.create(index=INDEX_NAME, body={})
 
-
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	for object in bucket.objects.all():
+		pool = Pool(processes=40)
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
-		if file_num >= 28:
+		if file_num >= 600:
 
 			bucket.download_file(object.key, object.key)
 			print(object.key)
@@ -129,15 +128,18 @@ def load_pubmed_updates_v2():
 						else:
 							print("delete: more than one document found")
 							print(pmid)
-				elem.clear()
+					elem.clear()
+				else:
+					elem.clear()
+
 			os.remove(object.key)
 			# tree = None
 			# root = None
 			gc.collect()		
 			file_timer.stop()
 
-	pool.close()
-	pool.join()
+			pool.close()
+			pool.join()
 
 
 def og_pubmed_test():
