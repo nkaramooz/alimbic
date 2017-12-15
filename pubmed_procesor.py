@@ -130,6 +130,8 @@ def load_pubmed_updates_v2():
 							print("delete: more than one document found")
 							print(pmid)
 			os.remove(object.key)
+			tree = None
+			root = None
 			gc.collect()		
 			file_timer.stop()
 
