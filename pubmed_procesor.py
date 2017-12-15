@@ -14,6 +14,7 @@ from multiprocessing import Pool
 import copy
 import boto3
 import re
+import gc
 
 INDEX_NAME = 'pubmed'
 
@@ -128,7 +129,8 @@ def load_pubmed_updates_v2():
 						else:
 							print("delete: more than one document found")
 							print(pmid)
-			os.remove(object.key)		
+			os.remove(object.key)
+			gc.collect()		
 			file_timer.stop()
 
 	pool.close()
