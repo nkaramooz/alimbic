@@ -94,40 +94,42 @@ def load_pubmed_updates_v2():
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	for object in bucket.objects.all():
-		file_num = re.findall('medline17n(.*).xml', object.key)
+		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
-		bucket.download_file(object.key, object.key)
-		print(object.key)
-	
-		file_timer = u.Timer('file')
+		if file_num >= 28:
 
-		tree = ET.parse(object.key)		
-		root = tree.getroot()
+			bucket.download_file(object.key, object.key)
+			print(object.key)
+		
+			file_timer = u.Timer('file')
 
-		file_abstract_counter = 0
+			tree = ET.parse(object.key)		
+			root = tree.getroot()
 
-		for elem in root:
-			if elem.tag == 'PubmedArticle':
-				pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
-				file_abstract_counter += 1
+			file_abstract_counter = 0
 
-			elif elem.tag == 'DeleteCitation':
-				delete_pmid_arr = get_deleted_pmid(elem)
+			for elem in root:
+				if elem.tag == 'PubmedArticle':
+					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
+					file_abstract_counter += 1
 
-				for pmid in delete_pmid_arr:
-					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-					query_result = es.search(index=INDEX_NAME, body=get_article_query)
+				elif elem.tag == 'DeleteCitation':
+					delete_pmid_arr = get_deleted_pmid(elem)
 
-					if query_result['hits']['total'] == 0:
-						continue
-					elif query_result['hits']['total'] == 1:
-						article_id = query_result['hits']['hits'][0]['_id']
-						es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-					else:
-						print("delete: more than one document found")
-						print(pmid)
-		os.remove(object.key)		
-		file_timer.stop()
+					for pmid in delete_pmid_arr:
+						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+						query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+						if query_result['hits']['total'] == 0:
+							continue
+						elif query_result['hits']['total'] == 1:
+							article_id = query_result['hits']['hits'][0]['_id']
+							es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+						else:
+							print("delete: more than one document found")
+							print(pmid)
+			os.remove(object.key)		
+			file_timer.stop()
 
 	pool.close()
 	pool.join()
