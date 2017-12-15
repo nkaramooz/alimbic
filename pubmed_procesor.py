@@ -28,7 +28,7 @@ def doc_calculate(func, args):
 
 
 def index_doc_from_elem(elem, filter_words_df, filename):
-	if elem.tag != 'PubMedArticle'
+	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
 	if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
