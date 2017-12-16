@@ -141,8 +141,8 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 			try:
-				print(abstract_counter/JOBS_COMPLETED)
-				while (abstract_counter/JOBS_COMPLETED > 30):
+				s = "abstract counter : " + abstract_counter + "   ---- JOBS_COMPLETED: " + JOBS_COMPLETED
+				while ((abstract_counter - JOBS_COMPLETED) > 120):
 					continue
 			except:
 				pass
