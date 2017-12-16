@@ -83,6 +83,7 @@ def jobs_callback(ret):
 
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
+	pool = Pool(processes=80)
 
 	global JOBS_COMPLETED
 
@@ -99,10 +100,10 @@ def load_pubmed_updates_v2():
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	for object in bucket.objects.all():
-		pool = Pool(processes=40)
+		
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
-		if file_num >= 0:
+		if file_num >= 600:
 			JOBS_COMPLETED = 0
 
 			bucket.download_file(object.key, object.key)
