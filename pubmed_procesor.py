@@ -83,7 +83,7 @@ def jobs_callback(ret):
 
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
-	pool = Pool(processes=80)
+	pool = Pool(processes=120)
 
 	global JOBS_COMPLETED
 
@@ -99,6 +99,7 @@ def load_pubmed_updates_v2():
 
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
+	abstract_counter = 0
 	for object in bucket.objects.all():
 		
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
@@ -118,8 +119,9 @@ def load_pubmed_updates_v2():
 
 			for elem in root:
 				if elem.tag == 'PubmedArticle':
-					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
+					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
 					file_abstract_counter += 1
+					abstract_counter += 1
 
 				elif elem.tag == 'DeleteCitation':
 					delete_pmid_arr = get_deleted_pmid(elem)
@@ -140,8 +142,8 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 
-			while (JOBS_COMPLETED < file_abstract_counter):
-				continue
+			# while (JOBS_COMPLETED*2 > abstract_counter):
+			# 	continue
 
 			os.remove(object.key)
 	
