@@ -136,7 +136,8 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 
-	
+			while (JOBS_COMPLETED < file_abstract_counter)
+				continue
 
 			os.remove(object.key)
 	
