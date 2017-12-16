@@ -84,6 +84,8 @@ def jobs_callback(ret):
 def load_pubmed_updates_v2():
 	es = u.get_es_client()
 
+	global JOBS_COMPLETED
+
 	cursor = pg.return_postgres_cursor()
 	
 	filter_words_query = "select words from annotation.filter_words"
@@ -136,7 +138,7 @@ def load_pubmed_updates_v2():
 					elem.clear()
 				else:
 					elem.clear()
-			global JOBS_COMPLETED
+
 			while (JOBS_COMPLETED < file_abstract_counter):
 				continue
 
