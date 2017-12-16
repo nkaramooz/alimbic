@@ -114,7 +114,7 @@ def load_pubmed_updates_v2():
 
 			for elem in root:
 				if elem.tag == 'PubmedArticle':
-					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
+					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
 					file_abstract_counter += 1
 
 				elif elem.tag == 'DeleteCitation':
@@ -136,7 +136,7 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 
-			while (JOBS_COMPLETED < file_abstract_counter)
+			while (JOBS_COMPLETED < file_abstract_counter):
 				continue
 
 			os.remove(object.key)
