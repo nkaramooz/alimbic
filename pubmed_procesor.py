@@ -141,10 +141,12 @@ def load_pubmed_updates_v2():
 					elem.clear()
 				else:
 					elem.clear()
-
-			while (abstract_counter/JOBS_COMPLETED > 30):
-				continue
-
+			try:
+				while (abstract_counter/JOBS_COMPLETED > 30):
+					continue
+			except:
+				pass
+				
 			os.remove(object.key)
 	
 			file_timer.stop()
