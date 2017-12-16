@@ -77,7 +77,8 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 	elem.clear()
 
-def jobs_callback():
+def jobs_callback(ret):
+	global JOBS_COMPLETED
 	JOBS_COMPLETED += 1
 
 def load_pubmed_updates_v2():
@@ -135,7 +136,7 @@ def load_pubmed_updates_v2():
 					elem.clear()
 				else:
 					elem.clear()
-
+			global JOBS_COMPLETED
 			while (JOBS_COMPLETED < file_abstract_counter):
 				continue
 
