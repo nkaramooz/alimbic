@@ -105,7 +105,6 @@ def load_pubmed_updates_v2():
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
 		if file_num >= 600:
-			JOBS_COMPLETED = 0
 
 			bucket.download_file(object.key, object.key)
 			print(object.key)
@@ -119,7 +118,7 @@ def load_pubmed_updates_v2():
 
 			for elem in root:
 				if elem.tag == 'PubmedArticle':
-					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key))
+					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
 					file_abstract_counter += 1
 					abstract_counter += 1
 
@@ -142,11 +141,12 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 			try:
+				print(abstract_counter/JOBS_COMPLETED)
 				while (abstract_counter/JOBS_COMPLETED > 30):
 					continue
 			except:
 				pass
-				
+
 			os.remove(object.key)
 	
 			file_timer.stop()
