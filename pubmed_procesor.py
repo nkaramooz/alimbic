@@ -105,7 +105,7 @@ def load_pubmed_updates_v2():
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
 		if file_num >= 600:
-
+			JOBS_COMPLETED = 0
 			bucket.download_file(object.key, object.key)
 			print(object.key)
 		
@@ -141,9 +141,9 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 
-			s = "abstract counter : " + str(abstract_counter) + "   ---- JOBS_COMPLETED: " + str(JOBS_COMPLETED)
+			s = "abstract counter : " + str(file_abstract_counter) + "   ---- JOBS_COMPLETED: " + str(JOBS_COMPLETED)
 			print(s)
-			while ((abstract_counter - JOBS_COMPLETED) > 120):
+			while (JOBS_COMPLETED < file_abstract_counter):
 				continue
 
 			os.remove(object.key)
