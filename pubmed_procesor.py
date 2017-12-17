@@ -15,20 +15,26 @@ import copy
 import boto3
 import re
 import gc
+import time
 
-INDEX_NAME = 'pubmed'
+INDEX_NAME = 'pubmedx'
 JOBS_COMPLETED = 0
 
-def doc_worker(input, output):
+def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
-		result = doc_calculate(func, args)
-		output.put(result)
+		doc_calculate(func, args)
+
 
 def doc_calculate(func, args):
-	return func(*args)
+	func(*args)
 
 
 def index_doc_from_elem(elem, filter_words_df, filename):
+	# JOBS_COMPLETED += 1
+	global JOBS_COMPLETED
+	JOBS_COMPLETED += 1
+
+
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
@@ -77,13 +83,23 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 	elem.clear()
 
+
 def jobs_callback(ret):
 	global JOBS_COMPLETED
 	JOBS_COMPLETED += 1
 
-def load_pubmed_updates_v2():
+def load_pubmed_local_2():
 	es = u.get_es_client()
-	pool = Pool(processes=120)
+	number_of_processes = 8
+	
+	task_queue = mp.Queue()
+
+	pool = []
+
+	for i in range(number_of_processes):
+		p = mp.Process(target=doc_worker, args=(task_queue,))
+		pool.append(p)
+		p.start()
 
 	global JOBS_COMPLETED
 
@@ -97,15 +113,101 @@ def load_pubmed_updates_v2():
 	if not index_exists:
 		es.indices.create(index=INDEX_NAME, body={})
 
+	folder_arr = ['resources/production_baseline_2']
+
+	for folder_path in folder_arr:
+		file_counter = 0
+
+		for filename in os.listdir(folder_path):
+			abstract_counter = 0
+			file_path = folder_path + '/' + filename
+			
+			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
+
+			if file_num >= 600:
+
+
+				print(filename)
+			
+				file_timer = u.Timer('file')
+
+				tree = ET.parse(file_path)		
+				root = tree.getroot()
+
+				file_abstract_counter = 0
+
+				for elem in root:
+					if elem.tag == 'PubmedArticle':
+						# pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
+						params = (elem, filter_words_df, filename)
+						task_queue.put((index_doc_from_elem, params))
+						file_abstract_counter += 1
+						abstract_counter += 1
+
+					elif elem.tag == 'DeleteCitation':
+						delete_pmid_arr = get_deleted_pmid(elem)
+
+						for pmid in delete_pmid_arr:
+							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+							query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+							if query_result['hits']['total'] == 0:
+								continue
+							elif query_result['hits']['total'] == 1:
+								article_id = query_result['hits']['hits'][0]['_id']
+								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+							else:
+								print("delete: more than one document found")
+								print(pmid)
+						elem.clear()
+					else:
+						elem.clear()
+
+				# s = "abstract counter : " + str(file_abstract_counter) + "   ---- JOBS_COMPLETED: " + str(JOBS_COMPLETED)
+				# print(s)
+				# while (JOBS_COMPLETED < file_abstract_counter):
+				# 	continue
+
+				# os.remove(object.key)
+		
+				time.sleep(2)
+
+				file_timer.stop()
+				
+
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	for p in pool:
+		p.join()
+	print(JOBS_COMPLETED)
+	
+
+def aws_load_pubmed():
+	es = u.get_es_client()
+	number_of_processes = 32
+	task_queue = mp.Queue()
+	pool = []
+
+	cursor = pg.return_postgres_cursor()
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	cursor.close()
+
+	index_exists = es.indices.exists(index=INDEX_NAME)
+	if not index_exists:
+		es.indices.create(index=INDEX_NAME, body={})
+
 	s3 = boto3.resource('s3')
 	bucket = s3.Bucket('pubmed-baseline-1')
 	abstract_counter = 0
+
 	for object in bucket.objects.all():
 		
 		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
 		if file_num >= 600:
-			JOBS_COMPLETED = 0
+
 			bucket.download_file(object.key, object.key)
 			print(object.key)
 		
@@ -118,9 +220,9 @@ def load_pubmed_updates_v2():
 
 			for elem in root:
 				if elem.tag == 'PubmedArticle':
-					pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
+					params = (elem, filter_words_df, object.key)
+					task_queue.put((index_doc_from_elem, params))
 					file_abstract_counter += 1
-					abstract_counter += 1
 
 				elif elem.tag == 'DeleteCitation':
 					delete_pmid_arr = get_deleted_pmid(elem)
@@ -141,66 +243,17 @@ def load_pubmed_updates_v2():
 				else:
 					elem.clear()
 
-			s = "abstract counter : " + str(file_abstract_counter) + "   ---- JOBS_COMPLETED: " + str(JOBS_COMPLETED)
-			print(s)
-			while (JOBS_COMPLETED < file_abstract_counter):
-				continue
-
 			os.remove(object.key)
-	
+			time.sleep(1.5)
 			file_timer.stop()
 
-	pool.close()
-	pool.join()
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	for p in pool:
+		p.join()
 
 
-
-
-def update_abstracts_with_conceptids():
-	es =u.get_es_client()
-	page = es.search(index='pubmed', doc_type='abstract', scroll='1000m', \
-		size=1000, body={"query" : {"match_all" : {}}})
-
-	counter = len(page['hits']['hits'])
-	sid = page['_scroll_id']
-	scroll_size = page['hits']['total']
-
-	c=u.Timer(str(counter))
-	abstract_conceptid_update_iterator(page)
-	c.stop()
-
-	while (scroll_size > 0):
-		page = es.scroll(scroll_id = sid, scroll='1000m')
-		sid = page['_scroll_id']
-		scroll_size = len(page['hits']['hits'])
-
-		counter += len(page['hits']['hits'])
-		
-		c = u.Timer(str(counter))
-		abstract_conceptid_update_iterator(page)
-		c.stop()
-
-
-def abstract_conceptid_update_iterator(sr):
-	cursor = pg.return_postgres_cursor()
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
-	es = u.get_es_client()
-	for abstract in sr['hits']['hits']:
-		title_conceptids = get_abstract_title_conceptids(abstract['_source']['article_title'], \
-			filter_words_df)
-		abstract_conceptids = get_abstract_conceptids(abstract['_source']['article_abstract'], \
-			filter_words_df)
-		article_id = abstract['_id']
-
-		conceptids = {}
-		
-		conceptids['doc'] = {"title_conceptids" : title_conceptids, \
-			"abstract_conceptids" : abstract_conceptids}
-		update_json_str = json.dumps(conceptids)
-		update_json_obj = json.loads(update_json_str)
-		es.update(index='pubmed', id=article_id, doc_type='abstract', body=update_json_obj)
 
 def get_abstract_conceptids(abstract_dict, filter_words_df):
 	result_dict = {}
@@ -414,7 +467,9 @@ def get_snomed_annotation(text, filter_words_df):
 if __name__ == "__main__":
 	t = u.Timer("full")
 	# add_article_types()
-	load_pubmed_updates_v2()
+	# load_pubmed_updates_v2()
+	# load_pubmed_local()
+	aws_load_pubmed()
 	t.stop()
 
 	# tree = ET.parse('medline17n0028.xml')		

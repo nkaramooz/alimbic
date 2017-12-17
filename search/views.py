@@ -83,9 +83,9 @@ def concept_search_results(request, query):
 		
 		full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
-		related_df = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor)
-		if related_df is not None:
-			related_treatments_list = related_df['term'].tolist()
+		# related_df = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor)
+		# if related_df is not None:
+		# 	related_treatments_list = related_df['term'].tolist()
 
 
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
