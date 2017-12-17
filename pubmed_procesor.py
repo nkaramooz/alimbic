@@ -249,7 +249,7 @@ def aws_load_pubmed():
 					elem.clear()
 
 			os.remove(object.key)
-			time.sleep(1.5)
+			time.sleep(150)
 			file_timer.stop()
 
 	for i in range(number_of_processes):
