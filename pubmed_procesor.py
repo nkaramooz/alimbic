@@ -189,6 +189,11 @@ def aws_load_pubmed():
 	task_queue = mp.Queue()
 	pool = []
 
+	for i in range(number_of_processes):
+		p = mp.Process(target=doc_worker, args=(task_queue,))
+		pool.append(p)
+		p.start()
+
 	cursor = pg.return_postgres_cursor()
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
