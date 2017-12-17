@@ -185,7 +185,7 @@ def load_pubmed_local_2():
 
 def aws_load_pubmed():
 	es = u.get_es_client()
-	number_of_processes = 32
+	number_of_processes = 66
 	task_queue = mp.Queue()
 	pool = []
 
@@ -468,6 +468,7 @@ def get_snomed_annotation(text, filter_words_df):
 			return annotation['conceptid'].tolist()
 		else:
 			return None
+	cursor.close()
 
 if __name__ == "__main__":
 	t = u.Timer("full")
