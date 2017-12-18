@@ -14,8 +14,7 @@ from multiprocessing import Pool
 import copy
 import boto3
 import re
-import gc
-import time
+
 
 INDEX_NAME = 'pubmedx1'
 
@@ -306,7 +305,7 @@ def aws_load_pubmed():
 					elem.clear()
 
 			os.remove(object.key)
-			time.sleep(150)
+
 			file_timer.stop()
 
 	for i in range(number_of_processes):
