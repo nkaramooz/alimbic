@@ -324,61 +324,53 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 	if not index_exists:
 		es.indices.create(index=INDEX_NAME, body={})
 
-	folder_arr = ['resources/production_baseline_2']
+	s3 = boto3.resource('s3')
+	bucket = s3.Bucket('pubmed-baseline-1')
+	abstract_counter = 0
 
-	for folder_path in folder_arr:
+	for object in bucket.objects.all():
+
 		file_counter = 0
-
-		for filename in os.listdir(folder_path):
-			abstract_counter = 0
-			file_path = folder_path + '/' + filename
-			
-			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
-
-			if file_num >= start_file:
-
-				print(filename)
-			
-				file_timer = u.Timer('file')
-
-				tree = ET.parse(file_path)		
-				root = tree.getroot()
-
-				file_abstract_counter = 0
-
-				for elem in root:
-					if elem.tag == 'PubmedArticle':
-						params = (elem, filter_words_df, filename)
-						pool.apply_async(index_doc_from_elem, params)
-						file_abstract_counter += 1
-						abstract_counter += 1
-
-					elif elem.tag == 'DeleteCitation':
-						delete_pmid_arr = get_deleted_pmid(elem)
-
-						for pmid in delete_pmid_arr:
-							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-							query_result = es.search(index=INDEX_NAME, body=get_article_query)
-
-							if query_result['hits']['total'] == 0:
-								continue
-							elif query_result['hits']['total'] == 1:
-								article_id = query_result['hits']['hits'][0]['_id']
-								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-							else:
-								print("delete: more than one document found")
-								print(pmid)
-						elem.clear()
-					else:
-						elem.clear()
+		abstract_counter = 0
 		
-				file_timer.stop()
-				
-				if file_num >= start_file+5:
-					break
+		file_num = int(re.findall('medline17n(.*).xml', object.key)[0])
 
-		if file_num < 893:
+		if file_num >= start_file:
+			bucket.download_file(object.key, object.key)
+			print(object.key)
+		
+			file_timer = u.Timer('file')
+			tree = ET.parse(object.key)		
+			root = tree.getroot()
+			file_abstract_counter = 0
+			for elem in root:
+				if elem.tag == 'PubmedArticle':
+					params = (elem, filter_words_df, object.key)
+					pool.apply_async(index_doc_from_elem, params)
+					file_abstract_counter += 1
+					abstract_counter += 1
+				elif elem.tag == 'DeleteCitation':
+					delete_pmid_arr = get_deleted_pmid(elem)
+					for pmid in delete_pmid_arr:
+						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+						query_result = es.search(index=INDEX_NAME, body=get_article_query)
+						if query_result['hits']['total'] == 0:
+							continue
+						elif query_result['hits']['total'] == 1:
+							article_id = query_result['hits']['hits'][0]['_id']
+							es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+						else:
+							print("delete: more than one document found")
+							print(pmid)
+					elem.clear()
+				else:
+					elem.clear()
+	
+			file_timer.stop()
+			
+		if file_num >= start_file+5:
 			break
+
 	pool.close()
 	pool.join()
 
