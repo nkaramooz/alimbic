@@ -17,8 +17,7 @@ import re
 import gc
 import time
 
-INDEX_NAME = 'pubmedx'
-JOBS_COMPLETED = 0
+INDEX_NAME = 'pubmedx1'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -30,11 +29,6 @@ def doc_calculate(func, args):
 
 
 def index_doc_from_elem(elem, filter_words_df, filename):
-	# JOBS_COMPLETED += 1
-	global JOBS_COMPLETED
-	JOBS_COMPLETED += 1
-
-
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
@@ -84,24 +78,12 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 	elem.clear()
 
 
-def jobs_callback(ret):
-	global JOBS_COMPLETED
-	JOBS_COMPLETED += 1
 
-def load_pubmed_local_2():
+
+def load_local(start_file):
 	es = u.get_es_client()
-	number_of_processes = 8
-	
-	task_queue = mp.Queue()
-
-	pool = []
-
-	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,))
-		pool.append(p)
-		p.start()
-
-	global JOBS_COMPLETED
+	number_of_processes = 25
+	pool = Pool(processes=number_of_processes)
 
 	cursor = pg.return_postgres_cursor()
 	
@@ -114,6 +96,89 @@ def load_pubmed_local_2():
 		es.indices.create(index=INDEX_NAME, body={})
 
 	folder_arr = ['resources/production_baseline_2']
+
+	for folder_path in folder_arr:
+		file_counter = 0
+
+		for filename in os.listdir(folder_path):
+			abstract_counter = 0
+			file_path = folder_path + '/' + filename
+			
+			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
+
+			if file_num >= start_file:
+
+
+				print(filename)
+			
+				file_timer = u.Timer('file')
+
+				tree = ET.parse(file_path)		
+				root = tree.getroot()
+
+				file_abstract_counter = 0
+
+				for elem in root:
+					if elem.tag == 'PubmedArticle':
+						params = (elem, filter_words_df, filename)
+						pool.apply_async(index_doc_from_elem, params)
+						file_abstract_counter += 1
+						abstract_counter += 1
+
+					elif elem.tag == 'DeleteCitation':
+						delete_pmid_arr = get_deleted_pmid(elem)
+
+						for pmid in delete_pmid_arr:
+							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+							query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+							if query_result['hits']['total'] == 0:
+								continue
+							elif query_result['hits']['total'] == 1:
+								article_id = query_result['hits']['hits'][0]['_id']
+								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+							else:
+								print("delete: more than one document found")
+								print(pmid)
+						elem.clear()
+					else:
+						elem.clear()
+		
+				file_timer.stop()
+				
+				if file_num >= start_file+10:
+					break
+
+		if file_num < 893:
+			break
+	pool.close()
+	pool.join()
+
+
+def load_pubmed_local_2():
+	es = u.get_es_client()
+	number_of_processes = 16
+	
+	task_queue = mp.Queue()
+
+	pool = []
+
+	for i in range(number_of_processes):
+		p = mp.Process(target=doc_worker, args=(task_queue,))
+		pool.append(p)
+		p.start()
+
+	cursor = pg.return_postgres_cursor()
+	
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	cursor.close()
+
+	index_exists = es.indices.exists(index=INDEX_NAME)
+	if not index_exists:
+		es.indices.create(index=INDEX_NAME, body={})
+
+	folder_arr = ['resources/production_baseline_2', 'resources/production_updates_10_21_17']
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -138,7 +203,6 @@ def load_pubmed_local_2():
 
 				for elem in root:
 					if elem.tag == 'PubmedArticle':
-						# pool.apply_async(index_doc_from_elem, (elem, filter_words_df, object.key), callback=jobs_callback)
 						params = (elem, filter_words_df, filename)
 						task_queue.put((index_doc_from_elem, params))
 						file_abstract_counter += 1
@@ -163,16 +227,9 @@ def load_pubmed_local_2():
 					else:
 						elem.clear()
 
-				# s = "abstract counter : " + str(file_abstract_counter) + "   ---- JOBS_COMPLETED: " + str(JOBS_COMPLETED)
-				# print(s)
-				# while (JOBS_COMPLETED < file_abstract_counter):
-				# 	continue
-
-				# os.remove(object.key)
-		
-				time.sleep(2)
-
 				file_timer.stop()
+				
+				
 				
 
 	for i in range(number_of_processes):
@@ -180,12 +237,12 @@ def load_pubmed_local_2():
 
 	for p in pool:
 		p.join()
-	print(JOBS_COMPLETED)
+
 	
 
 def aws_load_pubmed():
 	es = u.get_es_client()
-	number_of_processes = 66
+	number_of_processes = 16
 	task_queue = mp.Queue()
 	pool = []
 
@@ -258,6 +315,73 @@ def aws_load_pubmed():
 	for p in pool:
 		p.join()
 
+
+def aws_load_pubmed_2(start_file, filter_words_df):
+	es = u.get_es_client()
+	number_of_processes = 50
+	pool = Pool(processes=number_of_processes)
+
+	index_exists = es.indices.exists(index=INDEX_NAME)
+	if not index_exists:
+		es.indices.create(index=INDEX_NAME, body={})
+
+	folder_arr = ['resources/production_baseline_2']
+
+	for folder_path in folder_arr:
+		file_counter = 0
+
+		for filename in os.listdir(folder_path):
+			abstract_counter = 0
+			file_path = folder_path + '/' + filename
+			
+			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
+
+			if file_num >= start_file:
+
+				print(filename)
+			
+				file_timer = u.Timer('file')
+
+				tree = ET.parse(file_path)		
+				root = tree.getroot()
+
+				file_abstract_counter = 0
+
+				for elem in root:
+					if elem.tag == 'PubmedArticle':
+						params = (elem, filter_words_df, filename)
+						pool.apply_async(index_doc_from_elem, params)
+						file_abstract_counter += 1
+						abstract_counter += 1
+
+					elif elem.tag == 'DeleteCitation':
+						delete_pmid_arr = get_deleted_pmid(elem)
+
+						for pmid in delete_pmid_arr:
+							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+							query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+							if query_result['hits']['total'] == 0:
+								continue
+							elif query_result['hits']['total'] == 1:
+								article_id = query_result['hits']['hits'][0]['_id']
+								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+							else:
+								print("delete: more than one document found")
+								print(pmid)
+						elem.clear()
+					else:
+						elem.clear()
+		
+				file_timer.stop()
+				
+				if file_num >= start_file+5:
+					break
+
+		if file_num < 893:
+			break
+	pool.close()
+	pool.join()
 
 
 def get_abstract_conceptids(abstract_dict, filter_words_df):
@@ -472,10 +596,16 @@ def get_snomed_annotation(text, filter_words_df):
 
 if __name__ == "__main__":
 	t = u.Timer("full")
-	# add_article_types()
-	# load_pubmed_updates_v2()
-	# load_pubmed_local()
-	aws_load_pubmed()
+	cursor = pg.return_postgres_cursor()
+	
+	filter_words_query = "select words from annotation.filter_words"
+	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	cursor.close()
+
+	start_file = 600
+	while (start_file < 711):
+		aws_load_pubmed_2(start_file, filter_words_df)
+		start_file += 6
 	t.stop()
 
 	# tree = ET.parse('medline17n0028.xml')		
