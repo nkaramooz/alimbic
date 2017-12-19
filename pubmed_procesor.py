@@ -317,7 +317,7 @@ def aws_load_pubmed():
 
 def aws_load_pubmed_2(start_file, filter_words_df):
 	es = u.get_es_client()
-	number_of_processes = 50
+	number_of_processes = 60
 	pool = Pool(processes=number_of_processes)
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
@@ -365,10 +365,10 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 					elem.clear()
 				else:
 					elem.clear()
-	
+			os.remove(object.key)
 			file_timer.stop()
 			
-		if file_num >= start_file+5:
+		if file_num >= start_file+10:
 			break
 
 	pool.close()
@@ -596,7 +596,7 @@ if __name__ == "__main__":
 	start_file = 600
 	while (start_file < 711):
 		aws_load_pubmed_2(start_file, filter_words_df)
-		start_file += 6
+		start_file += 11
 	t.stop()
 
 	# tree = ET.parse('medline17n0028.xml')		
