@@ -2,7 +2,7 @@
 	<form action="{{ action }}" method="post" class="form-inline"> 
 	{% csrf_token %}
 		<label class="sr-only">search field</label>
-		<input type="text" name="query" class="search-field form-control">
+		<input type="text" name="query" class="search-field form-control" value="{{query}}">
 		<input type="submit" value="search" class="btn btn-primary">
 	</form>
 </div>

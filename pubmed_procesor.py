@@ -16,7 +16,7 @@ import boto3
 import re
 
 
-INDEX_NAME = 'pubmedx1'
+INDEX_NAME = 'pubmedx'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -31,10 +31,13 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
-	if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
-		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
+	if (is_issn(elem, '0895-7061') or is_issn(elem, '1941-7225') \
+		or is_issn(elem, '0194-911X') or is_issn(elem, '1524-4563')\
+		or is_issn(elem, '1469-493X') or is_issn(elem, '1465-1858')\
+		or is_issn(elem, '0959-8138') or is_issn(elem, '1756-1833')\
+		or is_issn(elem, '0341-2040') or is_issn(elem, '1432-1750')\
+		or is_issn(elem, '1941-3289') or is_issn(elem, '1941-3297')\
+		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
 
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
@@ -68,7 +71,12 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
 						
 					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
-						es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+						try:
+							es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+						except:
+							u.pprint(json_obj)
+							u.pprint(json_str)
+							raise ValueError('incompatible json obj')
 						
 						
 					elif query_result['hits']['total'] == 1:
@@ -79,16 +87,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 
 
-def load_local(start_file):
+def load_local(start_file, filter_words_df):
 	es = u.get_es_client()
-	number_of_processes = 25
+	number_of_processes = 60
 	pool = Pool(processes=number_of_processes)
-
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -106,7 +108,6 @@ def load_local(start_file):
 			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
-
 
 				print(filename)
 			
@@ -148,15 +149,15 @@ def load_local(start_file):
 				if file_num >= start_file+10:
 					break
 
-		if file_num < 893:
-			break
+		# if file_num+10 < 893:
+		# 	break
 	pool.close()
 	pool.join()
 
 
-def load_pubmed_local_2():
+def load_pubmed_local_2(start_file, filter_words_df):
 	es = u.get_es_client()
-	number_of_processes = 16
+	number_of_processes = 8
 	
 	task_queue = mp.Queue()
 
@@ -167,11 +168,6 @@ def load_pubmed_local_2():
 		pool.append(p)
 		p.start()
 
-	cursor = pg.return_postgres_cursor()
-	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -188,7 +184,7 @@ def load_pubmed_local_2():
 			
 			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
 
-			if file_num >= 600:
+			if file_num >= start_file:
 
 
 				print(filename)
@@ -227,7 +223,11 @@ def load_pubmed_local_2():
 						elem.clear()
 
 				file_timer.stop()
+				if file_num >= start_file+10:
+					break
 				
+		if file_num+10 < 893:
+			break
 				
 				
 
@@ -546,8 +546,11 @@ def get_article_info(elem, json_str):
 				sub_elem_dict['text'] = abstract_sub_elem.text
 				abstract_dict['text'] =  sub_elem_dict
 			else:
-				
-				sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
+				if abstract_sub_elem.attrib['Label'] == "":
+					sub_elem_dict["unassigned"] == abstract_sub_elem.text
+				else:
+					sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
+
 				try:
 					abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = sub_elem_dict
 				except:
@@ -593,9 +596,9 @@ if __name__ == "__main__":
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
 
-	start_file = 600
-	while (start_file < 711):
-		aws_load_pubmed_2(start_file, filter_words_df)
+	start_file = 871
+	while (start_file < 1352):
+		load_pubmed_local_2(start_file, filter_words_df)
 		start_file += 11
 	t.stop()
 

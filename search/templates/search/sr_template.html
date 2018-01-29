@@ -24,7 +24,7 @@
 							<h5><a href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">Pubmed</a></h5>
 						</div>
 						<div class="col-sm-2">
-							<h5><a href="http://localhost:9200/pubmed3/abstract/{{a.id}}?pretty"> source </a> </h5>
+							<h5><a href="http://localhost:9200/pubmedx/abstract/{{a.id}}?pretty"> source </a> </h5>
 						</div>
 						<div class="col-sm-3">
 							<div class="journal-title pull-right">
@@ -36,7 +36,7 @@
 				{% if a.abstract_show is not None %}
 					<div class="preview-ellipsis">
 						<h4><b>{{a.abstract_show.0}}</b></h4>
-						<h4>{{a.abstract_show.1}}</h4>
+						<h4>{{a.abstract_show.1}}</h4><br>
 					</div>
 				{% endif %}
 				{% if a.abstract_hide is not None %}
@@ -45,7 +45,7 @@
 							{% if item.0 != "text" %}
 								<h4><b>{{item.0}}</b></h4>
 							{% endif %}
-							<h4>{{item.1}}</h4>
+							<h4>{{item.1}}</h4> <br>
 						{% endfor %}
 					</div>
 				{% endif %}
