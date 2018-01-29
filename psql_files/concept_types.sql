@@ -7,6 +7,10 @@ create table concept_types as (
 		conceptid
 		,concept_type
 	from (
+	select
+		conceptid
+		,concept_type
+	from (
 		select 
 			subtypeid as conceptid, 
 			case 
@@ -157,9 +161,27 @@ create table concept_types as (
 	   			when supertypeid = '64572001' then 'condition' -- disease
 	   		end as concept_type
 
-		from snomed.curr_transitive_closure_f
+		from snomed.curr_transitive_closure_f tr
+		left outer join (select
+									conceptid
+									,1 as match
+								from annotation.active_descriptions d
+								where term like '%(finding)%' or term like '%(disorder)%') j
+		on tr.subtypeid = j.conceptid
+		where j.match is null
 	) tb
 	where concept_type is not null and conceptid not in ('182813001', '276239002')
+	
+	union
+
+	select
+		conceptid
+		,case 
+			when term like '%(finding)%' then 'symptom'
+			when term like '%(disorder)%' then 'condition' end as concept_type
+		from annotation.active_descriptions
+	) f 
+	where concept_type is not null
 );
 
 create index ct_conceptid on concept_types(conceptid);

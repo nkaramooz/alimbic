@@ -9,6 +9,7 @@
 </div>
 
 {% url 'search:concept_search' as concept_search %}
+{% url 'search:pivot_search' as pivot %}
 {% include 'search/search_bar_template.html' with action=concept_search %}
 
 <div class="body">
@@ -23,15 +24,48 @@
 	</div>
 
 
-	{% if at_a_glance.treatments is not None %}
-		<div class="glance">
-			<h5> At a glance </h5>
-			<div class="list-group">
-				{% for a in at_a_glance.treatments %}
-					<a href="#" class="list-group-item list-group-item-action"> {{a}} </a>
-				{% endfor %}
-			</div>
-	{% endif %}
+
+	<div class="glance">
+
+		<div class="list-group">
+			{% for k1,v1 in at_a_glance.related.items %}
+
+				{% for k2,v2 in v1.items %}
+			
+					{% if k2 == 'term' %}
+						<h4>{{v2}}</h4>
+		
+					{% elif k2 == 'treatment' %}
+						<h5> Procedures / Treatments </h5>
+							{% for x in v2 %}
+								<form action={{pivot}} method="post"> 
+									{% csrf_token %}
+										<input type="hidden" name="conceptid1" value="{{k1}}">
+										<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+										<input type="hidden" name="term1" value="{{v1.term}}">
+										<input type="hidden" name="term2" value="{{x.term}}">
+										<input type="submit" value="{{x.term}} -- {{x.count}} papers" >
+								</form>
+							{% endfor %}
+
+					{% elif k2 == 'diagnostic' %}
+						<h5> Diagnostic </h5>
+						{% for x in v2 %}
+							<form action={{pivot}} method="post"> 
+								{% csrf_token %}
+									<input type="hidden" name="conceptid1" value="{{k1}}">
+									<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+									<input type="hidden" name="term1" value="{{v1.term}}">
+									<input type="hidden" name="term2" value="{{x.term}}">
+									<input type="submit" value="{{x.term}} -- {{x.count}} papers" >
+							</form>
+						{% endfor %}
+					{% endif %}
+				
+				{% endfor %}	
+			{% endfor %}
+		</div>
+
 	
 	{% include 'search/sr_template.html' with sr_payload=sr_payload %}
 </div>
