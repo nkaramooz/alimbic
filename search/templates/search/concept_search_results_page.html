@@ -1,8 +1,8 @@
 
 {% load app_filters %}
 {% load staticfiles %}
-
 {% include 'search/header_template.html' %}
+<script src="{% static "js/search-results.js" %}"></script>
 
 <div class="title_header">
 	<h1> Concept Search </h1>
@@ -31,11 +31,8 @@
 			{% for k1,v1 in at_a_glance.related.items %}
 
 				{% for k2,v2 in v1.items %}
-			
-					{% if k2 == 'term' %}
-						<h4>{{v2}}</h4>
-		
-					{% elif k2 == 'treatment' %}
+
+					{% if k2 == 'treatment' %}
 						<h5> Procedures / Treatments </h5>
 							{% for x in v2 %}
 								<form action={{pivot}} method="post"> 

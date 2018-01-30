@@ -7,6 +7,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
 import pandas as pd
 import utilities.es_utilities as es_util
+import json
 # Create your views here.
 
 INDEX_NAME='pubmedx'
@@ -63,8 +64,36 @@ def concept_search_home_page(request):
 	return render(request, 'search/concept_search_home_page.html')
 
 def post_concept_search(request):
+	print("ASDKJLHSDHLKSJDHASKJDLKLSJHA")
+	params = {}
+	try:
+		params['journals'] = request.POST.getlist('journals[]')
+	except:
+		params['journals'] = []
+
+	try:
+		if request.POST['start_year'] == '':
+			params['start_year'] = None
+		else:
+			params['start_year'] = request.POST['start_year']
+		
+	except:
+		params['start_year'] = None
+
+	try:
+		if request.POST['end_year'] == '':
+			params['end_year'] = None 
+		else:
+			params['end_year'] = request.POST['end_year']
+	except:
+		params['end_year'] = None
+
+	params['query'] = request.POST['query']
+	params['end_year'] = request.POST
+
 	query = request.POST['query']
-	return HttpResponseRedirect(reverse('search:concept_search_results', args=(query,)))
+	# return HttpResponseRedirect(reverse('search:concept_search_results', args=(query,)))
+	return HttpResponseRedirect(reverse('search:concept_search_results', kwargs=params))
 
 def post_pivot_search(request):
 	conceptid1 = request.POST['conceptid1']
@@ -78,7 +107,7 @@ def post_pivot_search(request):
 
 ### query contains conceptids instead of text
 def conceptid_search_results(request, query, conceptid1, conceptid2):
-	print("ADKHJSDHLKJHASLJKHDSALJKHADSLJKHJSKADHHJK")
+
 	
 	query_concepts_df = pd.DataFrame([conceptid1, conceptid2], columns=['conceptid'])
 
@@ -91,7 +120,7 @@ def conceptid_search_results(request, query, conceptid1, conceptid2):
 
 	es_query = {"from" : 0, \
 				 "size" : 100, \
-				 "query": get_query(full_query_concepts_list, None, cursor)}
+				 "query": get_query(full_query_concepts_list, None, None, None, None, cursor)}
 
 	sr = es.search(index=INDEX_NAME, body=es_query)
 
@@ -102,7 +131,13 @@ def conceptid_search_results(request, query, conceptid1, conceptid2):
 		'at_a_glance' : {'related' : None}})
 
 
-def concept_search_results(request, query):
+def concept_search_results(request):
+
+	journals = request.GET.getlist('journals[]')
+	query = request.GET['query']
+	start_year = request.GET['start_year']
+	end_year = request.GET['end_year']
+	print(query)
 
 	es = u.get_es_client()	
 
@@ -127,9 +162,7 @@ def concept_search_results(request, query):
 		symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'])
 		condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'])
 		query_concept_count = len(query_concepts_df)
-		print(condition_count)
-		print(symptom_count)
-		print(query_concept_count)
+
 		# single condition query
 		if (symptom_count == 0 and condition_count != 0 and query_concept_count == 1):
 			related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'condition')
@@ -142,10 +175,11 @@ def concept_search_results(request, query):
 
 		es_query = {"from" : 0, \
 				 "size" : 100, \
-				 "query": get_query(full_query_concepts_list, unmatched_terms, cursor)}
+				 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor)}
 
 		sr = es.search(index=INDEX_NAME, body=es_query)
 
+	###UPDATE QUERY BELOW FOR FILTERS
 	else:
 		es_query = get_text_query(query)
 		sr = es.search(index=INDEX_NAME, body=es_query)
@@ -255,7 +289,7 @@ def get_concept_string(conceptid_series):
 	
 	return result_string.strip()
 
-def get_query(full_conceptid_list, unmatched_terms, cursor):
+def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_year, cursor):
 	es_query = {}
 
 	if unmatched_terms is None:
@@ -273,6 +307,27 @@ def get_query(full_conceptid_list, unmatched_terms, cursor):
 						"should": \
 							[{"query_string": {"fields" : ["article_title^5", "article_abstract.*"], \
 							"query" : unmatched_terms}}]}
+
+	
+	if (len(journals) > 0) or start_year or end_year:
+		d = {"filter" : {"bool" : {}}}
+
+		if len(journals) > 0:
+			d["filter"]["bool"]["should"] = []
+
+			for i in journals:
+				d["filter"]["bool"]["should"].append({"match" : {'journal_iso_abbrev' : i}})
+
+		if start_year and end_year:
+			d["filter"]["bool"]["must"] = [{"range" : {"journal_pub_year" : {"gte" : start_year, "lte" : end_year}}}]
+		elif start_year:
+			d["filter"]["bool"]["must"] = [{"range" : {"journal_pub_year" : {"gte" : start_year}}}]
+		elif end_year:
+			d["filter"]["bool"]["must"] = [{"range" : {"journal_pub_year" : {"lte" : end_year}}}]
+
+		es_query["bool"]["filter"] = d["filter"]
+
+	print(es_query)
 	return es_query
 
 def get_concept_query_string(full_conceptid_list, cursor):
@@ -633,7 +688,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 					sub_dict['condition'].append(item_dict)
 			result_dict[root_cid] = sub_dict
 
-	print(result_dict)
+
 	return result_dict
 
 # this function isn't working - see schizophrenia treatment

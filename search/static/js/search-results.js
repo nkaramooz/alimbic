@@ -1,4 +1,5 @@
 $(document).ready(function() {
+
 	$('.expand-btn').on('click', function() {
 
 		var prev = $(this).parent().parent().find(".preview-ellipsis")
@@ -17,4 +18,7 @@ $(document).ready(function() {
 			$(this).html('<button id="expando">expand</button>');
 		}
 	});
+	
 });
+
+
