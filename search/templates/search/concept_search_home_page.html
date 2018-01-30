@@ -7,5 +7,5 @@
 	<h1> Concept Search </h1>
 </div>
 
-{% url 'search:concept_search' as concept_search %}
+{% url 'search:concept_search_results' as concept_search %}
 {% include 'search/search_bar_template.html' with action=concept_search %}

@@ -1,9 +1,54 @@
-<div class="search-bar">
-	<form action="{{ action }}" method="post" class="form-inline"> 
-	{% csrf_token %}
-		<label class="sr-only">search field</label>
-		<input type="text" name="query" class="search-field form-control" value="{{query}}">
-		<input type="submit" value="search" class="btn btn-primary">
-	</form>
-</div>
+{% load staticfiles  %}
 
+<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
+<script src="{% static "js/search-bar.js" %}"></script>
+
+<div class="search-bar">
+	<form action="{{ action }}" method="get"> 
+		{% csrf_token %}
+
+		<div class="form-row">
+			<div class="form-group col-md-2">
+			</div>
+			<div class="form-group col-md-8">
+				<label class="sr-only">search field</label>
+				<input type="text" name="query" class="search-field form-control" value="{{query}}">
+			</div>
+			<div class="form-group col-md-2">
+				<input type="submit" value="search" class="btn btn-primary">
+			</div>
+		</div>
+
+		<div class="form-row filters">
+			<div class="form-group col-md-6">
+      			<label for="journal_filter">Journals</label>
+      			<select class="js-example-basic-multiple form-control" name="journals[]" multiple="multiple" id="journal_filter">
+			  			<option value="Am Fam Physician">Am Fam Physician</option>
+			  			<option value="Am. J. Hypertens.">Am. J. Hypertens.</option>
+			  			<option value="Ann. Intern. Med">Ann. Intern. Med</option>
+			  			<option value="BMJ">BMJ</option>
+			  			<option value="Circulation">Circulation</option>
+			  			<option value="Circ Heart Fail">Circ Heart Fail</option>
+			  			<option value="Cochrane Database Syst Rev">Cochrane Database Syst Rev</option>
+			  			<option value="Cochrane Libr">Cochrane Libr</option>
+			  			<option value="Hypertension">Hypertension</option>
+			  			<option value="JAMA">JAMA</option>
+			  			<option value="Lung">Lung</option>
+			  			<option value="N. Engl. J. Med.">N. Engl. J. Med.</option>
+				</select>
+    		</div>
+
+    		<div class="form-group col-md-2 col-md-offset-2">
+      			<label for="start_year">Start year</label>
+      			<input type="number" class="form-control" id="start_year" name="start_year">
+    		</div>
+    		<div class="form-group col-md-2">
+    			<label for="end_year">End year</label>
+    			<input type="number" class="form-control" id="end_year" name="end_year">
+    		</div>
+		</div>
+	</form>
+
+	
+</div>
