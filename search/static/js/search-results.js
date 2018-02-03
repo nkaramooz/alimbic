@@ -12,10 +12,10 @@ $(document).ready(function() {
 
 		$(this).parent().parent().find(".expanded").toggle();
 
-		if ($(this).text() == 'expand') {
-			$(this).html('<button id="expando">collapse</button>');
+		if ($(this).text() == 'Expand') {
+			$(this).html('<button id="expando" class="btn btn-link">Collapse</button>');
 		} else {
-			$(this).html('<button id="expando">expand</button>');
+			$(this).html('<button id="expando" class="btn btn-link">Expand</button>');
 		}
 	});
 	

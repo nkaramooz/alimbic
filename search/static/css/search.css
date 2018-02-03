@@ -39,6 +39,11 @@
 	
 }
 
+.expand-btn {
+	text-align: center;
+	margin-top: 20px;
+}
+
 .abstract-body {
 	border-radius: 5px;
 	margin-bottom: 40px;
@@ -62,11 +67,6 @@
 
 }
 
-
-.expand-btn {
-	text-align: center;
-	margin-top: 20px;
-}
 
 .fixed-height {
 	display: -webkit-box;

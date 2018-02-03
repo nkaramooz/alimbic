@@ -132,12 +132,11 @@ def conceptid_search_results(request, query, conceptid1, conceptid2):
 
 
 def concept_search_results(request):
-
+	print(request.GET)
 	journals = request.GET.getlist('journals[]')
 	query = request.GET['query']
 	start_year = request.GET['start_year']
 	end_year = request.GET['end_year']
-	print(query)
 
 	es = u.get_es_client()	
 
@@ -188,7 +187,7 @@ def concept_search_results(request):
 
 	return render(request, 'search/concept_search_results_page.html', \
 		{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
-		'at_a_glance' : {'related' : related_dict}})
+		'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}})
 
 
 
