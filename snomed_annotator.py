@@ -559,7 +559,7 @@ if __name__ == "__main__":
 	query14 = "angel dust PCP"
 	query15= "(vascular endothelial growth factors)"
 	text1 = """
-		Complement factor H polymorphism, complement activators, and risk of age-related macular degeneration.
+		brain magnetic resonance imaging (MRI) scans
 	"""
 	query16 = "page"
 	query17="feeling cold"
@@ -572,7 +572,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(text1, filter_words_df, cursor)
+	res = annotate_text_not_parallel(text1, filter_words_df, cursor, False)
 	if res is not None:
 		# u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
 		u.pprint(res)

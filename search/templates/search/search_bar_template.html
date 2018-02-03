@@ -19,33 +19,33 @@
 				<input type="submit" value="search" class="btn btn-primary">
 			</div>
 		</div>
-
 		<div class="form-row filters">
 			<div class="form-group col-md-6">
       			<label for="journal_filter">Journals</label>
       			<select class="js-example-basic-multiple form-control" name="journals[]" multiple="multiple" id="journal_filter">
-			  			<option value="Am Fam Physician">Am Fam Physician</option>
-			  			<option value="Am. J. Hypertens.">Am. J. Hypertens.</option>
-			  			<option value="Ann. Intern. Med">Ann. Intern. Med</option>
-			  			<option value="BMJ">BMJ</option>
-			  			<option value="Circulation">Circulation</option>
-			  			<option value="Circ Heart Fail">Circ Heart Fail</option>
-			  			<option value="Cochrane Database Syst Rev">Cochrane Database Syst Rev</option>
-			  			<option value="Cochrane Libr">Cochrane Libr</option>
-			  			<option value="Hypertension">Hypertension</option>
-			  			<option value="JAMA">JAMA</option>
-			  			<option value="Lung">Lung</option>
-			  			<option value="N. Engl. J. Med.">N. Engl. J. Med.</option>
+			  			
+			  			<option value="Am Fam Physician" {% if 'Am Fam Physician' in journals %} selected="selected" {% endif %}>Am Fam Physician</option>
+			  			<option value="Am. J. Hypertens." {% if 'Am. J. Hypertens.' in journals %} selected="selected" {% endif %} >Am. J. Hypertens.</option>
+			  			<option value="Ann. Intern. Med" {% if 'Ann. Intern. Med' in journals %} selected="selected" {% endif %}>Ann. Intern. Med</option>
+			  			<option value="BMJ" {% if 'BMJ' in journals %} selected="selected" {% endif %}>BMJ</option>
+			  			<option value="Circulation" {% if 'Circulation' in journals %} selected="selected" {% endif %}>Circulation</option>
+			  			<option value="Circ Heart Fail" {% if 'Circ Heart Fail' in journals %} selected="selected" {% endif %}>Circ Heart Fail</option>
+			  			<option value="Cochrane Database Syst Rev" {% if 'Cochrane Database Syst Rev' in journals %} selected="selected" {% endif %}>Cochrane Database Syst Rev</option>
+			  			<option value="Cochrane Libr" {% if 'Cochrane Libr' in journals %} selected="selected" {% endif %}>Cochrane Libr</option>
+			  			<option value="Hypertension" {% if 'Hypertension' in journals %} selected="selected" {% endif %}>Hypertension</option>
+			  			<option value="JAMA" {% if 'JAMA' in journals %} selected="selected" {% endif %}>JAMA</option>
+			  			<option value="Lung" {% if 'Lung' in journals %} selected="selected" {% endif %}>Lung</option>
+			  			<option value="N. Engl. J. Med." {% if 'N. Engl. J. Med.' in journals %} selected="selected" {% endif %}>N. Engl. J. Med.</option>
 				</select>
     		</div>
 
     		<div class="form-group col-md-2 col-md-offset-2">
       			<label for="start_year">Start year</label>
-      			<input type="number" class="form-control" id="start_year" name="start_year">
+      			<input type="number" class="form-control" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
     		</div>
     		<div class="form-group col-md-2">
     			<label for="end_year">End year</label>
-    			<input type="number" class="form-control" id="end_year" name="end_year">
+    			<input type="number" class="form-control" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
     		</div>
 		</div>
 	</form>
