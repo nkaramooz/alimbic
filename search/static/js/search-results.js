@@ -13,9 +13,9 @@ $(document).ready(function() {
 		$(this).parent().parent().find(".expanded").toggle();
 
 		if ($(this).text() == 'Expand') {
-			$(this).html('<button id="expando" class="btn btn-link">Collapse</button>');
+			$(this).html('<button id="expando" class="btn btn-light">Collapse</button>');
 		} else {
-			$(this).html('<button id="expando" class="btn btn-link">Expand</button>');
+			$(this).html('<button id="expando" class="btn btn-light">Expand</button>');
 		}
 	});
 	

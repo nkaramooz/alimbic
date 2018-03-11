@@ -21,5 +21,6 @@ urlpatterns = [
     url(r'^concept_search/$', views.concept_search_results,  name='concept_search_results'),
     url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
     url(r'^concept_override/', views.concept_override, name='concept_override'),
-    
+    url(r'^ajax/vcSubmit/$', views.vcSubmit, name='vcSubmit'),
+    url(r'^ajax/vcTroughTarget/$', views.returnTroughTarget, name='returnTroughTarget'),
 ]
