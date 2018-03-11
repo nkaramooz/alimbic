@@ -4,6 +4,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
 <script src="{% static "js/search-bar.js" %}"></script>
 
+
+
 <div class="search-bar">
 	<form action="{{ action }}" method="get"> 
 		{% csrf_token %}
@@ -22,7 +24,7 @@
 		<div class="form-row filters">
 			<div class="form-group col-md-6">
       			<label for="journal_filter">Journals</label>
-      			<select class="js-example-basic-multiple form-control" name="journals[]" multiple="multiple" id="journal_filter">
+      			<select class="form-control js-example-basic-multiple" name="journals[]" multiple="multiple" id="journal_filter">
 			  			
 			  			<option value="Am Fam Physician" {% if 'Am Fam Physician' in journals %} selected="selected" {% endif %}>Am Fam Physician</option>
 			  			<option value="Am. J. Hypertens." {% if 'Am. J. Hypertens.' in journals %} selected="selected" {% endif %} >Am. J. Hypertens.</option>
@@ -38,8 +40,8 @@
 			  			<option value="N. Engl. J. Med." {% if 'N. Engl. J. Med.' in journals %} selected="selected" {% endif %}>N. Engl. J. Med.</option>
 				</select>
     		</div>
-
-    		<div class="form-group col-md-2 col-md-offset-2">
+    		<div class="col-md-2"></div>
+    		<div class="form-group col-md-2">
       			<label for="start_year">Start year</label>
       			<input type="number" class="form-control" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
     		</div>

@@ -6,7 +6,9 @@
 				<div class="row fixed-height">
 					<div class="col-sm-10"> <h2>{{a.article_title}} </h2> </div>
 					{% if a.abstract_hide != None or a.abstract_show.1|length > 470 %}
-						<div class="col-sm-2 expand-btn"><button id="expando" class="btn btn-link">Expand</button></div>
+						<div class="col-sm-2 expand-btn"><button id="expando" class="btn btn-light">Expand</button></div>
+					{% else %}
+						<div class="col-md-2 col-md-offset-2"> </div>
 					{% endif %}
 				</div>
 
@@ -26,7 +28,7 @@
 							<h5><a target="_blank" href="http://localhost:9200/pubmedx/abstract/{{a.id}}?pretty"> source </a> </h5>
 						</div>
 						<div class="col-sm-3">
-							<div class="journal-title pull-right">
+							<div class="journal-title">
 								<h5> {{a.journal_title}} </h5>
 							</div>
 						</div>
@@ -49,6 +51,7 @@
 					</div>
 				{% endif %}
 			</div>
+			
 		</div>
 		<hr>
 	{% endfor %}

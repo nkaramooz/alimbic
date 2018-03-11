@@ -41,7 +41,7 @@
 
 .expand-btn {
 	text-align: center;
-	margin-top: 20px;
+
 }
 
 .abstract-body {
@@ -77,7 +77,6 @@
   	align-content: center;
 
 }
-
 .abstract-metadata .row .col-sm-3 .pub-year {
 	border: 1px solid #ffd37c;
 	background-color: #ffd37c;
@@ -87,8 +86,14 @@
 	padding-bottom: 3px;
 	align-content: center;
 	border-radius: 4px;
-	width: 50px;
-	text-align: center
+	width: 62px;
+	text-align: right;
+}
+.abstract-metadata .row .col-sm-3 {
+
+	text-align: right;
+	padding-right: 27px;
+
 }
 .abstract-metadata .row .col-sm-3 .journal-title {
 	border: 1px solid #A7EAFF;
@@ -98,19 +103,48 @@
 	padding-right: 2px;
 	padding-top: 3px;
 	padding-bottom: 3px;
-	align-content: center;
 	border-radius: 4px;
-	text-align: center;
+	text-align: left;
 }
 .abstract-metadata .row .col-sm-3 .journal-title h5 {
-	text-align: center !important;
-	align-content: center;
+	text-align: left;
+
 }
 
 .body .glance {
 	padding-bottom: 40px;
 }
+.carousel-control-prev {
+  background-color: #999 !important;
+  background-color: rgba(70,70,70,.25) !important;
+}
+.carousel-control-next {
+  background-color: #999 !important;
+  background-color: rgba(70,70,70,.25) !important;
+}
+.carousel-item {
+	align-content: center !important;
+	text-align: center !important;
+	border: 1px solid black;
+
+}
+.carousel-item .card {
+	width: 200px;
+	align-content: center !important;
+}
+.carousel-inner {
+	width: 200px;
+}
 
 hr {
 	border-width: 2px;
+}
+
+.body > .vanco-calc {
+	padding-bottom: 75px;
+	padding-top: 25px;
+}
+
+.body > .vanco-calc > .card-title {
+	padding-left: 20px !important;
 }

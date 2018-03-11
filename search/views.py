@@ -7,7 +7,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
 import pandas as pd
 import utilities.es_utilities as es_util
-import json
+from django.http import JsonResponse
 # Create your views here.
 
 INDEX_NAME='pubmedx'
@@ -37,6 +37,89 @@ def post_concept_override(request):
 
 	cursor.close()
 	return HttpResponseRedirect(reverse('search:concept_override'))
+
+###
+def vcSubmit(request):
+
+	age = int(request.GET.get('age', None))
+	is_female = bool(request.GET.get('is_female', None))
+	height_ft = float(request.GET.get('height_ft', None))
+	height_in = float(request.GET.get('height_in', None))
+	actualWeight = float(request.GET.get('actualWeight', None))
+	creatinine = float(request.GET.get('creatinine', None))
+	
+	indication = str(request.GET.get('indication'))
+	troughTarget = str(request.GET.get('troughTarget'))
+	doseType = str(request.GET.get('doseType'))
+	comorbid = request.GET.getlist('comorbid[]')
+
+	height = (12*height_ft) + height_in
+	crcl = returnCrCl(age, is_female, height, actualWeight, creatinine)
+
+	data = {"crcl" : crcl}
+
+	if doseType == "loading":
+		data["loading"] = returnLoadingDoseForPatient(age, actualWeight)
+
+	return JsonResponse(data)
+
+def returnLoadingDoseForPatient(age, weight):
+	if (age >= 70):
+		dose = 15*weight
+	else:
+		dose = 20*weight
+
+	if (dose > 2000):
+		dose = 2000
+	return returnRoundedDose(dose)
+
+def returnInitialMaintenance(age, is_female, height_ft, height_in, actualWeight, creatinine, indication, troughTarget, )
+
+def returnRoundedDose(dose):
+	dose = round(dose/250)*250
+
+	if dose > 2000:
+		return 2000
+	else:
+		return dose
+
+def returnTroughTarget(request):
+	indication = request.GET.get('indication')
+	data = {"trough" : ""}
+
+	## TROUGH TARGET OF 10-15 == 0
+	## TROUGH TARGET OF 15-20 == 1
+
+	if indication == "Bacteremia":
+		data["trough"] = "1"
+	elif indication == "Brain abscess":
+		data["trough"] = "1"
+	elif indication == "Cellulitis":
+		data["trough"] = "0"
+	elif indication == "Cystitis":
+		data["trough"] = "0"
+	elif indication == "Endocarditis":
+		data["trough"] = "1"
+	elif indication == "Meningitis":
+		data["trough"] == "1"
+	elif indication == "Neutropenic fever":
+		data["trough"] = "0"
+	elif indication == "Osteomyelitis":
+		data["trough"] = "1"
+	elif indication == "Prosthetic joint infection":
+		data["trough"] = "1"
+	elif indication == "Pulmonary infection":
+		data["trough"] = "1"
+	elif indication == "Sepsis":
+		data["trough"] = "1"
+	elif indication == "Skin and soft tissue infections":
+		data["trough"] = "0"
+	elif indication == "Urinary tract infection":
+		data["trough"] = "0"
+	elif indication == "Urosepsis":
+		data["trough"] = "1"
+
+	return JsonResponse(data)
 
 ### ELASTIC SEARCH
 
@@ -132,8 +215,8 @@ def conceptid_search_results(request, query, conceptid1, conceptid2):
 
 
 def concept_search_results(request):
-	print(request.GET)
 	journals = request.GET.getlist('journals[]')
+	print(journals)
 	query = request.GET['query']
 	start_year = request.GET['start_year']
 	end_year = request.GET['end_year']
@@ -175,7 +258,7 @@ def concept_search_results(request):
 		es_query = {"from" : 0, \
 				 "size" : 100, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor)}
-
+		print(es_query)
 		sr = es.search(index=INDEX_NAME, body=es_query)
 
 	###UPDATE QUERY BELOW FOR FILTERS
@@ -200,7 +283,7 @@ def get_sr_payload(sr):
 	for index,hit in enumerate(sr):
 		hit_dict = {}
 		sr_src = hit['_source']
-		hit_dict['journal_title'] = sr_src['journal_title']
+		hit_dict['journal_title'] = sr_src['journal_iso_abbrev']
 		hit_dict['pmid'] = sr_src['pmid']
 		hit_dict['article_title'] = sr_src['article_title']
 		hit_dict['journal_pub_year'] = sr_src['journal_pub_year']
@@ -326,7 +409,6 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 
 		es_query["bool"]["filter"] = d["filter"]
 
-	print(es_query)
 	return es_query
 
 def get_concept_query_string(full_conceptid_list, cursor):
@@ -395,159 +477,6 @@ def get_flattened_query_concept_list(concept_list):
 		else:
 			flattened_query_concept_list.append(i)
 	return flattened_query_concept_list
-
-## assuming only one concept in query at the moment
-# def get_related_conceptids(og_query_concept_list, unmatched_terms, cursor):
-# 	print(og_query_concept_list)
-
-# 	concept_type_query_string = "select * from annotation.concept_types where conceptid in %s"
-# 	flattened_query_concept_list = list()
-
-# 	for i in og_query_concept_list:
-# 		if isinstance(i, list):
-# 			for g in i:
-# 				flattened_query_concept_list.append(g)
-# 		else:
-# 			flattened_query_concept_list.append(i)
-
-# 	print(flattened_query_concept_list)
-
-# 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
-# 		(tuple(flattened_query_concept_list),), ["conceptid", "concept_type"])
-
-# 	result_dict = dict()
-# 	es = u.get_es_client()
-
-# 	for cid in og_query_concept_list:
-# 		if isinstance(cid, list):	
-# 			root_concept = u.get_conceptid_name(cid[0], cursor)
-# 			root_cid = cid[0]
-# 			if 'condition' in query_concept_type_df[query_concept_type_df['conceptid'].isin(cid)]['concept_type'].tolist():
-# 				treatments_query = 	es_query = {"from" : 0, \
-# 				 "size" : 400, \
-# 				 "query": \
-# 			 		{"bool": { \
-# 						"must": \
-# 							[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
-# 							 "query" : get_concept_query_string([cid], cursor)}}], \
-# 						"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
-# 							"query" : '30207005'}}]}}}
-# 				sr = es.search(index=INDEX_NAME, body=treatments_query)
-# 				sr_conceptids = get_conceptids_from_sr(sr)
-# 				if len(sr_conceptids) > 0:
-
-# 					dist_sr_conceptids = list(set(sr_conceptids))
-
-# 					sr_concept_type_query = """
-# 							select
-# 								conceptid 
-# 								,concept_type
-# 							from annotation.concept_types 
-# 							where conceptid in %s and concept_type in ('treatment', 'diagnostic')
-# 						"""
-# 					agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
-					
-# 					concept_types = list(set(agg_df['concept_type'].tolist()))
-
-# 					sub_dict = dict()
-# 					sub_dict['term'] = root_concept
-# 					sub_dict['treatment'] = []
-# 					sub_dict['diagnostic'] = []
-	
-# 					for concept_type in concept_types:
-# 						if concept_type == 'treatment':
-# 							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-# 							sr_conceptid_df['count'] = 1
-# 							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
-
-# 							if len(sr_conceptid_df) > 0:
-							
-# 								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-# 								sr_conceptid_df = ann.add_names(sr_conceptid_df)
-# 								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
-
-# 								for index,row in sr_conceptid_df.iterrows():
-# 									item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-# 									sub_dict['treatment'].append(item_dict)
-						
-# 						if concept_type == 'diagnostic':
-# 							sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-# 							sr_conceptid_df['count'] = 1
-# 							sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
-
-# 							if len(sr_conceptid_df) > 0:
-# 								sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-# 								sr_conceptid_df = ann.add_names(sr_conceptid_df)
-# 								sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
-# 								for index,row in sr_conceptid_df.iterrows():
-# 									item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-# 									sub_dict['diagnostic'].append(item_dict)
-
-# 					result_dict[root_cid] = sub_dict
-		# else:
-		# 	root_concept = cid
-
-		# 	if 'condition' in query_concept_type_df[query_concept_type_df['conceptid'] == cid]['concept_type'].tolist():
-		# 		treatments_query = 	es_query = {"from" : 0, \
-		# 		 "size" : 400, \
-		# 		 "query": \
-		# 	 		{"bool": { \
-		# 				"must": \
-		# 					[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
-		# 					 "query" : get_concept_query_string([cid], cursor)}}], \
-		# 				"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
-		# 					"query" : '30207005'}}]}}}
-		# 		print(treatments_query)
-		# 		sr = es.search(index=INDEX_NAME, body=treatments_query)
-		# 		sr_conceptids = get_conceptids_from_sr(sr)
-		# 		if len(sr_conceptids) > 0:
-		# 			print(len(sr_conceptids))
-		# 			dist_sr_conceptids = list(set(sr_conceptids))
-
-		# 			sr_concept_type_query = """
-		# 					select
-		# 						conceptid 
-		# 						,concept_type
-		# 					from annotation.concept_types 
-		# 					where conceptid in %s and concept_type in ('treatment', 'diagnostic')
-		# 				"""
-		# 			agg_df = pg.return_df_from_query(cursor, sr_concept_type_query, (tuple(dist_sr_conceptids),), ["conceptid", "concept_type"])
-					
-		# 			concept_types = list(set(agg_df['concept_type'].tolist()))
-		# 			result_dict[root_concept] = []
-		# 			treatment_dict = dict()
-		# 			diagnostic_dict = dict()
-		# 			for concept_type in concept_types:
-		# 				if concept_type == 'treatment':
-		# 					sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-		# 					sr_conceptid_df['count'] = 1
-		# 					sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
-
-		# 					if len(sr_conceptid_df) > 0:
-							
-		# 						sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-		# 						sr_conceptid_df = ann.add_names(sr_conceptid_df)
-		# 						sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
-
-		# 						for index,row in sr_conceptid_df.iterrows():
-		# 							treatment_dict[row['term']] = row['count']
-						
-		# 				if concept_type == 'diagnostic':
-		# 					sr_conceptid_df = agg_df[agg_df['concept_type'] == concept_type].copy()
-		# 					sr_conceptid_df['count'] = 1
-		# 					sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
-
-		# 					if len(sr_conceptid_df) > 0:
-		# 						sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-		# 						sr_conceptid_df = ann.add_names(sr_conceptid_df)
-		# 						sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
-		# 						for index,row in sr_conceptid_df.iterrows():
-		# 							diagnostic_dict[row['term']] = row['count']
-
-		# 			result_dict[root_concept].append({'treatment' : treatment_dict})
-		# 			result_dict[root_concept].append({'diagnostic' : diagnostic_dict})
-
-	# return result_dict
 
 def get_query_concept_types_df(flattened_concept_list, cursor):
 	concept_type_query_string = "select * from annotation.concept_types where conceptid in %s"
@@ -722,4 +651,73 @@ def get_conceptids_from_sr(sr):
 						conceptid_list.extend(hit['_source']['abstract_conceptids'][key1][key2])
 	return conceptid_list
 
+
+############################### VANCO CALC FUNCTIONS
+
+def returnIdealBodyWeight(is_female, height):
+	if not is_female:
+		return (50+2.3*(height-60))
+	else:
+		return (45.5 + 2.3 * (height-60))
+
+def returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, actualWeight):
+	return (idealBodyWeight + (0.4 * (actualWeight - idealBodyWeight)))
+
+def returnDosingWeight(pt):
+	idealBodyWeight = returnIdealBodyWeight(pt.is_female, pt.height)
+
+	if (pt.weight > (1.2*idealBodyWeight)):
+		return returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, pt.weight)
+	elif (pt.weight < idealBodyWeight):
+		return pt.weight
+	else:
+		return pt.weight
+
+def returnCrCl(pt):
+
+	dosingWeight = pt.setDosingWeight()
+
+	
+	if ((pt.age > 65) and (pt.creatinine < 1)):
+		pt.creatinine = 1
+
+	if not pt.is_female:
+		return round(((140-age)*dosingWeight)/(72*pt.creatinine), 2)
+	else:
+		return round(((140-age)*dosingWeight*0.85)/(72*pt.creatinine), 2)
+
+
+class Patient:
+	def __init__(self, age, is_female, height_ft, height_in, weight, creatinine, comorbid)
+		self.age = age 
+		self.is_female = is_female
+		self.height = height_in + (12*height_ft) #height stored in inches
+		self.weight = weight
+		self.creatinine = creatinine
+		self.comorbid = comorbid
+
+	def setDosingWeight(self):
+		self.dosingWeight = returnDosingWeight(self)
+		return self.dosingWeight
+
+	def setCrCl(self):
+		self.crcl = returnCrCl(self)
+
+
+age = int(request.GET.get('age', None))
+	is_female = bool(request.GET.get('is_female', None))
+	height_ft = float(request.GET.get('height_ft', None))
+	height_in = float(request.GET.get('height_in', None))
+	actualWeight = float(request.GET.get('actualWeight', None))
+	creatinine = float(request.GET.get('creatinine', None))
+	
+	indication = str(request.GET.get('indication'))
+	troughTarget = str(request.GET.get('troughTarget'))
+	doseType = str(request.GET.get('doseType'))
+	comorbid = request.GET.getlist('comorbid[]')
+
+	height = (12*height_ft) + height_in
+	crcl = returnCrCl(age, is_female, height, actualWeight, creatinine)
+
+	data = {"crcl" : crcl}
 

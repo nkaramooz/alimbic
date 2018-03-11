@@ -12,6 +12,7 @@
 {% url 'search:pivot_search' as pivot %}
 {% include 'search/search_bar_template.html' with action=concept_search %}
 
+
 <div class="body">
 
 	<div class="query-display">
@@ -22,6 +23,37 @@
 		</h5>
 	</div>
 
+	
+	{% include 'search/vanco_calc.html' %}
+<!--
+	<div id="carouselExampleControls" class="carousel slide" data-interval="false">
+  <div class="carousel-inner" role="listbox">
+    <div class="carousel-item active">
+    	<div class="card">
+  			<div class="card-block">
+    			<h4 class="card-title">Card title</h4>
+    			<p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
+    			<a href="#" class="btn btn-primary">Go somewhere</a>
+  			</div>
+		</div>
+    </div>
+    <div class="carousel-item">
+      22222222
+    </div>
+    <div class="carousel-item">
+      33333333
+    </div>
+  </div>
+  <a class="carousel-control-prev" href="#carouselExampleControls" role="button" data-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="sr-only">Previous</span>
+  </a>
+  <a class="carousel-control-next" href="#carouselExampleControls" role="button" data-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="sr-only">Next</span>
+  </a>
+</div>
+-->
 
 
 	<div class="glance">
