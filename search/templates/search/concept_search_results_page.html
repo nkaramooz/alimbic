@@ -4,9 +4,16 @@
 {% include 'search/header_template.html' %}
 <script src="{% static "js/search-results.js" %}"></script>
 
-<div class="title_header">
-	<h1> Concept Search </h1>
-</div>
+<nav class="navbar navbar-expand-sm navbar-light" style="background-color: #e3f2fd;">
+
+		<div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+			<div class="navbar-nav">
+				<a class="nav-item nav-link active" href="/concept_search_home_page">Search</a>
+				<a class="nav-item nav-link" href="/vancocalc">Vancomycin</a>
+
+			</div>
+		</div>
+	</nav>
 
 {% url 'search:concept_search' as concept_search %}
 {% url 'search:pivot_search' as pivot %}
@@ -24,7 +31,7 @@
 	</div>
 
 	
-	{% include 'search/vanco_calc.html' %}
+
 <!--
 	<div id="carouselExampleControls" class="carousel slide" data-interval="false">
   <div class="carousel-inner" role="listbox">
