@@ -7,7 +7,7 @@ $(document).ready(function() {
 		var creatinine = parseFloat(document.getElementById("creatinine").value);
 		var actualWeight = parseFloat(document.getElementById("weight").value);
 		var indication = document.getElementById("indication").value;
-		var troughTarget = document.getElementById("trough").value;
+		var troughTarget = document.getElementById("targetTrough").value;
 
 		var comorbid = $("#comorbid").val();
 
@@ -18,14 +18,17 @@ $(document).ready(function() {
 		else if(document.getElementById('female').checked) {
 			is_female = true;
 		}
-
+		
 		if(document.getElementById('loading').checked) {
-
 			doseType='loading';
 		}
-		else if (document.getElementById('maintenance').checked) {
-			doseType=('maintenance').toString();
+		else if (document.getElementById('initialMaintenance').checked) {
+			doseType='initialMaintenance';
 		}
+		else if (document.getElementById('redose').checked) {
+			doseType='redose'
+		}
+		
 
 		$.ajax({
 			url: '/ajax/vcSubmit/',
@@ -45,6 +48,12 @@ $(document).ready(function() {
 			success: function(data) {
 				var crcl_text = ("CrCl : ").concat(data.crcl.toString());
 				$("#crcl-text").html(crcl_text);
+				var crclDiv = document.getElementById('crcl-div');
+
+				var dose_div = document.createElement('div');
+				var text = "<h3>" + data.doseType.toString() + " : " + data.dose.toString() + " mg " + data.freq.toString() + "</h3>";
+				dose_div.innerHTML = text;
+				crclDiv.parentNode.insertBefore(dose_div, crclDiv.nextSibling);
 			},
 			error: function(data) {
 				window.alert('failure')
@@ -52,6 +61,15 @@ $(document).ready(function() {
 		})
 		
 	});
+
+	$('#redose').on('click change', function(e) {
+		var doseTypeDiv = document.getElementById('doseTypeDiv');
+		var troughDiv = document.createElement('div');
+		troughDiv.className = "form-row";
+		var troughHTML = "<div class=\"form-group col-md-3\"> <label for=\"trough\">Trough <b>(mg/dL)</b> </label> <input type=\"text\" name=\"trough\" class=\"form-control\" id=\"trough\"> </div>";
+		troughDiv.innerHTML = troughHTML;
+		doseTypeDiv.parentNode.insertBefore(troughDiv, doseTypeDiv.nextSibling);
+	})
 
 	$('#indication').on('change', function() {
 		var indication = document.getElementById("indication").value;
@@ -64,7 +82,7 @@ $(document).ready(function() {
 			dataType: 'json',
 			success: function(data) {
 				var troughTarget = data.trough.toString();
-				$("#trough").val(troughTarget);
+				$("#targetTrough").val(troughTarget);
 			},
 			error: function(data) {
 				window.alert('failure')
