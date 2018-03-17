@@ -2,10 +2,15 @@
 {% load staticfiles %}
 
 {% include 'search/header_template.html' %}
+<nav class="navbar navbar-expand-sm navbar-light" style="background-color: #e3f2fd;">
 
-<div class="title_header">
-	<h1> Search </h1>
-</div>
+		<div class="collapse navbar-collapse" id="navbarNavAltMarkup">
+			<div class="navbar-nav">
+				<a class="nav-item nav-link active" href="/concept_search_home_page">Search</a>
+				<a class="nav-item nav-link" href="/vancocalc">Vancomycin</a>
 
+			</div>
+		</div>
+	</nav>
 {% url 'search:concept_search_results' as concept_search %}
 {% include 'search/search_bar_template.html' with action=concept_search %}

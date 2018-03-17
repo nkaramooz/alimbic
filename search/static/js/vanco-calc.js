@@ -1,4 +1,5 @@
 $(document).ready(function() {
+	$('.js-example-basic-multiple').select2()
 
 	$('#vanco-calc').on('click', function() {
 		var age = parseFloat(document.getElementById("age").value);

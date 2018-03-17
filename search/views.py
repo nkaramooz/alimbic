@@ -39,6 +39,11 @@ def post_concept_override(request):
 	return HttpResponseRedirect(reverse('search:concept_override'))
 
 ###
+
+def vancomycin(request):
+	return render(request, 'search/vanco_calc.html')
+
+
 def vcSubmit(request):
 	age = int(request.GET.get('age', None))
 	is_female = request.GET.get('is_female', None)
@@ -143,7 +148,7 @@ def returnNewMaintenanceDoseForPatient(pt, troughTarget, trough):
 	ke = vancoClearance / vd
 	halfLife = 0.693/ke
 	dose_ref = Dose(troughTarget)
-	
+
 
 
 def returnRoundedDose(dose):
