@@ -40,40 +40,111 @@ def post_concept_override(request):
 
 ###
 def vcSubmit(request):
-
 	age = int(request.GET.get('age', None))
-	is_female = bool(request.GET.get('is_female', None))
+	is_female = request.GET.get('is_female', None)
+	if is_female == "true":
+		is_female = True 
+	else:
+		is_female = False
+	
 	height_ft = float(request.GET.get('height_ft', None))
 	height_in = float(request.GET.get('height_in', None))
-	actualWeight = float(request.GET.get('actualWeight', None))
+	weight = float(request.GET.get('actualWeight', None))
 	creatinine = float(request.GET.get('creatinine', None))
 	
 	indication = str(request.GET.get('indication'))
-	troughTarget = str(request.GET.get('troughTarget'))
+	troughTarget = int(request.GET.get('troughTarget'))
 	doseType = str(request.GET.get('doseType'))
 	comorbid = request.GET.getlist('comorbid[]')
 
-	height = (12*height_ft) + height_in
-	crcl = returnCrCl(age, is_female, height, actualWeight, creatinine)
-
-	data = {"crcl" : crcl}
-
+	pt = Patient(age, is_female, height_ft, height_in, weight, creatinine, comorbid)
+	print(doseType)
+	data = {"crcl" : pt.crcl}
 	if doseType == "loading":
-		data["loading"] = returnLoadingDoseForPatient(age, actualWeight)
-
+		data.update(returnLoadingDoseForPatient(pt))
+		data["doseType"] = "Loading dose"
+	elif doseType == "initialMaintenance":
+		data.update(returnInitialMaintenanceDose(pt, troughTarget))
+		data["doseType"] = "Initial maintenace dose"
+	
 	return JsonResponse(data)
 
-def returnLoadingDoseForPatient(age, weight):
-	if (age >= 70):
-		dose = 15*weight
+def returnLoadingDoseForPatient(pt):
+	if (pt.age >= 70):
+		dose = 15*pt.weight
 	else:
-		dose = 20*weight
+		dose = 20*pt.weight
 
 	if (dose > 2000):
 		dose = 2000
 	return returnRoundedDose(dose)
 
-def returnInitialMaintenance(age, is_female, height_ft, height_in, actualWeight, creatinine, indication, troughTarget, )
+def returnInitialMaintenanceDose(pt, troughTarget):
+	dose = {}
+	dose_ref = Dose(troughTarget)
+
+	if troughTarget == 0:
+		if 'crrt' in pt.comorbid:
+			dose["dose"] = dose_ref.doseArr[6]
+			dose["freq"] = "q12"
+		elif 'hd' in pt.comorbid:
+			dose["dose"] = dose_ref.doseArr[5]
+			dose["freq"] = "post-HD"
+		else:
+			if pt.crcl >= 70:
+				if ((pt.age > 50) or (('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid))):
+					dose["dose"] = dose_ref.doseArr[0]
+					dose["freq"] = "q12"
+				else:
+					dose["dose"] = dose_ref.doseArr[1]
+					dose["freq"] = "q8"
+			elif (pt.crcl >= 40):
+				dose["dose"] = dose_ref.doseArr[2]
+				dose["freq"] = "q12"
+			elif (pt.crcl >= 20):
+				dose["dose"] = dose_ref.doseArr[3]
+				dose["freq"] = "q24"
+			else:
+				dose["dose"] = dose_ref.doseArr[4]
+				dose["freq"] = "q48"
+	else: #trough target is 15-20
+		if 'crrt' in pt.comorbid:
+			dose["dose"] = dose_ref.doseArr[6]
+			dose["freq"] = "q24"
+		elif 'hd' in pt.comorbid:
+			dose["dose"] = dose_ref.doseArr[5]
+			dose["freq"] = "post-HD"
+		else:
+			if pt.crcl >= 70:
+				if ((pt.age > 50) or ('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid)):
+					dose["dose"] = dose_ref.doseArr[0]
+					dose["freq"] = "q12"
+				else:
+					dose["dose"] = dose_ref.doseArr[1]
+					dose["freq"] = "q8"
+			elif pt.crcl >= 40:
+				dose["dose"] = dose_ref.doseArr[2]
+				dose["freq"] = "q12"
+			elif pt.crcl >= 20:
+				dose["dose"] = dose_ref.doseArr[3]
+				dose["freq"] = "q24"
+			else:
+				dose["dose"] = dose_ref.doseArr[4]
+				dose["freq"] = "single loading dose followed by kintetics"
+
+	dose["dose"] = dose["dose"]*pt.dosingWeight
+	dose["dose"] = returnRoundedDose(dose["dose"])
+
+	return dose
+
+def returnNewMaintenanceDoseForPatient(pt, troughTarget, trough):
+	vd = 0.7 * pt.dosingWeight
+	vancoClearance = pt.crcl * 0.06
+	ke = vancoClearance / vd
+	halfLife = 0.693/ke
+	dose_ref = Dose(troughTarget)
+	
+
 
 def returnRoundedDose(dose):
 	dose = round(dose/250)*250
@@ -147,7 +218,6 @@ def concept_search_home_page(request):
 	return render(request, 'search/concept_search_home_page.html')
 
 def post_concept_search(request):
-	print("ASDKJLHSDHLKSJDHASKJDLKLSJHA")
 	params = {}
 	try:
 		params['journals'] = request.POST.getlist('journals[]')
@@ -656,16 +726,18 @@ def get_conceptids_from_sr(sr):
 
 def returnIdealBodyWeight(is_female, height):
 	if not is_female:
-		return (50+2.3*(height-60))
+		return (50+(2.3*(height-60)))
 	else:
-		return (45.5 + 2.3 * (height-60))
+		return (45.5 + (2.3 * (height-60)))
 
 def returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, actualWeight):
 	return (idealBodyWeight + (0.4 * (actualWeight - idealBodyWeight)))
 
 def returnDosingWeight(pt):
 	idealBodyWeight = returnIdealBodyWeight(pt.is_female, pt.height)
-
+	print("idealBodyWeight")
+	print(idealBodyWeight)
+	print("endIdealBodyWeight")
 	if (pt.weight > (1.2*idealBodyWeight)):
 		return returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, pt.weight)
 	elif (pt.weight < idealBodyWeight):
@@ -677,47 +749,44 @@ def returnCrCl(pt):
 
 	dosingWeight = pt.setDosingWeight()
 
-	
 	if ((pt.age > 65) and (pt.creatinine < 1)):
 		pt.creatinine = 1
 
 	if not pt.is_female:
-		return round(((140-age)*dosingWeight)/(72*pt.creatinine), 2)
+		return round(((140-pt.age)*dosingWeight)/(72*pt.creatinine), 2)
 	else:
-		return round(((140-age)*dosingWeight*0.85)/(72*pt.creatinine), 2)
+		return round(((140-pt.age)*dosingWeight*0.85)/(72*pt.creatinine), 2)
 
 
 class Patient:
-	def __init__(self, age, is_female, height_ft, height_in, weight, creatinine, comorbid)
+	def __init__(self, age, is_female, height_ft, height_in, weight, creatinine, comorbid):
 		self.age = age 
 		self.is_female = is_female
 		self.height = height_in + (12*height_ft) #height stored in inches
 		self.weight = weight
 		self.creatinine = creatinine
 		self.comorbid = comorbid
+		self.dosingWeight = self.setDosingWeight()
+		self.crcl = self.setCrCl()
 
 	def setDosingWeight(self):
-		self.dosingWeight = returnDosingWeight(self)
-		return self.dosingWeight
+		return returnDosingWeight(self)
 
 	def setCrCl(self):
-		self.crcl = returnCrCl(self)
+		return returnCrCl(self)
 
+	def getCrCl(self):
+		return self.crcl
 
-age = int(request.GET.get('age', None))
-	is_female = bool(request.GET.get('is_female', None))
-	height_ft = float(request.GET.get('height_ft', None))
-	height_in = float(request.GET.get('height_in', None))
-	actualWeight = float(request.GET.get('actualWeight', None))
-	creatinine = float(request.GET.get('creatinine', None))
-	
-	indication = str(request.GET.get('indication'))
-	troughTarget = str(request.GET.get('troughTarget'))
-	doseType = str(request.GET.get('doseType'))
-	comorbid = request.GET.getlist('comorbid[]')
+class Dose:
+	def __init__(self, troughTarget):
+		self.troughTarget = troughTarget
 
-	height = (12*height_ft) + height_in
-	crcl = returnCrCl(age, is_female, height, actualWeight, creatinine)
+		if troughTarget == 0:
+			self.doseArr = [15,12,12,12,12,7,10]
+		elif troughTarget == 1:
+			self.doseArr = [18,15,15,15,0,7,15]
 
-	data = {"crcl" : crcl}
+		self.freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
+
 

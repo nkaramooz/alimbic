@@ -22,10 +22,10 @@
 						<br>
 						<div class="btn-group btn-group-toggle" data-toggle="buttons">
 	  						<label class="btn btn-secondary active" id="gender">
-	    						<input type="radio" name="female" id="female" autocomplete="off" checked> F
+	    						<input type="radio" name="gender" id="female" checked> F
 	  						</label>
 	  						<label class="btn btn-secondary">
-	    						<input type="radio" name="male" id="male" autocomplete="off"> M
+	    						<input type="radio" name="gender" id="male" unchecked> M
 	  						</label>
 						</div>
 					</div>
@@ -80,25 +80,28 @@
 				</div>
 				<div class="form-row">
 					<div class="form-group col-md-6">
-						<label for="trough">Trough target</label>
-						<select class="form-control" id="trough">
+						<label for="targetTrough">Trough target</label>
+						<select class="form-control" id="targetTrough">
 							<option disable selected value> -select indication or trough target-</option>
 							<option value="0">10-15</option>
 							<option value="1">15-20</option>
 						</select>
 					</div>
 				</div>
-				<div class="form-row">
+				<div class="form-row" id="doseTypeDiv">
 					<div class="form-group col-md-3">
 						<label for="doseType">Dose type</label>
 						<!-- sad hack -->
 						<br>
 						<div class="btn-group btn-group-toggle" data-toggle="buttons">
-	  						<label class="btn btn-secondary active" id="doseType">
-	    						<input type="radio" name="loading" id="loading" autocomplete="off" checked> Loading
+	  						<label class="btn btn-secondary active">
+	    						<input type="radio" name="doseType" id="loading" checked> Loading
 	  						</label>
 	  						<label class="btn btn-secondary">
-	    						<input type="radio" name="maintenance" id="maintenance" autocomplete="off"> Maintenance
+	    						<input type="radio" name="doseType" id="initialMaintenance"> Maintenance
+	  						</label>
+	  						<label class="btn btn-secondary">
+	  							<input type="radio" name="doseType" id="redose"> Redose
 	  						</label>
 						</div>
 					</div>
@@ -116,7 +119,7 @@
 						</select>
 		    		</div>
 		    	</div>
-				<div class="crcl">
+				<div class="crcl" id="crcl-div">
 					<h3 id="crcl-text"> CrCl : </h3> 
 				</div>
     			<input type="submit" class="btn btn-primary" id="vanco-calc" value="Submit">
