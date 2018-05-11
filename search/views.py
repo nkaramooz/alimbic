@@ -65,12 +65,12 @@ def vcSubmit(request):
 	pt = Patient(age, is_female, height_ft, height_in, weight, creatinine, comorbid)
 	print(doseType)
 	data = {"crcl" : pt.crcl}
-	if doseType == "loading":
-		data.update(returnLoadingDoseForPatient(pt))
-		data["doseType"] = "Loading dose"
-	elif doseType == "initialMaintenance":
-		data.update(returnInitialMaintenanceDose(pt, troughTarget))
-		data["doseType"] = "Initial maintenace dose"
+	# if doseType == "loading":
+	# 	data.update(returnLoadingDoseForPatient(pt))
+	# 	data["doseType"] = "Loading dose"
+	# elif doseType == "initialMaintenance":
+	# 	data.update(returnInitialMaintenanceDose(pt, troughTarget))
+	# 	data["doseType"] = "Initial maintenace dose"
 	
 	return JsonResponse(data)
 
@@ -247,7 +247,7 @@ def post_concept_search(request):
 		params['end_year'] = None
 
 	params['query'] = request.POST['query']
-	params['end_year'] = request.POST
+	# params['end_year'] = request.POST ???????????
 
 	query = request.POST['query']
 	# return HttpResponseRedirect(reverse('search:concept_search_results', args=(query,)))
@@ -259,14 +259,38 @@ def post_pivot_search(request):
 	term1 = request.POST['term1']
 	term2 = request.POST['term2']
 	query = term1 + " " + term2
+	params = {}
+	try:
+		params['journals'] = request.POST.getlist('journals[]')
+	except:
+		params['journals'] = []
 
-	return HttpResponseRedirect(reverse('search:conceptid_search_results', kwargs={'query' : query, 'conceptid1' : conceptid1, 'conceptid2' : conceptid2}))
-	
+	try:
+		if request.POST['start_year'] == '':
+			params['start_year'] = None
+		else:
+			params['start_year'] = request.POST['start_year']
+		
+	except:
+		params['start_year'] = None
+
+	try:
+		if request.POST['end_year'] == '':
+			params['end_year'] = None 
+		else:
+			params['end_year'] = request.POST['end_year']
+	except:
+		params['end_year'] = None
+	# return HttpResponseRedirect(reverse('search:conceptid_search_results', kwargs={'query' : query, 'conceptid1' : conceptid1, 'conceptid2' : conceptid2}))
+	res = conceptid_search_results(request, query, conceptid1, conceptid2, params['journals'], params['start_year'], params['end_year'])
+	params.update(res)
+	print(params['journals'])
+	print("ASDKLJHASLJHDASLJKASDLJK")
+	return render(request, 'search/concept_search_results_page.html', params)
 
 ### query contains conceptids instead of text
-def conceptid_search_results(request, query, conceptid1, conceptid2):
+def conceptid_search_results(request, query, conceptid1, conceptid2, journals, start_year, end_year):
 
-	
 	query_concepts_df = pd.DataFrame([conceptid1, conceptid2], columns=['conceptid'])
 
 	es = u.get_es_client()
@@ -278,15 +302,14 @@ def conceptid_search_results(request, query, conceptid1, conceptid2):
 
 	es_query = {"from" : 0, \
 				 "size" : 100, \
-				 "query": get_query(full_query_concepts_list, None, None, None, None, cursor)}
+				 "query": get_query(full_query_concepts_list, None, journals, start_year, end_year, cursor)}
 
 	sr = es.search(index=INDEX_NAME, body=es_query)
 
 	sr_payload = get_sr_payload(sr['hits']['hits'])
-
-	return render(request, 'search/concept_search_results_page.html', \
-		{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
-		'at_a_glance' : {'related' : None}})
+	return {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
+		'at_a_glance' : {'related' : None}}
+	
 
 
 def concept_search_results(request):

@@ -151,7 +151,7 @@ create table concept_types as (
 				when supertypeid = '7120007' then 'cause' --  Antigen (substance)
 
 				when supertypeid = '404684003' then 'symptom' -- clinical finding
-
+				when supertypeid = '4147007' then 'condition' -- Mass
 				when supertypeid = '123037004' then 'anatomy' -- body structure
 				
 				when supertypeid = '363787002' then 'observable' -- observable entity
