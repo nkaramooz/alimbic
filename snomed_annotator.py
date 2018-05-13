@@ -62,7 +62,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		else:
 			if word.lower() != 'vs':
 				word = lmtzr.lemmatize(word)
-			
+
 			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 			if not active_match:
@@ -92,7 +92,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
 		sum_scores = sum_scores[sum_scores['sum_score'] >= (threshold/100.0)]
-
+		
 		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
 		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
 
@@ -328,21 +328,6 @@ def add_names(results_df):
 		results_df = results_df.merge(names_df, on='conceptid')
 		return results_df
 
-def apply_filter_words_exceptions():
-	filter_words = pd.read_pickle('filter_words')
-	filter_words = filter_words[
-		(filter_words['words'] != 'disease') &
-		(filter_words['words'] != 'skin') & 
-		(filter_words['words'] != 'treatment') &
-		(filter_words['words'] != 'symptoms') &
-		(filter_words['words'] != 'syndrome') &
-		(filter_words['words'] != 'pain')]
-	filter_words.to_pickle('filter_words')
-
-def update_postgres_filter_words():
-	engine = return_sql_alchemy_engine()
-	filter_words = pd.read_pickle('filter_words')
-	filter_words.to_sql('filter_words', engine, schema='annotation', if_exists='replace')
 
 def annotate_line(line, filter_words_df):
 	cursor = pg.return_postgres_cursor()
@@ -564,28 +549,30 @@ if __name__ == "__main__":
 	query16 = "page"
 	query17="feeling cold"
 	query18="DPA - docosapentaenoic acid"
-	query19="randomized clinical trials (RCT)"
+	query19="randomized clinical trials"
 	query20="aid"
 	query21="computed tomography"
 	query22="examination of something"
 	query23="examination of the kawasaki"
+	query24="vehicle"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
+	
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query23, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query24, filter_words_df, cursor, False)
 	if res is not None:
 		# u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
 		u.pprint(res)
 		# u.pprint(add_names(resolve_conflicts(res)))
 	else:
 		print("No matches")
-	# u.pprint(add_names(res))
+	u.pprint(add_names(res))
 	
 
 

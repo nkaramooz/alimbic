@@ -289,7 +289,7 @@ def get_key_word_query(conceptid, descriptionid, description):
             	description_id
             	,conceptid
             	,term
-            	,lower(word) as word
+            	,case when upper(word) = word then word else lower(word) end as word
             	,word_ord
     		from (
         		select 
