@@ -14,6 +14,8 @@ create table concept_types as (
 		select 
 			subtypeid as conceptid, 
 			case 
+				when supertypeid = '226077000' then 'treatment' --therapeutic diet
+				when supertypeid = '105958000' then 'treatment'
 				when supertypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
 				when supertypeid = '417176000' then 'treatment' -- growth substance
 				when supertypeid = '17948008' then 'treatment' -- hematopoietic factor
@@ -153,6 +155,7 @@ create table concept_types as (
 				when supertypeid = '404684003' then 'symptom' -- clinical finding
 				when supertypeid = '4147007' then 'condition' -- Mass
 				when supertypeid = '123037004' then 'anatomy' -- body structure
+
 				
 				when supertypeid = '363787002' then 'observable' -- observable entity
 
@@ -172,7 +175,7 @@ create table concept_types as (
 	) tb
 	where concept_type is not null and conceptid not in ('182813001', '276239002')
 	
-	union
+	union all
 
 	select
 		conceptid
