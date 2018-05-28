@@ -555,6 +555,8 @@ if __name__ == "__main__":
 	query22="examination of something"
 	query23="examination of the kawasaki"
 	query24="vehicle"
+	query25="cells"
+	query26="IL-11"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -565,7 +567,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query24, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query26, filter_words_df, cursor, False)
 	if res is not None:
 		# u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
 		u.pprint(res)

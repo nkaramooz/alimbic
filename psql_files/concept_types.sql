@@ -183,6 +183,7 @@ create table concept_types as (
 			when term like '%(finding)%' then 'symptom'
 			when term like '%(disorder)%' then 'condition' end as concept_type
 		from annotation.active_descriptions
+
 	) f 
 	where concept_type is not null
 );
