@@ -35,7 +35,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
-
+	
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive):
@@ -66,19 +66,19 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
-			if not active_match:
+			# if not active_match:
 
-				new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
-
-				if len(new_candidate_df) > 0:
-					new_candidate_df['substring_start_index'] = index
-					new_candidate_df['description_start_index'] = index
-					candidate_df_arr.append(new_candidate_df)
+			new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
+			if len(new_candidate_df.index) > 0:
+				new_candidate_df['substring_start_index'] = index
+				new_candidate_df['description_start_index'] = index
+				candidate_df_arr.append(new_candidate_df)
+						
 
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
 			results_df = results_df.append(new_results_df)
-	
-	if len(results_df) > 0:
+	# u.pprint(results_df)
+	if len(results_df.index) > 0:
 		order_score = results_df
 
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
@@ -110,7 +110,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 		final_results = prune_results_v2(joined_results, joined_results)
 
-		if len(final_results) > 0:
+		if len(final_results.index) > 0:
 
 			final_results = add_names(final_results)
 			final_results['line'] = line
@@ -128,7 +128,7 @@ def get_results(candidate_df_arr):
 		new_results = df[~df['description_id'].isin(exclusion_series)]
 		
 		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
-		if len(remaining_candidates) != 0:
+		if len(remaining_candidates.index) != 0:
 			new_candidate_df_arr.append(remaining_candidates)
 		results_df = results_df.append(new_results)
 
@@ -169,10 +169,10 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 
 
 
-		if len(old_df_description_score) > 0 and len(new_df_description_score) > 0:
+		if len(old_df_description_score.index) > 0 and len(new_df_description_score.index) > 0:
 			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
 			filtered_candidates = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
-			if len(filtered_candidates) != 0:
+			if len(filtered_candidates.index) != 0:
 				final_candidate_df_arr.append(filtered_candidates)
 				active_match = True
 
@@ -206,7 +206,7 @@ def prune_results_v2(scores_df, og_results):
 			subset_df = subset_df.sort_values(['final_score', 'term_length'], ascending=False)
 
 			result = subset_df.iloc[0].copy()
-			if len(subset_df) > 1:
+			if len(subset_df.index) > 1:
 				changes_made = True
 				
 				new_exclude = subset_df
@@ -247,7 +247,7 @@ def resolve_conflicts(results_df, cursor):
 	
 	final_results = conflict_free_df.copy()
 
-	if len(conflict_free_df) > 0:
+	if len(conflict_free_df.index) > 0:
 		
 		conflict_free_df['concept_count'] = 1
 		concept_weights = conflict_free_df.groupby(['conceptid'], as_index=False)['concept_count'].sum()
@@ -273,7 +273,7 @@ def resolve_conflicts(results_df, cursor):
 
 		conflicted_df = conflicted_df.merge(cid_cnt_df, on=['conceptid'], how='left')
 		conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
-		
+
 		conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
 
 		conflicted_df = conflicted_df.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
@@ -334,7 +334,7 @@ def get_concept_synonyms_list_from_series(conceptid_series, cursor):
 	results_list = []
 
 	for item in conceptid_series:
-		if len(synonym_df[synonym_df['reference_conceptid'] == item]) > 0:
+		if len(synonym_df[synonym_df['reference_conceptid'] == item].index) > 0:
 			sub_list = [item]
 			sub_df = synonym_df[synonym_df['reference_conceptid'] == item]
 			for ind,val in sub_df.iterrows():
@@ -382,11 +382,12 @@ def query_expansion(conceptid_series, cursor):
 	for item in conceptid_series:
 		temp_res = [item]
 		added_other = False
-		if len(syn_df[syn_df['reference_conceptid'] == item] > 0):
+		# JUST CHANGED PARENTHESES location
+		if len(syn_df[syn_df['reference_conceptid'] == item].index) > 0:
 			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['reference_conceptid'].tolist())
 			added_other = True
 
-		if len(child_df[child_df['supertypeid'] == item]) > 0:
+		if len(child_df[child_df['supertypeid'] == item].index) > 0:
 			temp_res.extend(child_df[child_df['supertypeid'] == item]['conceptid'].tolist())
 			added_other = True
 
@@ -427,7 +428,7 @@ def annotate_text(text, filter_words_df):
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
-	if len(results_df) > 0:
+	if len(results_df.index) > 0:
 		cursor = pg.return_postgres_cursor()
 		results_df = resolve_conflicts(results_df, cursor)
 		return results_df
@@ -446,7 +447,7 @@ def annotate_text_not_parallel(text, filter_words_df, cursor, case_sensitive):
 	for ln_number, line in enumerate(tokenized):
 		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive))
 
-	if len(results_df) > 0:
+	if len(results_df.index) > 0:
 		results_df = resolve_conflicts(results_df, cursor)
 		return results_df
 	else:
@@ -538,7 +539,8 @@ if __name__ == "__main__":
 	query26="IL-11"
 	query27="bare metal stent"
 	query28="percutaneous transluminal pulmonary"
-	query29="above knee amputation. AKA"
+	query29="above knee amputation AKA"
+	query30="uncontrolled asthma"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -549,13 +551,23 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query14, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query29, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
 	else:
 		u.pprint(add_names(res))
 	check_timer.stop()
+
+
+	# counter = 20
+	# sum_time = 0
+	# while counter > 0:
+	# 	a = u.Timer('a')
+	# 	res = annotate_text_not_parallel(query13, filter_words_df, cursor, False)
+	# 	sum_time += a.stop_num()
+	# 	counter -= 1
+	# u.pprint(sum_time/20)
 	u.pprint("*****************************")
 	
 	

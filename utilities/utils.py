@@ -14,6 +14,10 @@ class Timer:
 		label = self.label + " : " + str(self.end_time - self.start_time)
 		print(label)
 
+	def stop_num(self):
+		self.end_time = time.time()
+		return float(self.end_time - self.start_time)
+
 def pprint(data_frame):
 	with pd.option_context('display.max_rows', None, 'display.max_columns', 10):
 		pd.set_option('display.width', 1000)
