@@ -181,47 +181,6 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	return final_candidate_df_arr, active_match
 
 
-def prune_results(scores_df):
-
-	exclude_index_arr = []
-	scores_df = scores_df.sort_values(['term_start_index'], ascending=True)
-
-	results_df = pd.DataFrame()
-	results_index = []
-	changes_made = False
-	for index, row in scores_df.iterrows():
-
-		if index not in exclude_index_arr:
-
-			exclude = scores_df.index.isin(exclude_index_arr)
-			subset_df = scores_df[~exclude].sort_values(['final_score', 'term_length'])
-
-			subset_df = subset_df[
-  				((subset_df['term_start_index'] <= row['term_start_index']) 
-  					& (subset_df['term_end_index'] >= row['term_start_index'])) 
-  				| ((subset_df['term_start_index'] <= row['term_end_index']) 
-  					& (subset_df['term_end_index'] >= row['term_end_index']))
-  				| ((subset_df['term_start_index'] >= row['term_start_index'])
-  					& ((subset_df['term_end_index'] <= row['term_end_index'])))]
-
-			subset_df = subset_df.sort_values(['final_score', 'term_length'], ascending=False)
-
-			result = subset_df.iloc[0].copy()
-			if len(subset_df) > 1:
-				changes_made = True
-				
-				new_exclude = subset_df
-
-				exclude_index_arr.append(index)
-				exclude_index_arr.extend(new_exclude.index.values)
-
-			results_df = results_df.append(result)
-
-	if not changes_made:
-		return results_df
-	else:
-		return prune_results(results_df)
-
 def prune_results_v2(scores_df, og_results):
 
 	exclude_index_arr = []
