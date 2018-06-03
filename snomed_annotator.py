@@ -77,7 +77,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
 			results_df = results_df.append(new_results_df)
-
+	
 	if len(results_df) > 0:
 		order_score = results_df
 
@@ -108,9 +108,8 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
 
 
-
 		final_results = prune_results_v2(joined_results, joined_results)
-		
+
 		if len(final_results) > 0:
 
 			final_results = add_names(final_results)
@@ -230,7 +229,13 @@ def prune_results_v2(scores_df, og_results):
 	else:
 		return prune_results_v2(results_df, og_results)
 
-def resolve_conflicts(results_df):
+# Attempts to disambiguate terms to select one (acronym disambiguation)
+# Technically currently in the first IF statement if there is still a tie, it should resort
+# to using previous concept frequencies. Examples where this would pertain is where a 
+# document references pneumocystis pneumonia and phencyclidine, both of which have the
+# acronym PCP
+# will defer fixing this till later
+def resolve_conflicts(results_df, cursor):
 	results_df['index_count'] = 1
 	counts_df = results_df.groupby(['term_start_index', 'ln_number'], as_index=False)['index_count'].sum()
 	
@@ -260,8 +265,19 @@ def resolve_conflicts(results_df):
 				final_results = final_results.append(row)
 				last_term_start_index = row['term_start_index']
 				last_ln_number = row['ln_number']
-	else: #choosing randomly :(
+	else: #first try and choose most common concept. If not choose randomly
+		conc_count_query = "select conceptid, cnt from annotation.concept_counts where conceptid in %s"
+		params = (tuple(conflicted_df['conceptid']),)
+		cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['conceptid', 'cnt'])
+
+
+		conflicted_df = conflicted_df.merge(cid_cnt_df, on=['conceptid'], how='left')
+		conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
+		
+		conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
+
 		conflicted_df = conflicted_df.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
+
 		last_term_start_index = None
 		last_ln_number = None
 
@@ -303,7 +319,7 @@ def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive):
 
 	if annotation is not None:
 		annotation['ln_number'] = ln_number
-		annotation = resolve_conflicts(annotation)
+		
 	return annotation
 
 def get_concept_synonyms_list_from_series(conceptid_series, cursor):
@@ -412,6 +428,8 @@ def annotate_text(text, filter_words_df):
 		task_queue.put('STOP')
 
 	if len(results_df) > 0:
+		cursor = pg.return_postgres_cursor()
+		results_df = resolve_conflicts(results_df, cursor)
 		return results_df
 	else:
 		return None
@@ -429,6 +447,7 @@ def annotate_text_not_parallel(text, filter_words_df, cursor, case_sensitive):
 		results_df = results_df.append(annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive))
 
 	if len(results_df) > 0:
+		results_df = resolve_conflicts(results_df, cursor)
 		return results_df
 	else:
 		return None
@@ -501,7 +520,7 @@ if __name__ == "__main__":
 	query11= "cancer of ovary"
 	query12 = "Letter: What is \"refractory\" cardiac failure?"
 	query13 = "Step-up therapy for children with uncontrolled asthma receiving inhaled corticosteroids."
-	query14 = "angel dust PCP"
+	query14 = "angel dust. PCP. pneumocystis pneumonia"
 	query15= "(vascular endothelial growth factors)"
 	text1 = """
 		brain magnetic resonance imaging (MRI) scans
@@ -530,15 +549,13 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query29, filter_words_df, cursor, False)
-	if res is not None:
-		# u.pprint(res[['conceptid', 'description_id', 'term_start_index', 'term_end_index', 'final_score', 'term']])
-		u.pprint(res)
-		# u.pprint(add_names(resolve_conflicts(res)))
-	else:
+	res = annotate_text_not_parallel(query14, filter_words_df, cursor, False)
+	u.pprint("=============================")
+	if res is None:
 		print("No matches")
-	u.pprint(add_names(res))
-	
-
-
+	else:
+		u.pprint(add_names(res))
 	check_timer.stop()
+	u.pprint("*****************************")
+	
+	
