@@ -339,9 +339,9 @@ def concept_search_results(request):
 		flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 		
 		query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
-		symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'])
-		condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'])
-		query_concept_count = len(query_concepts_df)
+		symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
+		condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
+		query_concept_count = len(query_concepts_df.index)
 
 		# single condition query
 		if (symptom_count == 0 and condition_count != 0 and query_concept_count == 1):
@@ -422,7 +422,7 @@ def get_unmatched_terms(query, query_concepts_df, filter_words_df):
 	for index,word in enumerate(query.split()):
 		if (filter_words_df['words'] == word).any():
 			continue
-		elif len(query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]) > 0:
+		elif len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
 			continue
 		else:
 			unmatched_terms += word + " "
@@ -640,7 +640,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 					sr_conceptid_df['count'] = 1
 					sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-					if len(sr_conceptid_df) > 0:
+					if len(sr_conceptid_df.index) > 0:
 							
 						sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
 						sr_conceptid_df = ann.add_names(sr_conceptid_df)
@@ -655,7 +655,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 					sr_conceptid_df['count'] = 1
 					sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-					if len(sr_conceptid_df) > 0:
+					if len(sr_conceptid_df.index) > 0:
 						sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
 						sr_conceptid_df = ann.add_names(sr_conceptid_df)
 						sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
@@ -728,7 +728,7 @@ def de_dupe_synonyms(df, cursor):
 
 		if len(ref) > 0:
 			new_conceptid = ref.iloc[0]['synonym_conceptid']
-			if len(df[df['conceptid'] == new_conceptid]):
+			if len(df[df['conceptid'] == new_conceptid].index):
 				
 				df.loc[ind, 'conceptid'] = new_conceptid
 

@@ -16,7 +16,7 @@ import boto3
 import re
 
 
-INDEX_NAME = 'pubmedx'
+INDEX_NAME = 'pubmedx1'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -31,12 +31,31 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
+		# american journal of hypertension
 	if (is_issn(elem, '0895-7061') or is_issn(elem, '1941-7225') \
+		# hypertension
 		or is_issn(elem, '0194-911X') or is_issn(elem, '1524-4563')\
+		# cochrane database of systematic reviews
 		or is_issn(elem, '1469-493X') or is_issn(elem, '1465-1858')\
+		# british medial journal
 		or is_issn(elem, '0959-8138') or is_issn(elem, '1756-1833')\
+		# Lung
 		or is_issn(elem, '0341-2040') or is_issn(elem, '1432-1750')\
+		# Circulation. Heart failure
 		or is_issn(elem, '1941-3289') or is_issn(elem, '1941-3297')\
+		# NEJM
+		or is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')\
+		# American family physician
+		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
+		# Annals of internal medicine
+		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
+		# JAMA
+		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')\
+		# Annals of american thoracic society
+		or is_issn(elem, '2325-6621') or is_issn(elem, '1943-5665')\
+		# Lancet
+		or is_issn(elem, '0140-6736') or is_issn(elem, '1474-547X')\
+		# Circulation
 		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
 
 		json_str = {}
@@ -54,8 +73,12 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					
 					json_str['citations_pmid'] = get_article_citations(elem)
 
-					json_str['title_conceptids'] = get_snomed_annotation(json_str['article_title'], filter_words_df)
-					json_str['abstract_conceptids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+
+					title_annotation = get_snomed_annotation(json_str['article_title'], filter_words_df)
+					json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+					json_str['title_dids'] = title_annotation['description_id'].tolist()
+
+					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
 	
 					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
 		
@@ -376,22 +399,21 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 
 
 def get_abstract_conceptids(abstract_dict, filter_words_df):
-	result_dict = {}
-	
+	cid_dict = {}
+	did_dict = {}
+
 	if abstract_dict is not None:
 		for k1 in abstract_dict:
-			sub_res_dict = {}
+			sub_cid_dict = {}
+			sub_did_dict = {}
 			for k2 in abstract_dict[k1]:
-				sub_res_dict[k2] = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
-			result_dict[k1] = sub_res_dict
+				res = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
+				sub_cid_dict[k2] = res['conceptid'].tolist()
+				sub_did_dict[k2] = res['description_id'].tolist()
+			cid_dict[k1] = sub_cid_dict
+			did_dict[k1] = sub_did_dict
 
-		return result_dict
-	else:
-		return None
-
-def get_abstract_title_conceptids(abstract_title, filter_words_df):
-	if abstract_title is not None:
-		return get_snomed_annotation(abstract_title, filter_words_df)
+		return cid_dict, did_dict
 	else:
 		return None
 
@@ -583,39 +605,24 @@ def get_snomed_annotation(text, filter_words_df):
 		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor, True)
 
 		if annotation is not None:
-			return annotation['conceptid'].tolist()
+			return annotation
 		else:
 			return None
 	cursor.close()
 
 if __name__ == "__main__":
-	t = u.Timer("full")
+
 	cursor = pg.return_postgres_cursor()
 	
 	filter_words_query = "select words from annotation.filter_words"
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
 
-	start_file = 871
-	while (start_file < 1352):
+	start_file = 510
+	while (start_file < 893):
+		print(start_file)
 		load_pubmed_local_2(start_file, filter_words_df)
 		start_file += 11
-	t.stop()
 
-	# tree = ET.parse('medline17n0028.xml')		
-	# root = tree.getroot()
-	# for elem in root:
-	# 	if elem.tag == 'PubmedArticle':
-
-	# 		if (is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793') \
-	# 			or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-	# 			or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-	# 			or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')):
-	# 			print('journal')
-	# 			json_str = {}
-	# 			json_str = get_journal_info(elem, json_str)
-	# 			if json_str['journal_pub_year'] is not None:
-	# 				if (int(json_str['journal_pub_year']) > 1990):
-	# 					print('true')
 
 

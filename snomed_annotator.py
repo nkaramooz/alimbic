@@ -551,7 +551,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query29, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query30, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
