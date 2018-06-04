@@ -55,6 +55,8 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		or is_issn(elem, '2325-6621') or is_issn(elem, '1943-5665')\
 		# Lancet
 		or is_issn(elem, '0140-6736') or is_issn(elem, '1474-547X')\
+		# Neurlogy
+		or is_issn(elem, '0028-3878') or is_issn(elem, '1526-632X')\
 		# Circulation
 		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
 
@@ -75,7 +77,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 
 					title_annotation = get_snomed_annotation(json_str['article_title'], filter_words_df)
-					json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+					if title_annotation is not None:
+						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+					else:
+						json_str['title_conceptids'] = None
 					json_str['title_dids'] = title_annotation['description_id'].tolist()
 
 					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
@@ -408,14 +413,18 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 			sub_did_dict = {}
 			for k2 in abstract_dict[k1]:
 				res = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
-				sub_cid_dict[k2] = res['conceptid'].tolist()
-				sub_did_dict[k2] = res['description_id'].tolist()
+				if res is not None:
+					sub_cid_dict[k2] = res['conceptid'].tolist()
+					sub_did_dict[k2] = res['description_id'].tolist()
+				else:
+					sub_cid_dict[k2] = None
+					sub_did_dict[k2] = None
 			cid_dict[k1] = sub_cid_dict
 			did_dict[k1] = sub_did_dict
 
 		return cid_dict, did_dict
 	else:
-		return None
+		return None, None
 
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
