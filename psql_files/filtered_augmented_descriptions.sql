@@ -1,5 +1,4 @@
 set schema 'annotation';
-drop table if exists filtered_augmented_descriptions;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
 
 
