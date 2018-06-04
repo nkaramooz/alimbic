@@ -79,9 +79,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					title_annotation = get_snomed_annotation(json_str['article_title'], filter_words_df)
 					if title_annotation is not None:
 						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+						json_str['title_dids'] = title_annotation['description_id'].tolist()
 					else:
 						json_str['title_conceptids'] = None
-					json_str['title_dids'] = title_annotation['description_id'].tolist()
+						json_str['title_dids'] = None
 
 					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
 	
