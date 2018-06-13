@@ -83,12 +83,12 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
-
-		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'order_score']].groupby(\
+		
+		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
 
 
-		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index']].drop_duplicates()
+		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'term']].drop_duplicates()
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
 
 		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
@@ -107,12 +107,10 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
 		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
 
-
+		
 		final_results = prune_results_v2(joined_results, joined_results)
-
+		
 		if len(final_results.index) > 0:
-
-			final_results = add_names(final_results)
 			final_results['line'] = line
 
 			return final_results
@@ -133,6 +131,22 @@ def get_results(candidate_df_arr):
 		results_df = results_df.append(new_results)
 
 	return new_candidate_df_arr,results_df
+
+def acronym_check(results_df):
+	results_df['acronym'] = np.where(results_df['term'] == results_df['term'].str.upper(), True, False)
+	non_acronyms_df = results_df[results_df['acronym'] == False].copy()
+	
+	cid_counts = non_acronyms_df['conceptid'].value_counts()
+	cid_cnt_df = pd.DataFrame({'conceptid':cid_counts.index, 'count':cid_counts.values})
+
+
+	acronym_df = results_df[results_df['acronym'] == True].copy()
+	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
+	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
+	final = non_acronyms_df.append(approved_acronyms)
+	u.pprint(final)
+	
+
 
 
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
@@ -253,6 +267,8 @@ def resolve_conflicts(results_df, cursor):
 		concept_weights = conflict_free_df.groupby(['conceptid'], as_index=False)['concept_count'].sum()
 
 		join_weights = conflicted_df.merge(concept_weights, on=['conceptid'],how='left')
+
+		#set below to negative 10 and drop all rows with negative value
 		join_weights['concept_count'].fillna(0, inplace=True)
 		join_weights['final_score'] = join_weights['final_score'] + join_weights['concept_count']
 		join_weights = join_weights.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
@@ -265,6 +281,8 @@ def resolve_conflicts(results_df, cursor):
 				final_results = final_results.append(row)
 				last_term_start_index = row['term_start_index']
 				last_ln_number = row['ln_number']
+
+	# Really should only want below for query annotation. Not document annotation
 	else: #first try and choose most common concept. If not choose randomly
 		conc_count_query = "select conceptid, cnt from annotation.concept_counts where conceptid in %s"
 		params = (tuple(conflicted_df['conceptid']),)
@@ -479,8 +497,9 @@ def clean_text(line):
 	line = line.replace('\'', '')
 	line = line.replace('"', '')
 	line = line.replace(':', '')
-	line = line.replace('(', '')
-	line = line.replace(')', '')
+	# line = line.replace('(', '')
+	# line = line.replace(')', '')
+	line = re.sub("\(.*?\)","",line)
 	return line
 
 if __name__ == "__main__":
@@ -521,7 +540,7 @@ if __name__ == "__main__":
 	query11= "cancer of ovary"
 	query12 = "Letter: What is \"refractory\" cardiac failure?"
 	query13 = "Step-up therapy for children with uncontrolled asthma receiving inhaled corticosteroids."
-	query14 = "angel dust. PCP. pneumocystis pneumonia"
+	query14 = "angel dust. PCP."
 	query15= "(vascular endothelial growth factors)"
 	text1 = """
 		brain magnetic resonance imaging (MRI) scans
@@ -536,11 +555,19 @@ if __name__ == "__main__":
 	query23="examination of the kawasaki"
 	query24="vehicle"
 	query25="cells"
-	query26="IL-11"
+	query26="IL-11."
 	query27="bare metal stent"
 	query28="percutaneous transluminal pulmonary"
 	query29="above knee amputation AKA"
 	query30="uncontrolled asthma"
+	query31="V-ABC protein"
+	query32="Cough and chest pain. RCT."
+	query33="interleukin (IL)-6"
+	query34="Sustained recovery of progressive multifocal leukoencephalopathy after treatment with IL-2."
+	query35="interleukin-1 receptor antagonist"
+	query36="achr"
+	query37="Pulmonary veins. PVs."
+	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality. Many aspects of the management of atrial fibrillation remain controversial. We address nine specific controversies in atrial fibrillation management, briefly focusing on the relations between mechanisms and therapy, the roles of rhythm and rate control, the definition of optimum rate control, the need for early cardioversion to prevent remodelling, the comparison of electrical with pharmacological cardioversion, the selection of patients for long-term oral anticoagulation, the roles of novel long-term anticoagulation approaches and ablation therapy, and the potential usefulness of upstream therapy targeting substrate development. The background of every controversy is reviewed and our opinions expressed. Here, we hope to inform physicians about the most important controversies in this specialty and stimulate investigators to address unresolved issues."
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -551,12 +578,16 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	res = annotate_text_not_parallel(query30, filter_words_df, cursor, False)
+	print(clean_text("interleukin (IL)-6"))
+	res = annotate_text_not_parallel(query38, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
 	else:
-		u.pprint(add_names(res))
+		# u.pprint(add_names(res))
+		
+		# u.pprint(res)
+		acronym_check(res)
 	check_timer.stop()
 
 

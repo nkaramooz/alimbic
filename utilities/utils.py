@@ -394,6 +394,20 @@ def lemmatize_table():
 	cursor.connection.commit()
 	cursor.close()
 
+def insert_new_vancocalc_user(name, cursor):
+	insert_query = """
+			set schema 'vancocalc';
+			CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
+
+			INSERT INTO users (uid, username, active, effectivetime)
+			VALUES (public.uuid_generate_v4(), %s, 1, now());
+	"""
+
+	cursor.execute(insert_query, (name,))
+	cursor.connection.commit()
+	return True
+
+
 
 def get_es_client():
 	# es = Elasticsearch(hosts=[{'host': \
