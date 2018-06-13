@@ -10,7 +10,7 @@ import utilities.es_utilities as es_util
 from django.http import JsonResponse
 # Create your views here.
 
-INDEX_NAME='pubmedx'
+INDEX_NAME='pubmedx1'
 
 def home_page(request):
 	return render(request, 'search/home_page.html')
@@ -40,9 +40,66 @@ def post_concept_override(request):
 
 ###
 
-def vancomycin(request):
-	return render(request, 'search/vanco_calc.html')
+# def vancomycin(request):
+# 	return render(request, 'search/vanco_calc.html')
 
+def vc_main(request):
+	vc_payload = {}
+	if bool(request.POST):
+		cursor = pg.return_postgres_cursor()
+		username=request.POST['username']
+		u.insert_new_vancocalc_user(username, cursor)
+	
+	user_df = get_vc_users(cursor)
+	user_payload = get_user_payload(user_df)
+
+	return render(request, 'search/vc_main.html', {'user_payload' : user_payload})
+
+def vc_cases(request):
+	cases_payload = {}
+	if bool(request.POST):
+		cursor = pg.return_postgres_cursor()
+		uid = request.POST['uid']
+		username = request.POST['username']
+		cases_df = get_vc_cases(cursor, uid)
+		cases_payload = get_cases_payload(cases_df)
+	return render(request, 'search/vc_cases.html', {'cases_payload' : cases_payload})
+
+def get_vc_users(cursor):
+	query="select uid, username from (select uid, effectivetime, \
+		row_number () over (partition by uid order by effectivetime desc) as row_num, \
+		username, active from vancocalc.users) tb where row_num = 1 and active=1 "
+	user_df = pg.return_df_from_query(cursor, query, None, ["uid", "username"])
+	return user_df
+
+def get_vc_cases(cursor, uid):
+	query="select cid, casename from (select cid, effectivetime, \
+		row_number () over (partition by cid order by effectivetime desc) as row_num, \
+		active from vancocalc.cases where uid=%s) tb where row_num = 1 and active=1 "
+	case_df = pg.return_df_from_query(cursor, query, (uid,), ["cid", "casename"])
+	return case_df
+
+def get_cases_payload(cases_df)
+	cases_list = []
+
+	for index,case in cases_df.iterrows():
+		hit_dict = {}
+		hit_dict["casename"] = case["casename"]
+		hit_dict["cid"] = case["cid"]
+		cases_list.append(hit_dict)
+
+	return cases_list
+
+def get_user_payload(user_df):
+	user_list = []
+
+	for index,user in user_df.iterrows():
+		hit_dict = {}
+		hit_dict["username"] = user["username"]
+		hit_dict["uid"] = user["uid"]
+		user_list.append(hit_dict)
+
+	return user_list
 
 def vcSubmit(request):
 	age = int(request.GET.get('age', None))
@@ -314,7 +371,7 @@ def conceptid_search_results(request, query, conceptid1, conceptid2, journals, s
 
 def concept_search_results(request):
 	journals = request.GET.getlist('journals[]')
-	print(journals)
+
 	query = request.GET['query']
 	start_year = request.GET['start_year']
 	end_year = request.GET['end_year']
