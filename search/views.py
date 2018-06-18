@@ -40,15 +40,89 @@ def post_concept_override(request):
 
 ###
 
-# def vancomycin(request):
-# 	return render(request, 'search/vanco_calc.html')
+def vc_new_case(request):
+	new_case_payload = {}
+	new_case_payload['uid'] = request.GET['uid']
+	new_case_payload['username'] = request.GET['username']
+	return render(request, 'search/new_case.html', {'new_case_payload' : new_case_payload})
+
+def vc_case_view(request):
+
+	case_payload = {}
+	cursor = pg.return_postgres_cursor()
+	cid = ""
+	casename=""
+	username=""
+	case = None
+	if request.method == "GET":
+		uid = request.GET['uid']
+		username = request.GET['username']
+		casename = request.GET['casename']
+		cid = request.GET['cid']
+		
+	else:
+		casename = request.POST.get('casename')
+		uid = request.POST.get('uid')
+		username=request.POST.get('username')
+		cid = u.insert_new_vc_case(uid, casename, cursor)
+
+		age = int(request.POST.get('age'))
+		is_female = request.POST.get('is_female', None)
+		if is_female == "true":
+			is_female = 1 
+		else:
+			is_female = 0
+		
+		height = 12*float(request.POST.get('height-ft')) + float(request.POST.get('height-in'))
+		weight = float(request.POST.get('weight'))
+		creatinine = float(request.POST.get('creatinine'))
+		bl_creatinine = float(request.POST.get('bl_creatinine'))
+		indication = str(request.POST.get('indication'))
+		targetTrough = int(request.POST.get('targetTrough'))
+
+		comorbid = request.POST.getlist('comorbid[]')
+		# args = {'age' : age, 'is_female' : is_female, 'height' : height, 'weight' : weight, 'creatinine' : creatinine, 'bl_creatinine' : bl_creatinine, 'comorbid' : comorbid}
+		case = Case(age=age, is_female=is_female, height=height, weight=weight, creatinine=creatinine, bl_creatinine=bl_creatinine, comorbid=comorbid)
+		case.save(cid, cursor)
+
+		# pt.writeDB(cid, cursor)
+	
+	# case_payload['uid'] = uid
+	# case_payload['username'] = username
+	# case_payload['casename'] = casename
+	# case_payload['cid'] = cid
+	# pt = get_pt_from_cid(cid, cursor)
+	# 	# data = {"crcl" : pt.crcl}
+	# case_payload = get_case_payload(pt, case_payload)
+
+	# return render(request, 'search/case_view.html', {'case_payload' : case_payload})
+
+def get_case_payload(pt, case_payload):
+	case_payload["chf"] = pt.chf
+	case_payload["dm"] = pt.dm
+	case_payload["esld"] = pt.esld
+	case_payload["crrt"] = pt.crrt
+	case_payload["hd"] = pt.hd
+	case_payload["creatinine"] = []
+	case_payload["weight"] = []
+
+	for index,value in reversed(list(enumerate(pt.weight))):
+		case_payload["weight"].append({pt.weight[index] : pt.dosingWeight[index]})
+
+	for index,value in reversed(list(enumerate(pt.creatinine))):
+		case_payload["creatinine"].append({pt.creatinine[index] : pt.crcl[index]})
+
+	return case_payload
+
+def vc_dosing(request):
+	return render(request, 'search/vanco_calc.html')
 
 def vc_main(request):
 	vc_payload = {}
-	if bool(request.POST):
-		cursor = pg.return_postgres_cursor()
+	cursor = pg.return_postgres_cursor()
+	if request.method == "POST":
 		username=request.POST['username']
-		u.insert_new_vancocalc_user(username, cursor)
+		u.insert_new_vc_user(username, cursor)
 	
 	user_df = get_vc_users(cursor)
 	user_payload = get_user_payload(user_df)
@@ -57,12 +131,28 @@ def vc_main(request):
 
 def vc_cases(request):
 	cases_payload = {}
-	if bool(request.POST):
-		cursor = pg.return_postgres_cursor()
+	cursor = pg.return_postgres_cursor()
+
+	uid = ""
+	username = ""
+	cases_df = None
+
+	if request.method == "POST":
 		uid = request.POST['uid']
 		username = request.POST['username']
-		cases_df = get_vc_cases(cursor, uid)
-		cases_payload = get_cases_payload(cases_df)
+		casename = request.POST['casename']
+		u.insert_new_vc_case(uid, casename, cursor)
+	else:
+		uid = request.GET['uid']
+		username = request.GET['username']
+	
+	cases_df = get_vc_cases(cursor, uid)
+	cases_payload['cases'] = get_cases_payload(cases_df)
+	cases_payload['uid'] = uid
+	cases_payload['username'] = username
+
+	print(cases_payload)
+
 	return render(request, 'search/vc_cases.html', {'cases_payload' : cases_payload})
 
 def get_vc_users(cursor):
@@ -73,13 +163,22 @@ def get_vc_users(cursor):
 	return user_df
 
 def get_vc_cases(cursor, uid):
-	query="select cid, casename from (select cid, effectivetime, \
+	query="select cid, casename from (select cid, casename, effectivetime, \
 		row_number () over (partition by cid order by effectivetime desc) as row_num, \
 		active from vancocalc.cases where uid=%s) tb where row_num = 1 and active=1 "
 	case_df = pg.return_df_from_query(cursor, query, (uid,), ["cid", "casename"])
 	return case_df
 
-def get_cases_payload(cases_df)
+def vc_loading(request):
+	print("true")
+
+def vc_maintenance(request):
+	print("true")
+
+def vc_redose(request):
+	print('true')
+
+def get_cases_payload(cases_df):
 	cases_list = []
 
 	for index,case in cases_df.iterrows():
@@ -120,8 +219,8 @@ def vcSubmit(request):
 	comorbid = request.GET.getlist('comorbid[]')
 
 	pt = Patient(age, is_female, height_ft, height_in, weight, creatinine, comorbid)
-	print(doseType)
-	data = {"crcl" : pt.crcl}
+
+	data = {"crcl" : pt.crcl[-1]}
 	# if doseType == "loading":
 	# 	data.update(returnLoadingDoseForPatient(pt))
 	# 	data["doseType"] = "Loading dose"
@@ -133,9 +232,9 @@ def vcSubmit(request):
 
 def returnLoadingDoseForPatient(pt):
 	if (pt.age >= 70):
-		dose = 15*pt.weight
+		dose = 15*pt.weight[-1]
 	else:
-		dose = 20*pt.weight
+		dose = 20*pt.weight[-1]
 
 	if (dose > 2000):
 		dose = 2000
@@ -153,17 +252,17 @@ def returnInitialMaintenanceDose(pt, troughTarget):
 			dose["dose"] = dose_ref.doseArr[5]
 			dose["freq"] = "post-HD"
 		else:
-			if pt.crcl >= 70:
+			if pt.crcl[-1] >= 70:
 				if ((pt.age > 50) or (('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid))):
 					dose["dose"] = dose_ref.doseArr[0]
 					dose["freq"] = "q12"
 				else:
 					dose["dose"] = dose_ref.doseArr[1]
 					dose["freq"] = "q8"
-			elif (pt.crcl >= 40):
+			elif (pt.crcl[-1] >= 40):
 				dose["dose"] = dose_ref.doseArr[2]
 				dose["freq"] = "q12"
-			elif (pt.crcl >= 20):
+			elif (pt.crcl[-1] >= 20):
 				dose["dose"] = dose_ref.doseArr[3]
 				dose["freq"] = "q24"
 			else:
@@ -177,17 +276,17 @@ def returnInitialMaintenanceDose(pt, troughTarget):
 			dose["dose"] = dose_ref.doseArr[5]
 			dose["freq"] = "post-HD"
 		else:
-			if pt.crcl >= 70:
+			if pt.crcl[-1] >= 70:
 				if ((pt.age > 50) or ('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid)):
 					dose["dose"] = dose_ref.doseArr[0]
 					dose["freq"] = "q12"
 				else:
 					dose["dose"] = dose_ref.doseArr[1]
 					dose["freq"] = "q8"
-			elif pt.crcl >= 40:
+			elif pt.crcl[-1] >= 40:
 				dose["dose"] = dose_ref.doseArr[2]
 				dose["freq"] = "q12"
-			elif pt.crcl >= 20:
+			elif pt.crcl[-1] >= 20:
 				dose["dose"] = dose_ref.doseArr[3]
 				dose["freq"] = "q24"
 			else:
@@ -201,7 +300,7 @@ def returnInitialMaintenanceDose(pt, troughTarget):
 
 def returnNewMaintenanceDoseForPatient(pt, troughTarget, trough):
 	vd = 0.7 * pt.dosingWeight
-	vancoClearance = pt.crcl * 0.06
+	vancoClearance = pt.crcl[-1] * 0.06
 	ke = vancoClearance / vd
 	halfLife = 0.693/ke
 	dose_ref = Dose(troughTarget)
@@ -341,8 +440,7 @@ def post_pivot_search(request):
 	# return HttpResponseRedirect(reverse('search:conceptid_search_results', kwargs={'query' : query, 'conceptid1' : conceptid1, 'conceptid2' : conceptid2}))
 	res = conceptid_search_results(request, query, conceptid1, conceptid2, params['journals'], params['start_year'], params['end_year'])
 	params.update(res)
-	print(params['journals'])
-	print("ASDKLJHASLJHDASLJKASDLJK")
+
 	return render(request, 'search/concept_search_results_page.html', params)
 
 ### query contains conceptids instead of text
@@ -413,7 +511,7 @@ def concept_search_results(request):
 		es_query = {"from" : 0, \
 				 "size" : 100, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor)}
-		print(es_query)
+
 		sr = es.search(index=INDEX_NAME, body=es_query)
 
 	###UPDATE QUERY BELOW FOR FILTERS
@@ -809,59 +907,193 @@ def get_conceptids_from_sr(sr):
 
 ############################### VANCO CALC FUNCTIONS
 
-def returnIdealBodyWeight(is_female, height):
-	if not is_female:
-		return (50+(2.3*(height-60)))
-	else:
-		return (45.5 + (2.3 * (height-60)))
-
-def returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, actualWeight):
-	return (idealBodyWeight + (0.4 * (actualWeight - idealBodyWeight)))
-
-def returnDosingWeight(pt):
-	idealBodyWeight = returnIdealBodyWeight(pt.is_female, pt.height)
-	print("idealBodyWeight")
-	print(idealBodyWeight)
-	print("endIdealBodyWeight")
-	if (pt.weight > (1.2*idealBodyWeight)):
-		return returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, pt.weight)
-	elif (pt.weight < idealBodyWeight):
-		return pt.weight
-	else:
-		return pt.weight
-
-def returnCrCl(pt):
-
-	dosingWeight = pt.setDosingWeight()
-
-	if ((pt.age > 65) and (pt.creatinine < 1)):
-		pt.creatinine = 1
-
-	if not pt.is_female:
-		return round(((140-pt.age)*dosingWeight)/(72*pt.creatinine), 2)
-	else:
-		return round(((140-pt.age)*dosingWeight*0.85)/(72*pt.creatinine), 2)
 
 
-class Patient:
-	def __init__(self, age, is_female, height_ft, height_in, weight, creatinine, comorbid):
-		self.age = age 
-		self.is_female = is_female
-		self.height = height_in + (12*height_ft) #height stored in inches
-		self.weight = weight
-		self.creatinine = creatinine
-		self.comorbid = comorbid
-		self.dosingWeight = self.setDosingWeight()
-		self.crcl = self.setCrCl()
+## data model should be updated to avoid all this casting
+def get_pt_from_cid(cid, cursor):
+	print(cid)
+	query = "set schema 'vancocalc'; select eid, type, value from entry where cid=%s and active=1 order by effectivetime desc"
+	entry_df = pg.return_df_from_query(cursor, query, (cid,), ["eid", "type", "value"])
+	age = int(entry_df[entry_df["type"] == "age"]["value"].item())
+	is_female = entry_df[entry_df["type"] == "is_female"]["value"].item()
+	height_ft = 0.0
+	height_in = float(entry_df[entry_df["type"] == "height_in"]["value"].item())
+	weight = entry_df[entry_df["type"] == "actual_weight"]["value"].astype(float).tolist()
 
-	def setDosingWeight(self):
-		return returnDosingWeight(self)
+	creatinine = entry_df[entry_df["type"] == "creatinine"]["value"].astype(float).tolist()
+	print(creatinine)
+	bl_creatinine = entry_df[entry_df["type"] == "bl_creatinine"]["value"].item()
+	comorbid = []
 
-	def setCrCl(self):
-		return returnCrCl(self)
+	if entry_df[entry_df["type"] == "chf"]["value"].item() == "1":
+		comorbid.append("chf")
+	if entry_df[entry_df["type"] == "dm"]["value"].item() == "1":
+		comorbid.append("dm")
+	if entry_df[entry_df["type"] == "esld"]["value"].item() == "1":
+		comorbid.append("esld")
+	if entry_df[entry_df["type"] == "hd"]["value"].item() == "1":
+		comorbid.append("hd")
+	if entry_df[entry_df["type"] == "crrt"]["value"].item() == "1":
+		comorbid.append("crrt")
 
-	def getCrCl(self):
-		return self.crcl
+	pt = Patient(age, is_female, height_ft, height_in, weight, creatinine, bl_creatinine, comorbid)
+	return pt
+
+
+class Case:
+	def __init__(self, **kwargs):
+		if "cid" not in kwargs.keys():
+			self.age = kwargs['age'] 
+			self.is_female = kwargs['is_female']
+			self.height = kwargs['height'] #inches
+			
+			self.bl_creatinine = kwargs['bl_creatinine']
+			self.crrt = 1 if 'crrt' in kwargs['comorbid'] else 0
+			self.chf = 1 if 'chf' in kwargs['comorbid'] else 0
+			self.esld = 1 if 'esld' in kwargs['comorbid'] else 0
+			self.hd = 1 if 'hd' in kwargs['comorbid'] else 0
+			self.dm = 1 if 'dm' in kwargs['comorbid'] else 0
+
+			wt_obj = Weight(weight=kwargs['weight'])
+			wt_obj.dosingWeight = self.setDosingWeight(wt_obj)
+
+			self.wt_arr = [wt_obj]
+
+			cr_obj = Creatinine(creatinine=kwargs['creatinine'])
+			self.setCrCl(cr_obj, wt_obj)
+			self.cr_arr = [cr_obj]
+
+
+
+	def returnIdealBodyWeight(self, is_female, height):
+		if not is_female:
+			return (50+(2.3*(height-60)))
+		else:
+			return (45.5 + (2.3 * (height-60)))
+
+	def returnAdjustedWeightForIdealBodyWeight(self, idealBodyWeight, actualWeight):
+		return (idealBodyWeight + (0.4 * (actualWeight - idealBodyWeight)))
+
+	def setDosingWeight(self, wt_obj):
+		idealBodyWeight = self.returnIdealBodyWeight(self.is_female, self.height)
+
+		if (wt_obj.weight > (1.2*idealBodyWeight)):
+			return self.returnAdjustedWeightForIdealBodyWeight(idealBodyWeight, wt_obj.weight)
+		elif (wt_obj.weight < idealBodyWeight):
+			return wt_obj.weight
+		else:
+			return wt_obj.weight
+
+	def setCrCl(self, cr_obj, wt_obj):
+
+		dosingCreatinine = None
+		if ((self.age > 65) and (cr_obj.creatinine < 1)):
+			dosingCreatinine = 1
+		else:
+			dosingCreatinine = cr_obj.creatinine
+
+		if not self.is_female:
+			cr_obj.crcl = round(((140-self.age)*wt_obj.dosingWeight)/(72*dosingCreatinine), 2)
+		else:
+			cr_obj.crcl = round(((140-self.age)*wt_obj.dosingWeight*0.85)/(72*dosingCreatinine), 2)
+
+	
+
+	def save(self, cid, cursor):
+
+		insert_q = """
+			set schema 'vancocalc'; INSERT INTO case_profile (eid, cid, type, value, active, effectivetime) \
+			VALUES
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
+				(public.uuid_generate_v4(), %s, %s, %s, 1, now());
+
+		"""
+		cursor.execute(insert_q, (cid, 'age', self.age, \
+			cid, 'is_female', self.is_female, \
+			cid, 'height_in', self.height, \
+			cid, 'bl_creatinine', self.bl_creatinine, \
+			cid, 'chf', self.chf, \
+			cid, 'esld', self.esld, \
+			cid, 'dm', self.dm, \
+			cid, 'crrt', self.crrt, \
+			cid, 'hd', self.hd))
+		cursor.connection.commit()
+
+		for i in self.cr_arr:
+			if i.cid is None:
+				i.cid = cid
+				i.save(cid, cursor)
+
+		for j in self.wt_arr:
+			if j.cid is None:
+				j.cid = cid
+				j.save(cid, cursor)
+
+	# def insert_new_vc_case(self, uid, casename, cursor):
+	# insert_query = """
+	# 		set schema 'vancocalc';
+	# 		CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
+
+	# 		INSERT INTO cases (cid, uid, casename, active, effectivetime)
+	# 		VALUES (public.uuid_generate_v4(), %s, %s, 1, now());
+	# """
+	# cursor.execute(insert_query, (uid,casename))
+	# cursor.connection.commit()
+	# return True
+
+class Creatinine:
+	def __init__(self, **kwargs):
+		if "cid" not in kwargs.keys():
+			self.creatinine = kwargs['creatinine']
+			self.crcl = None
+			self.crid = None
+			self.cid = None
+
+
+	def save(self, cid, cursor):
+		if self.crid is None:
+			query = "set schema 'vancocalc'; INSERT INTO creatinine (crid, cid, creatinine, crcl, active, effectivetime) \
+				VALUES (public.uuid_generate_v4(), %s, %s, %s, 1, now()) RETURNING crid;"
+			cursor.execute(query, (cid, self.creatinine, self.crcl))
+			crid = cursor.fetchone()[0]
+			cursor.connection.commit()
+			self.crid = crid
+			self.cid = cid
+
+	def delete(self):
+		query = "set schema 'vancocalc'; delete from creatinine where crid=%s"
+		cursor.execute(query, (self.crid,))
+		cursor.connection.commit()
+
+class Weight:
+	def __init__(self, **kwargs):
+		if "cid" not in kwargs.keys():
+			self.weight = kwargs['weight']
+			self.dosingWeight = None
+			self.wtid = None
+			self.cid = None
+
+	def save(self, cid, cursor):
+		if self.wtid is None:
+			query = "set schema 'vancocalc'; INSERT INTO weight (wtid, cid, weight, dosingWeight, active, effectivetime) \
+				VALUES (public.uuid_generate_v4(), %s, %s, %s, 1, now()) RETURNING wtid;"
+			cursor.execute(query, (cid, self.weight, self.dosingWeight))
+			wtid = cursor.fetchone()[0]
+			cursor.connection.commit()
+			self.wtid = wtid
+			self.cid = cid
+
+	def delete(self):
+		query = "set schema 'vancocalc'; delete from weight where wtid=%s"
+		cursor.execute(query, (self.wtid,))
+		cursor.connection.commit()
 
 class Dose:
 	def __init__(self, troughTarget):

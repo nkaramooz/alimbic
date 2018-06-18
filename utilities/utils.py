@@ -171,7 +171,7 @@ def add_concept(description, cursor):
 		conceptid = all_ids[0][0]
 		description_id = all_ids[0][1]
 		tmp = "conceptid: " + conceptid + " description_id: " + description_id
-		print(tmp)
+
 		cursor.connection.commit()
 
 		insert_query = """
@@ -394,7 +394,7 @@ def lemmatize_table():
 	cursor.connection.commit()
 	cursor.close()
 
-def insert_new_vancocalc_user(name, cursor):
+def insert_new_vc_user(name, cursor):
 	insert_query = """
 			set schema 'vancocalc';
 			CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
@@ -407,7 +407,20 @@ def insert_new_vancocalc_user(name, cursor):
 	cursor.connection.commit()
 	return True
 
+def insert_new_vc_case(uid, casename, cursor):
+	insert_query = """
+			set schema 'vancocalc';
+			CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
 
+			INSERT INTO cases (cid, uid, casename, active, effectivetime)
+			VALUES (public.uuid_generate_v4(), %s, %s, 1, now())
+			RETURNING cid;
+	"""
+	cursor.execute(insert_query, (uid,casename))
+	ids = cursor.fetchall()
+	cid = ids[0][0]
+	cursor.connection.commit()
+	return cid
 
 def get_es_client():
 	# es = Elasticsearch(hosts=[{'host': \

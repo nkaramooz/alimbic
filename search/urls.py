@@ -22,6 +22,12 @@ urlpatterns = [
     url(r'^concept_override/', views.concept_override, name='concept_override'),
     url(r'^vancocalc/$', views.vc_main, name='vc_main'),
     url(r'^vancocalc/cases/$', views.vc_cases, name='vc_cases'),
+    url(r'^vancocalc/case_view/$', views.vc_case_view, name='vc_case_view'),
+    url(r'^vancocalc/dosing/$', views.vc_dosing, name='vc_dosing'),
+    url(r'^vancocalc/new_case/$', views.vc_new_case, name='vc_new_case'),
+    url(r'^vancocalc/loading/$', views.vc_loading, name='vc_loading'),
+    url(r'^vancocalc/maintenance/$', views.vc_maintenance, name='vc_maintenance'),
+    url(r'^vancocalc/redose/$', views.vc_redose, name='vc_redose'),
     url(r'^ajax/vcSubmit/$', views.vcSubmit, name='vcSubmit'),
     url(r'^ajax/vcTroughTarget/$', views.returnTroughTarget, name='returnTroughTarget'),
 ]
