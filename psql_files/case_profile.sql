@@ -1,7 +1,7 @@
 set schema 'vancocalc';
 drop table if exists case_profile;
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 create table case_profile (
 	eid uuid,
