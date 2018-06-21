@@ -12,6 +12,11 @@ from django.http import JsonResponse
 
 INDEX_NAME='pubmedx1'
 
+
+lowDoseArr = [15,12,12,12,12,7,10]
+highDoseArr = [18,15,15,15,0,7,15]
+freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
+
 def home_page(request):
 	return render(request, 'search/home_page.html')
 
@@ -46,8 +51,45 @@ def vc_new_case(request):
 	new_case_payload['username'] = request.GET['username']
 	return render(request, 'search/new_case.html', {'new_case_payload' : new_case_payload})
 
+def vc_loading(request):
+	cursor = pg.return_postgres_cursor()
+	case_payload = {}
+	if request.method == "GET":
+		uid, username, casename, cid = get_basics(request.GET)
+		case = Case(cid=cid, cursor=cursor)
+		case_payload['weight'] = case.wt_arr[-1].weight
+		case_payload['uid'] = uid
+		case_payload['username'] = username
+		case_payload['casename'] = casename
+		case_payload['cid'] = cid
+		return render(request, 'search/weight.html', {'case_payload' : case_payload})
+	elif 'loadingWt' in request.POST:
+		uid, username, casename, cid = get_basics(request.POST)
+		new_wt = request.POST['wt']
+		case = Case(cid=cid, cursor=cursor)
+		add_weight(case, new_wt, cid, cursor)
+		loading_payload = {'dose' : returnLoadingDoseForPatient(case)}
+		loading_payload['cid'] = cid
+		loading_payload['uid'] = uid
+		loading_payload['casename'] = casename
+		loading_payload['username'] = username
+		return render(request, 'search/vc_rec_dose.html', {'loading_payload' : loading_payload})
+
+	
+def add_weight(case, weight, cid, cursor):
+	case.addWt(weight)
+	case.save(cid, cursor)
+
+
+def get_basics(r):
+	uid = r['uid']
+	username = r['username']
+	casename = r['casename']
+	cid = r['cid']
+
+	return uid, username, casename, cid
+
 def vc_case_view(request):
-	print(request)
 	case_payload = {}
 	cursor = pg.return_postgres_cursor()
 	cid = ""
@@ -84,8 +126,10 @@ def vc_case_view(request):
 		targetTrough = int(request.POST.get('targetTrough'))
 
 		comorbid = request.POST.getlist('comorbid[]')
-		
-		case = Case(age=age, is_female=is_female, height=height, weight=weight, creatinine=creatinine, bl_creatinine=bl_creatinine, comorbid=comorbid)
+		args = {'age' : age, 'is_female' : is_female, 'height' : height, 'weight' : weight, \
+			'creatinine' : creatinine, 'bl_creatinine' : bl_creatinine, 'comorbid' : comorbid, \
+			'targetTrough' : targetTrough, 'indication' : indication}
+		case = Case(**args)
 		case.save(cid, cursor)
 	elif 'addCr' in request.POST:
 		uid = request.POST['uid']
@@ -96,9 +140,13 @@ def vc_case_view(request):
 		case = Case(cid=cid, cursor=cursor)
 		case.addCr(creatinine)
 		case.save(cid, cursor)
+	elif 'acceptDose' in request.POST:
+		uid, username, casename, cid = get_basics(request.POST)
+		dose = request.POST['loadingDose']
+		case = Case(cid=cid, cursor=cursor)
+		case.addLoadingDose(dose)
+		case.save(cid, cursor)
 
-
-		# pt.writeDB(cid, cursor)
 	
 	case_payload['uid'] = uid
 	case_payload['username'] = username
@@ -109,13 +157,33 @@ def vc_case_view(request):
 
 	return render(request, 'search/case_view.html', {'case_payload' : case_payload})
 
+def vc_maintenance(request):
+	case_payload = {}
+	cursor = pg.return_postgres_cursor()
+	cid = ""
+	casename=""
+	username=""
+	case = None
+	uid = ""
+
+	if 'maintenance' in request.GET:
+		uid, username, casename, cid = get_basics(request.GET)
+		case = Case(cid=cid, cursor=cursor)
+		case_payload['uid'] = uid
+		case_payload['username'] = username
+		case_payload['casename'] = casename
+		case_payload['cid'] = cid
+		case_payload['weight'] = case.wt_arr[-1].weight
+
+		return render(request, 'search/vc_maintenance.html', {'case_payload' : case_payload})
+
 def get_case_payload(case, case_payload):
 	case_payload["chf"] = case.chf.value
 	case_payload["dm"] = case.dm.value
 	case_payload["esld"] = case.esld.value
 	case_payload["crrt"] = case.crrt.value
 	case_payload["hd"] = case.hd.value
-	case_payload["creatinine"] = case.getCrDict()
+	case_payload["crDose"] = case.getCrDoseDict()
 	case_payload["weight"] = case.getWeightDict()
 
 	return case_payload
@@ -174,11 +242,6 @@ def get_vc_cases(cursor, uid):
 	case_df = pg.return_df_from_query(cursor, query, (uid,), ["cid", "casename"])
 	return case_df
 
-def vc_loading(request):
-	print("true")
-
-def vc_maintenance(request):
-	print("true")
 
 def vc_redose(request):
 	print('true')
@@ -236,10 +299,10 @@ def vcSubmit(request):
 	return JsonResponse(data)
 
 def returnLoadingDoseForPatient(pt):
-	if (pt.age >= 70):
-		dose = 15*pt.weight[-1]
+	if (pt.age.value >= 70):
+		dose = 15*pt.wt_arr[-1].weight
 	else:
-		dose = 20*pt.weight[-1]
+		dose = 20*pt.wt_arr[-1].weight
 
 	if (dose > 2000):
 		dose = 2000
@@ -935,11 +998,14 @@ class Case:
 			self.setCrCl(cr_obj, wt_obj)
 			self.cr_arr = [cr_obj]
 			self.cid = None
+			self.targetTrough = kwargs['targetTrough']
+			self.indication = kwargs['indication']
+			self.dose_arr = []
 		else:
 			cursor = kwargs['cursor']
 			cid = kwargs['cid']
-			query = "select eid, type, value from vancocalc.case_profile where active=1 and cid=%s"
-			case_df = pg.return_df_from_query(cursor, query, (cid,), ["eid", "type", "value"])
+			query = "select eid, type, value, str_value from vancocalc.case_profile where active=1 and cid=%s"
+			case_df = pg.return_df_from_query(cursor, query, (cid,), ["eid", "type", "value", "str_value"])
 			self.cid = cid
 			self.age = CaseAttr(case_df[case_df['type'] == 'age']['eid'].item(), 'age', case_df[case_df['type'] == 'age']['value'].item())
 			self.is_female = CaseAttr(case_df[case_df['type'] == 'is_female']['eid'].item(), 'is_female', case_df[case_df['type'] == 'is_female']['value'].item())
@@ -950,6 +1016,8 @@ class Case:
 			self.esld = CaseAttr(case_df[case_df['type'] == 'esld']['eid'].item(), 'esld', case_df[case_df['type'] == 'esld']['value'].item())
 			self.hd = CaseAttr(case_df[case_df['type'] == 'hd']['eid'].item(), 'hd', case_df[case_df['type'] == 'hd']['value'].item())
 			self.dm = CaseAttr(case_df[case_df['type'] == 'dm']['eid'].item(), 'dm', case_df[case_df['type'] == 'dm']['value'].item())
+			self.targetTrough = case_df[case_df['type'] == 'targetTrough']['value'].item()
+			self.indication = case_df[case_df['type'] == 'indication']['str_value'].item()
 
 			query = "select wtid, weight, dosingWeight, effectivetime from vancocalc.weight where active=1 and cid=%s order by effectivetime asc"
 			wt_df = pg.return_df_from_query(cursor, query, (cid,), ["wtid", "weight", "dosingWeight", "effectivetime"])
@@ -965,6 +1033,17 @@ class Case:
 			for index,item in cr_df.iterrows():
 				cr_obj = Creatinine(cid=cid, crid=item['crid'], creatinine=item['creatinine'], crcl=item['crcl'], effectivetime=item['effectivetime'])
 				self.cr_arr.append(cr_obj)
+
+			query = "select did, dose, freqIndex, freqString, effectivetime from vancocalc.doses where active=1 and cid=%s order by effectivetime asc"
+			dose_df = pg.return_df_from_query(cursor, query, (cid,), ["did", "dose", "freqIndex", "freqString", "effectivetime"])
+			self.dose_arr = []
+			for index,item in dose_df.iterrows():
+				dose_obj = Dose(cid=cid,did=item['did'], dose=item['dose'], freqIndex=item['freqIndex'], freqString=item['freqString'], effectivetime=item['effectivetime'])
+				self.dose_arr.append(dose_obj)
+	
+	def addLoadingDose(self, loadingDose):
+		dose_obj = Dose(dose=loadingDose, freqIndex=None, freqString="Loading")
+		self.dose_arr.append(dose_obj)
 
 	def returnIdealBodyWeight(self, is_female, height):
 		if not is_female:
@@ -992,19 +1071,34 @@ class Case:
 			dosingCreatinine = 1
 		else:
 			dosingCreatinine = cr_obj.creatinine
-		print(type(wt_obj.dosingWeight))
-		print(type(self.age.value))
+
 		if not self.is_female:
 			cr_obj.crcl = round(((140-self.age.value)*wt_obj.dosingWeight)/(72*dosingCreatinine), 2)
 		else:
 			cr_obj.crcl = round(((140-self.age.value)*wt_obj.dosingWeight*0.85)/(72*dosingCreatinine), 2)
 
-	def getCrDict(self):
-		r = []
-		for item in reversed(self.cr_arr):
-			t = {'crid' : item.crid, 'creatinine' : item.creatinine, 'crcl' : item.crcl, 'effectivetime' : item.effectivetime}
-			r.append(t)
-		return r
+	def getCrDoseDict(self):
+		res = []
+		tmp = []
+		tmp.extend(self.cr_arr)
+		tmp.extend(self.dose_arr)
+		tmp = sorted(tmp, key=lambda x: x.effectivetime, reverse=True)
+
+		for c in tmp:
+			if type(c).__name__ == 'Creatinine':
+				t = {'type' : 'creatinine', 'crid' : c.crid, 'creatinine' : c.creatinine, 'crcl' : c.crcl, 'effectivetime' : c.effectivetime}
+				res.append(t)
+			else:
+				t = {'type' : 'dose', 'did' : c.did, 'dose' : c.dose, 'freqString' : c.freqString, 'effectivetime' : c.effectivetime}
+				res.append(t)
+		return res
+
+		# for cr in reversed(self.cr_arr):
+		# 	for d in reversed(self.dose_arr):
+		# 		if 
+		# 	t = {'crid' : cr.crid, 'creatinine' : cr.creatinine, 'crcl' : cr.crcl, 'effectivetime' : cr.effectivetime}
+		# 	r.append(t)
+		# return r
 
 	def getWeightDict(self):
 		r = []
@@ -1019,20 +1113,27 @@ class Case:
 		self.setCrCl(cr_obj, wt_obj)
 		self.cr_arr.append(cr_obj)
 
+	def addWt(self, weight):
+		wt_obj = Weight(weight=weight)
+		wt_obj.dosingWeight = self.setDosingWeight(wt_obj)
+		self.wt_arr.append(wt_obj)
+
 	def save(self, cid, cursor):
 		if self.cid is None:
 			insert_q = """
-				set schema 'vancocalc'; INSERT INTO case_profile (eid, cid, type, value, active, effectivetime) \
+				set schema 'vancocalc'; INSERT INTO case_profile (eid, cid, type, value, str_value, active, effectivetime) \
 				VALUES
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now()),
-					(public.uuid_generate_v4(), %s, %s, %s, 1, now());
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, NULL, %s, 1, now()),
+					(public.uuid_generate_v4(), %s, %s, %s, NULL, 1, now());
 			"""
 			cursor.execute(insert_q, (cid, 'age', self.age.value, \
 				cid, 'is_female', self.is_female.value, \
@@ -1042,32 +1143,25 @@ class Case:
 				cid, 'esld', self.esld.value, \
 				cid, 'dm', self.dm.value, \
 				cid, 'crrt', self.crrt.value, \
-				cid, 'hd', self.hd.value))
+				cid, 'hd', self.hd.value, \
+				cid, 'indication', self.indication, \
+				cid, 'targetTrough', self.targetTrough))
 			cursor.connection.commit()
 
 		#if cid is none then new entity
 		for i in self.cr_arr:
 			if i.cid is None:
-				i.cid = cid
 				i.save(cid, cursor)
 
 		#if cid is none then new entity
 		for j in self.wt_arr:
 			if j.cid is None:
-				j.cid = cid
 				j.save(cid, cursor)
 
-	# def insert_new_vc_case(self, uid, casename, cursor):
-	# insert_query = """
-	# 		set schema 'vancocalc';
-	# 		CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
+		for d in self.dose_arr:
+			if d.cid is None:
+				d.save(cid, cursor)
 
-	# 		INSERT INTO cases (cid, uid, casename, active, effectivetime)
-	# 		VALUES (public.uuid_generate_v4(), %s, %s, 1, now());
-	# """
-	# cursor.execute(insert_query, (uid,casename))
-	# cursor.connection.commit()
-	# return True
 
 class CaseAttr:
 	def __init__(self, eid, attr_type, value):
@@ -1110,7 +1204,7 @@ class Creatinine:
 
 class Weight:
 	def __init__(self, **kwargs):
-		if "cid" not in kwargs.keys():
+		if "wtid" not in kwargs.keys():
 			self.weight = float(kwargs['weight'])
 			self.dosingWeight = None
 			self.wtid = None
@@ -1143,14 +1237,47 @@ class Weight:
 		cursor.connection.commit()
 
 class Dose:
-	def __init__(self, troughTarget):
-		self.troughTarget = troughTarget
+	def __init__(self, **kwargs):
+		if "did" not in kwargs.keys():
+			self.dose = kwargs['dose']
+			self.freqIndex = kwargs['freqIndex']
+			self.freqString = kwargs['freqString']
+			self.did = None
+			self.effectivetime = None
+			self.cid = None
+		else:
+			self.dose = kwargs['dose']
+			self.freqIndex = kwargs['freqIndex']
+			self.freqString = kwargs['freqString']
+			self.did = kwargs['did']
+			self.effectivetime = kwargs['effectivetime']
+			self.cid = kwargs['cid']
 
-		if troughTarget == 0:
-			self.doseArr = [15,12,12,12,12,7,10]
-		elif troughTarget == 1:
-			self.doseArr = [18,15,15,15,0,7,15]
+	def save(self, cid, cursor):
 
-		self.freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
+		if self.did is None:
+
+			query = "set schema 'vancocalc'; INSERT into doses (did, cid, dose, freqIndex, freqString, active, effectivetime) \
+				VALUES (public.uuid_generate_v4(), %s, %s, %s, %s, 1, now()) RETURNING did, effectivetime;"
+			cursor.execute(query, (cid, self.dose, self.freqIndex, self.freqString))
+			all_ids = cursor.fetchall()
+			did = all_ids[0][0]
+			effectivetime = all_ids[0][1]
+			cursor.connection.commit()
+			self.did = did
+			self.effectivetime = effectivetime
+			self.cid = cid
+
+
+# class Dose:
+# 	def __init__(self, troughTarget):
+# 		self.troughTarget = troughTarget
+
+# 		if troughTarget == 0:
+# 			self.doseArr = [15,12,12,12,12,7,10]
+# 		elif troughTarget == 1:
+# 			self.doseArr = [18,15,15,15,0,7,15]
+
+# 		self.freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
 
 
