@@ -31,36 +31,38 @@
 <div class="vanco-body">
 
 	<div class="fixed-height">
-		<h2 class="text-center"> Case {{loading_payload.casename}} : Loading dose</h2>
+		<h2 class="text-center"> Case {{case_payload.casename}}</h2>
 	</div>
 
 	<br>
 	<br>
 
+	<h4 class="text-center"> Recommended dose : {{case_payload.d_obj.dose}} mg {{case_payload.d_obj.freq}}</h4>
 
-	<h4 class="text-center"> Recommended loading dose : {{loading_payload.dose}} mg </h4>
 	<br>
 	<div class="form-row">
 		<div class="col-md-6 text-center">
 			<form action="{% url 'search:vc_case_view' %}"  method="post"> 
 				{% csrf_token %}
-					<input type="hidden" name="uid" value="{{loading_payload.uid}}">
-					<input type="hidden" name="username" value="{{loading_payload.username}}">
-					<input type="hidden" name="cid" value="{{loading_payload.cid}}">
-					<input type="hidden" name="casename" value="{{loading_payload.casename}}">
-					<input type="hidden" name="loadingDose" value="{{loading_payload.dose}}">
+					<input type="hidden" name="uid" value="{{case_payload.uid}}">
+					<input type="hidden" name="username" value="{{case_payload.username}}">
+					<input type="hidden" name="cid" value="{{case_payload.cid}}">
+					<input type="hidden" name="casename" value="{{case_payload.casename}}">
+					<input type="hidden" name="dose" value="{{case_payload.d_obj.dose}}">
+					<input type="hidden" name="freq" value="{{case_payload.d_obj.freq}}">
 					<input type="submit" name="acceptDose" value="Accept" class="btn btn-success">
 			</form>
 		</div>
 		<div class="col-md-6 text-center">
 			<form action="{% url 'search:vc_case_view' %}" method="post"> 
 			{% csrf_token %}
-					<input type="hidden" name="uid" value="{{loading_payload.uid}}">
-					<input type="hidden" name="username" value="{{loading_payload.username}}">
-					<input type="hidden" name="cid" value="{{loading_payload.cid}}">
-					<input type="hidden" name="casename" value="{{loading_payload.casename}}">
-					<input type="hidden" name="loadingDose" value="{{loading_payload.dose}}">
-					<input type="submit" name="changeLoading" value="Change" class="btn btn-danger">
+					<input type="hidden" name="uid" value="{{case_payload.uid}}">
+					<input type="hidden" name="username" value="{{case_payload.username}}">
+					<input type="hidden" name="cid" value="{{case_payload.cid}}">
+					<input type="hidden" name="casename" value="{{case_payload.casename}}">
+					<input type="hidden" name="dose" value="{{case_payload.d_obj.dose}}">
+					<input type="hidden" name="freq" value="{{case_payload.d_obj.freq}}">
+					<input type="submit" name="changeDose" value="Change" class="btn btn-danger">
 			</form>
 		</div>
 	</div>
