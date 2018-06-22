@@ -1,0 +1,17 @@
+{% for a in user_payload %}
+	<div class="row fixed-height">
+		<div class="col-sm-2">
+		</div>
+		<div class="col-sm-8">
+			{{a.username}}
+		</div>
+		<div class="col-sm-2">
+			<form action="{% url 'search:vc_cases' %}" method="get"> 
+				{% csrf_token %}
+					<input type="hidden" name="uid" value="{{a.uid}}">
+					<input type="hidden" name="username" value="{{a.username}}">
+					<input type="submit" value="View" class="btn btn-link">
+			</form>
+		</div>
+	</div>
+{% endfor %}
