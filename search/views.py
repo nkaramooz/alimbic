@@ -68,12 +68,12 @@ def vc_loading(request):
 		new_wt = request.POST['wt']
 		case = Case(cid=cid, cursor=cursor)
 		add_weight(case, new_wt, cid, cursor)
-		loading_payload = {'dose' : returnLoadingDoseForPatient(case)}
-		loading_payload['cid'] = cid
-		loading_payload['uid'] = uid
-		loading_payload['casename'] = casename
-		loading_payload['username'] = username
-		return render(request, 'search/vc_rec_dose.html', {'loading_payload' : loading_payload})
+		case_payload['d_obj'] = {'dose' : returnLoadingDoseForPatient(case), 'type' : 'loading', 'freq' : "Loading"}
+		case_payload['cid'] = cid
+		case_payload['uid'] = uid
+		case_payload['casename'] = casename
+		case_payload['username'] = username
+		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
 
 	
 def add_weight(case, weight, cid, cursor):
@@ -142,9 +142,11 @@ def vc_case_view(request):
 		case.save(cid, cursor)
 	elif 'acceptDose' in request.POST:
 		uid, username, casename, cid = get_basics(request.POST)
-		dose = request.POST['loadingDose']
+		dose = request.POST['dose']
+		freq = request.POST['freq']
+		d_obj = Dose(dose=dose, freqIndex=None, freqString=freq)
 		case = Case(cid=cid, cursor=cursor)
-		case.addLoadingDose(dose)
+		case.addDose(d_obj)
 		case.save(cid, cursor)
 
 	
@@ -176,6 +178,23 @@ def vc_maintenance(request):
 		case_payload['weight'] = case.wt_arr[-1].weight
 
 		return render(request, 'search/vc_maintenance.html', {'case_payload' : case_payload})
+	elif 'maintenanceRec' in request.POST:
+		uid, username, casename, cid = get_basics(request.POST)
+		weight=request.POST['wt']
+		cr = request.POST['cr']
+		case = Case(cid=cid, cursor=cursor)
+		case.addCr(cr)
+		case.addWt(weight)
+		case.save(cid, cursor)
+		d_obj = returnInitialMaintenanceDose(case)
+		case.addDose(d_obj)
+		case_payload['uid'] = uid
+		case_payload['username'] = username
+		case_payload['casename'] = casename
+		case_payload['cid'] = cid
+		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance'}
+		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
+
 
 def get_case_payload(case, case_payload):
 	case_payload["chf"] = case.chf.value
@@ -298,75 +317,90 @@ def vcSubmit(request):
 	
 	return JsonResponse(data)
 
-def returnLoadingDoseForPatient(pt):
-	if (pt.age.value >= 70):
-		dose = 15*pt.wt_arr[-1].weight
+def returnLoadingDoseForPatient(case):
+	if (case.age.value >= 70):
+		dose = 15*case.wt_arr[-1].weight
 	else:
-		dose = 20*pt.wt_arr[-1].weight
+		dose = 20*case.wt_arr[-1].weight
 
 	if (dose > 2000):
 		dose = 2000
 	return returnRoundedDose(dose)
 
-def returnInitialMaintenanceDose(pt, troughTarget):
-	dose = {}
-	dose_ref = Dose(troughTarget)
+def returnInitialMaintenanceDose(case):
+	d = None
+	dfi = None
+	dfs = None
 
-	if troughTarget == 0:
-		if 'crrt' in pt.comorbid:
-			dose["dose"] = dose_ref.doseArr[6]
-			dose["freq"] = "q12"
-		elif 'hd' in pt.comorbid:
-			dose["dose"] = dose_ref.doseArr[5]
-			dose["freq"] = "post-HD"
+	if case.targetTrough == 0:
+		if case.crrt.value == 1:
+			d = lowDoseArr[6]
+			dfi = 1
+			dfs = "q12"
+		elif case.hd.value == 1:
+			d = lowDoseArr[5]
+			dfi = 5
+			dfs = "post-HD"
 		else:
-			if pt.crcl[-1] >= 70:
-				if ((pt.age > 50) or (('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid))):
-					dose["dose"] = dose_ref.doseArr[0]
-					dose["freq"] = "q12"
+			if case.cr_arr[-1].crcl >= 70:
+				if ((case.age.value > 50) or (case.esld.value == 1) or (case.chf.value == 1) or (case.dm.value == 1)):
+					d = lowDoseArr[0]
+					dfi = 1
+					dfs = "q12"
 				else:
-					dose["dose"] = dose_ref.doseArr[1]
-					dose["freq"] = "q8"
-			elif (pt.crcl[-1] >= 40):
-				dose["dose"] = dose_ref.doseArr[2]
-				dose["freq"] = "q12"
-			elif (pt.crcl[-1] >= 20):
-				dose["dose"] = dose_ref.doseArr[3]
-				dose["freq"] = "q24"
+					d = lowDoseArr[1]
+					dfi = 0
+					dfs = "q8"
+			elif (case.cr_arr[-1].crcl >= 40):
+				d = lowDoseArr[2]
+				dfi = 1
+				dfs = "q12"
+			elif (case.cr_arr[-1].crcl >= 20):
+				d = lowDoseArr[3]
+				dfi = 3
+				dfs = "q24"
 			else:
-				dose["dose"] = dose_ref.doseArr[4]
-				dose["freq"] = "q48"
+				d = lowDoseArr[4]
+				dfi = 6
+				dfs = "q48"
 	else: #trough target is 15-20
-		if 'crrt' in pt.comorbid:
-			dose["dose"] = dose_ref.doseArr[6]
-			dose["freq"] = "q24"
-		elif 'hd' in pt.comorbid:
-			dose["dose"] = dose_ref.doseArr[5]
-			dose["freq"] = "post-HD"
+		if case.crrt.value == 1:
+			d = highDoseArr[6]
+			dfi = 3 
+			dfs = "q24"
+		elif case.hd.value == 1:
+			d = highDoseArr[5]
+			dfi = 5
+			dfs = "post-HD"
 		else:
-			if pt.crcl[-1] >= 70:
-				if ((pt.age > 50) or ('esld' in pt.comorbid) or ('chf' in pt.comorbid) or ('dm' in pt.comorbid)):
-					dose["dose"] = dose_ref.doseArr[0]
-					dose["freq"] = "q12"
+			if case.cr_arr[-1].crcl >= 70:
+				if ((case.age.value > 50) or (case.esld.value == 1) or (case.chf.value == 1) or (case.dm.value == 1)):
+					d = highDoseArr[0]
+					dfi = 1
+					dfs = "q12"
 				else:
-					dose["dose"] = dose_ref.doseArr[1]
-					dose["freq"] = "q8"
-			elif pt.crcl[-1] >= 40:
-				dose["dose"] = dose_ref.doseArr[2]
-				dose["freq"] = "q12"
-			elif pt.crcl[-1] >= 20:
-				dose["dose"] = dose_ref.doseArr[3]
-				dose["freq"] = "q24"
+					d = highDoseArr[1]
+					dfi = 0
+					dfs = "q8"
+			elif case.cr_arr[-1].crcl >= 40:
+				d = highDoseArr[2]
+				dfi = 1
+				dfs = "q12"
+			elif case.cr_arr[-1].crcl >= 20:
+				d = highDoseArr[3]
+				dfi = 3
+				dfs = "q24"
 			else:
-				dose["dose"] = dose_ref.doseArr[4]
-				dose["freq"] = "single loading dose followed by kintetics"
+				d = highDoseArr[4]
+				dfi = 7
+				dfs = "single loading dose followed by kintetics"
+	d = d * case.wt_arr[-1].dosingWeight
+	d = returnRoundedDose(d)
+	d_obj = Dose(dose=d, freqIndex=dfi, freqString=dfs)
 
-	dose["dose"] = dose["dose"]*pt.dosingWeight
-	dose["dose"] = returnRoundedDose(dose["dose"])
+	return d_obj
 
-	return dose
-
-def returnNewMaintenanceDoseForPatient(pt, troughTarget, trough):
+def returnNewMaintenanceDoseForPatient(case, trough):
 	vd = 0.7 * pt.dosingWeight
 	vancoClearance = pt.crcl[-1] * 0.06
 	ke = vancoClearance / vd
@@ -1041,9 +1075,8 @@ class Case:
 				dose_obj = Dose(cid=cid,did=item['did'], dose=item['dose'], freqIndex=item['freqIndex'], freqString=item['freqString'], effectivetime=item['effectivetime'])
 				self.dose_arr.append(dose_obj)
 	
-	def addLoadingDose(self, loadingDose):
-		dose_obj = Dose(dose=loadingDose, freqIndex=None, freqString="Loading")
-		self.dose_arr.append(dose_obj)
+	def addDose(self, d_obj):
+		self.dose_arr.append(d_obj)
 
 	def returnIdealBodyWeight(self, is_female, height):
 		if not is_female:
