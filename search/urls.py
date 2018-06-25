@@ -29,6 +29,6 @@ urlpatterns = [
     url(r'^vancocalc/maintenance/$', views.vc_maintenance, name='vc_maintenance'),
     url(r'^vancocalc/redose/$', views.vc_redose, name='vc_redose'),
     url(r'^vancocalc/loading/$', views.vc_loading, name='vc_loading'),
-    url(r'^ajax/vcSubmit/$', views.vcSubmit, name='vcSubmit'),
+    # url(r'^ajax/vcSubmit/$', views.vcSubmit, name='vcSubmit'),
     url(r'^ajax/vcTroughTarget/$', views.returnTroughTarget, name='returnTroughTarget'),
 ]

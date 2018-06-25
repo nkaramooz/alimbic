@@ -6,7 +6,7 @@
 		<h2 class="text-center"> Case {{case_payload.casename}} : Loading dose</h2>
 	</div>
 
-	<form action="{% url 'search:vc_maintenance' %}" method="post"> 
+	<form action="{% url 'search:vc_redose' %}" method="post"> 
 		{% csrf_token %}
 			<div class="form-row">
 				<div class="col-md-3">
@@ -22,6 +22,25 @@
 				</div>
 			</div>
 			<br>
+			<div class="form-row">
+				<div class="col-md-3">
+					<label for="tr"> Enter trough</label>
+					<input type="float" name="trough" class="form-control" id="tr">
+				</div>
+			</div>
+			<br>
+			<label for="doseNum"> When was the trough drawn? </label>
+			<div class="form-row">
+				<div class="radio">
+					<label><input type="radio" name="doseNum" id="doseNum" value="3"> Before 3rd maintenance dose </label>
+				</div>
+			</div>
+
+			<div class="form-row">
+				<label><input type="radio" name="doseNum" id="doseNum" value="4"> Before 4th maintenance dose</label>
+			</div>
+			<br>
+
 			<div class="form-row">
 				<div class="col-md-3">
 					<input type="hidden" name="uid" value="{{case_payload.uid}}">

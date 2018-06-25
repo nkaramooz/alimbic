@@ -7,6 +7,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
 import pandas as pd
 import utilities.es_utilities as es_util
+import math
 from django.http import JsonResponse
 # Create your views here.
 
@@ -142,9 +143,7 @@ def vc_case_view(request):
 		case.save(cid, cursor)
 	elif 'acceptDose' in request.POST:
 		uid, username, casename, cid = get_basics(request.POST)
-		dose = request.POST['dose']
-		freq = request.POST['freq']
-		d_obj = Dose(dose=dose, freqIndex=None, freqString=freq)
+		d_obj = Dose(dose=request.POST['dose'], freqIndex=None, freqString=request.POST['freq'], alert=request.POST['alert'])
 		case = Case(cid=cid, cursor=cursor)
 		case.addDose(d_obj)
 		case.save(cid, cursor)
@@ -187,14 +186,62 @@ def vc_maintenance(request):
 		case.addWt(weight)
 		case.save(cid, cursor)
 		d_obj = returnInitialMaintenanceDose(case)
-		case.addDose(d_obj)
+		if case.returnARF() and case.hd.value is not 1 and case.crrt.value is not 1:
+			d_obj.alert = "Patient may be in acute renal failure. Trough should be drawn before the 3rd dose"
+		elif d_obj.freqString == "q8":
+			d_obj.alert = "Trough should be drawn before the 5th dose. Consider checking BMPs twice daily."
+		else:
+			d_obj.alert = "Trough should be drawn before the 4th dose."
+		# case.addDose(d_obj) Doesn't seem like this should be added yet
 		case_payload['uid'] = uid
 		case_payload['username'] = username
 		case_payload['casename'] = casename
 		case_payload['cid'] = cid
-		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance'}
+		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
+		case_payload['changeAction'] = "{% url 'search:vc_case_view' %}"
+		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
+	# elif 'customDose' in request.GET:
+
+
+def vc_redose(request):
+	case_payload = {}
+	cursor = pg.return_postgres_cursor()
+	cid = ""
+	casename=""
+	username=""
+	case = None
+	uid = ""
+
+	if 'redose' in request.GET:
+		uid, username, casename, cid = get_basics(request.GET)
+		case = Case(cid=cid, cursor=cursor)
+		case_payload['uid'] = uid
+		case_payload['username'] = username
+		case_payload['casename'] = casename
+		case_payload['cid'] = cid
+		case_payload['weight'] = case.wt_arr[-1].weight
+		return render(request, 'search/vc_redose.html', {'case_payload' : case_payload})
+	else:
+		uid, username, casename, cid = get_basics(request.POST)
+		weight=request.POST['wt']
+		cr = request.POST['cr']
+		trough = float(request.POST['trough'])
+		doseNum = int(request.POST['doseNum'])
+		case = Case(cid=cid, cursor=cursor)
+		case.addCr(cr)
+		case.addWt(weight)
+		case.addTrough(trough, doseNum)
+		case.save(cid, cursor)
+		d_obj = returnNewMaintenanceDoseForPatient(case)
+
+		case_payload['uid'] = uid
+		case_payload['username'] = username
+		case_payload['casename'] = casename
+		case_payload['cid'] = cid
+		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
 		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
 
+	
 
 def get_case_payload(case, case_payload):
 	case_payload["chf"] = case.chf.value
@@ -262,9 +309,6 @@ def get_vc_cases(cursor, uid):
 	return case_df
 
 
-def vc_redose(request):
-	print('true')
-
 def get_cases_payload(cases_df):
 	cases_list = []
 
@@ -287,35 +331,6 @@ def get_user_payload(user_df):
 
 	return user_list
 
-def vcSubmit(request):
-	age = int(request.GET.get('age', None))
-	is_female = request.GET.get('is_female', None)
-	if is_female == "true":
-		is_female = True 
-	else:
-		is_female = False
-	
-	height_ft = float(request.GET.get('height_ft', None))
-	height_in = float(request.GET.get('height_in', None))
-	weight = float(request.GET.get('actualWeight', None))
-	creatinine = float(request.GET.get('creatinine', None))
-	
-	indication = str(request.GET.get('indication'))
-	troughTarget = int(request.GET.get('troughTarget'))
-	doseType = str(request.GET.get('doseType'))
-	comorbid = request.GET.getlist('comorbid[]')
-
-	pt = Patient(age, is_female, height_ft, height_in, weight, creatinine, comorbid)
-
-	data = {"crcl" : pt.crcl[-1]}
-	# if doseType == "loading":
-	# 	data.update(returnLoadingDoseForPatient(pt))
-	# 	data["doseType"] = "Loading dose"
-	# elif doseType == "initialMaintenance":
-	# 	data.update(returnInitialMaintenanceDose(pt, troughTarget))
-	# 	data["doseType"] = "Initial maintenace dose"
-	
-	return JsonResponse(data)
 
 def returnLoadingDoseForPatient(case):
 	if (case.age.value >= 70):
@@ -396,18 +411,98 @@ def returnInitialMaintenanceDose(case):
 				dfs = "single loading dose followed by kintetics"
 	d = d * case.wt_arr[-1].dosingWeight
 	d = returnRoundedDose(d)
-	d_obj = Dose(dose=d, freqIndex=dfi, freqString=dfs)
+	d_obj = Dose(dose=d, freqIndex=dfi, freqString=dfs, alert=None)
 
 	return d_obj
 
-def returnNewMaintenanceDoseForPatient(case, trough):
-	vd = 0.7 * pt.dosingWeight
-	vancoClearance = pt.crcl[-1] * 0.06
+def returnNewMaintenanceDoseForPatient(case):
+	vd = 0.7 * case.wt_arr[-1].dosingWeight
+	vancoClearance = case.cr_arr[-1].crcl * 0.06
 	ke = vancoClearance / vd
 	halfLife = 0.693/ke
-	dose_ref = Dose(troughTarget)
+	
+	arf = case.returnARF()
 
+	dose = None
+	priorDose = case.dose_arr[-1]
 
+	lowTrough = None
+	highTrough = None
+	dialysisMultiplier = None
+	trough_obj = case.trough_arr[-1]
+	trough = trough_obj.trough
+	if trough_obj.beforeDoseNum == 3:
+		trough = trough*1.3
+
+	if (case.targetTrough == 0):
+		lowTrough = 10.0
+		highTrough = 15.0
+		dialysisMultiplier = 12
+	else:
+		lowTrough = 15.0
+		highTrough = 20.0
+		dialysisMultiplier = 15
+
+	if (case.hd.value == 1 or case.crrt.value == 1):
+		newDose = priorDose.dose * (dialysisMultiplier / trough)
+		newDose = returnRoundedDose(newDose)
+		if case.hd.value == 1:
+			return Dose(dose=newDose, freqIndex=5, freqString="post-HD", alert=None)
+		else:
+			return Dose(dose=newDose, freqIndex=3, freqString="q24", alert=None)
+	# Supratherapeutic by a lot
+	elif (trough > (highTrough + 2)):
+		print("very high")
+		return Dose(dose=0, freqIndex=None, freqString=None, alert="Consider holding a dose or re-checking trough daily before resuming vancomycin. Discuss with pharmacy.")
+	elif arf:
+		print("ARF")
+		arfMultiplier = None
+		if (case.targetTrough == 1):
+			arfMultiplier = 12
+		else:
+			arfMultiplier = 17
+
+		new_dose = (arfMultiplier * vd * (1-(math.exp(-ke*halfLife)))) / (math.exp(-ke*halfLife))
+		new_dose = returnRoundedDose(new_dose)
+		freq = returnRoundedFrequency(halfLife*1.5)
+		freqString = "q" + str(freq)
+		if (trough > highTrough):
+			return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Due to a supratherapeutic trough, consider holding next dose before resuming recommended dosing schedule. Dose adjusted for acute renal failure.")
+		else:
+			return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Dose adjusted for acute renal failure")
+	elif ((trough >= lowTrough) and (trough <= highTrough) and not arf):
+		print("therapeutic")
+		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
+	elif (trough > highTrough):
+		print("supratherapeutic but minimal")
+		if (priorDose.dose >= 500):
+			new_dose = priorDose.dose -250
+			return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert="Due to a supratherapeutic trough, consider holding next dose before resuming recommended dosing schedule")
+		else:
+			return Dose(dose=0, freqIndex=None, freqString=None, alert="Consider holding a dose or re-checking trough before resuming vancomycin. Recommend discussing with pharmacy to re-dose when trough enters normal range")
+	# If much less than trough goal
+	elif (trough < lowTrough -5):
+		print("low")
+		new_dose = returnRoundedDose(priorDose.dose * 1.75)
+		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
+	else:
+		new_dose = priorDose.dose + 250
+		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
+
+def returnRoundedFrequency(freq):
+	diff8 = abs(freq-8)
+	diff12 = abs(freq-12)
+	diff24 = abs(freq-24)
+	diff48 = abs(freq-48)
+
+	if (diff8 < diff12):
+		return 8
+	elif (diff12 < diff24):
+		return 12
+	elif (diff24 < diff48):
+		return 24
+	else:
+		return 48
 
 def returnRoundedDose(dose):
 	dose = round(dose/250)*250
@@ -1035,6 +1130,7 @@ class Case:
 			self.targetTrough = kwargs['targetTrough']
 			self.indication = kwargs['indication']
 			self.dose_arr = []
+			self.trough_arr = []
 		else:
 			cursor = kwargs['cursor']
 			cid = kwargs['cid']
@@ -1068,12 +1164,54 @@ class Case:
 				cr_obj = Creatinine(cid=cid, crid=item['crid'], creatinine=item['creatinine'], crcl=item['crcl'], effectivetime=item['effectivetime'])
 				self.cr_arr.append(cr_obj)
 
-			query = "select did, dose, freqIndex, freqString, effectivetime from vancocalc.doses where active=1 and cid=%s order by effectivetime asc"
-			dose_df = pg.return_df_from_query(cursor, query, (cid,), ["did", "dose", "freqIndex", "freqString", "effectivetime"])
+			query = "select did, dose, freqIndex, freqString, alert, effectivetime from vancocalc.doses where active=1 and cid=%s order by effectivetime asc"
+			dose_df = pg.return_df_from_query(cursor, query, (cid,), ["did", "dose", "freqIndex", "freqString", "alert", "effectivetime"])
 			self.dose_arr = []
 			for index,item in dose_df.iterrows():
-				dose_obj = Dose(cid=cid,did=item['did'], dose=item['dose'], freqIndex=item['freqIndex'], freqString=item['freqString'], effectivetime=item['effectivetime'])
+				dose_obj = Dose(cid=cid,did=item['did'], dose=item['dose'], freqIndex=item['freqIndex'], freqString=item['freqString'], alert=item['alert'], effectivetime=item['effectivetime'])
 				self.dose_arr.append(dose_obj)
+
+			query = "select tid, trough, beforeDoseNum, effectivetime from vancocalc.trough where active=1 and cid=%s order by effectivetime asc"
+			trough_df = pg.return_df_from_query(cursor, query, (cid,), ["tid", "trough", "beforeDoseNum", "effectivetime"])
+			self.trough_arr = []
+			for index,item in trough_df.iterrows():
+				trough_obj = Trough(cid=cid, tid=item['tid'], trough=item['trough'], beforeDoseNum=item['beforeDoseNum'], effectivetime=item['effectivetime'])
+				self.trough_arr.append(trough_obj)
+
+
+	def returnARF(self):
+		crCount = len(self.cr_arr)
+		currCr = self.cr_arr[-1].creatinine
+
+		arfFromBaseline = False
+		arfFromPrior = False
+
+		if (self.hd.value != 1):
+			if (self.bl_creatinine.value):
+				if ((currCr >= 1.5*self.bl_creatinine.value) or (currCr > (self.bl_creatinine.value + 0.3))):
+					arfFromBaseline = True
+			
+			if (crCount < 3):
+				lastCr = self.cr_arr[-2].creatinine
+
+				if ((currCr >= 1.5*lastCr) or (currCr >= (lastCr + 0.3))):
+					arfFromPrior = True
+			else:
+				lastCr = self.cr_arr[-2].creatinine
+				secondLastCr = self.cr_arr[-3].creatinine
+
+				if ((currCr >= 1.5*lastCr) or (currCr >= 1.5*secondLastCr) \
+					or (currCr >= (lastCr + 0.3)) or (currCr >= (secondLastCr + 0.3))):
+					arfFromPrior = True
+
+		if arfFromBaseline or arfFromPrior:
+			return True
+		else:
+			return False
+
+	def addTrough(self, trough, beforeDoseNum):
+		t_obj = Trough(trough=trough, beforeDoseNum=beforeDoseNum)
+		self.trough_arr.append(t_obj)
 	
 	def addDose(self, d_obj):
 		self.dose_arr.append(d_obj)
@@ -1115,15 +1253,18 @@ class Case:
 		tmp = []
 		tmp.extend(self.cr_arr)
 		tmp.extend(self.dose_arr)
+		tmp.extend(self.trough_arr)
 		tmp = sorted(tmp, key=lambda x: x.effectivetime, reverse=True)
 
 		for c in tmp:
 			if type(c).__name__ == 'Creatinine':
 				t = {'type' : 'creatinine', 'crid' : c.crid, 'creatinine' : c.creatinine, 'crcl' : c.crcl, 'effectivetime' : c.effectivetime}
 				res.append(t)
-			else:
-				t = {'type' : 'dose', 'did' : c.did, 'dose' : c.dose, 'freqString' : c.freqString, 'effectivetime' : c.effectivetime}
+			elif type(c).__name__ == 'Dose':
+				t = {'type' : 'dose', 'did' : c.did, 'dose' : c.dose, 'freqString' : c.freqString, 'alert' : c.alert, 'effectivetime' : c.effectivetime}
 				res.append(t)
+			elif type(c).__name__ == 'Trough':
+				t = {'type' : 'trough', 'tid' : c.tid, 'trough' : c.trough, 'effectivetime' : c.effectivetime}
 		return res
 
 		# for cr in reversed(self.cr_arr):
@@ -1194,6 +1335,10 @@ class Case:
 		for d in self.dose_arr:
 			if d.cid is None:
 				d.save(cid, cursor)
+
+		for t in self.trough_arr:
+			if t.tid is None:
+				t.save(cid, cursor)
 
 
 class CaseAttr:
@@ -1275,6 +1420,7 @@ class Dose:
 			self.dose = kwargs['dose']
 			self.freqIndex = kwargs['freqIndex']
 			self.freqString = kwargs['freqString']
+			self.alert = kwargs['alert']
 			self.did = None
 			self.effectivetime = None
 			self.cid = None
@@ -1285,14 +1431,15 @@ class Dose:
 			self.did = kwargs['did']
 			self.effectivetime = kwargs['effectivetime']
 			self.cid = kwargs['cid']
+			self.alert = kwargs['alert']
 
 	def save(self, cid, cursor):
 
 		if self.did is None:
 
-			query = "set schema 'vancocalc'; INSERT into doses (did, cid, dose, freqIndex, freqString, active, effectivetime) \
-				VALUES (public.uuid_generate_v4(), %s, %s, %s, %s, 1, now()) RETURNING did, effectivetime;"
-			cursor.execute(query, (cid, self.dose, self.freqIndex, self.freqString))
+			query = "set schema 'vancocalc'; INSERT into doses (did, cid, dose, freqIndex, freqString, alert, active, effectivetime) \
+				VALUES (public.uuid_generate_v4(), %s, %s, %s, %s, %s, 1, now()) RETURNING did, effectivetime;"
+			cursor.execute(query, (cid, self.dose, self.freqIndex, self.freqString, self.alert))
 			all_ids = cursor.fetchall()
 			did = all_ids[0][0]
 			effectivetime = all_ids[0][1]
@@ -1301,16 +1448,30 @@ class Dose:
 			self.effectivetime = effectivetime
 			self.cid = cid
 
+class Trough():
+	def __init__(self, **kwargs):
+		if "tid" not in kwargs.keys():
+			self.trough = float(kwargs['trough'])
+			self.beforeDoseNum = int(kwargs['beforeDoseNum'])
+			self.tid = None
+			self.cid = None
+			self.effectivetime = None
+		else:
+			self.trough = float(kwargs['trough'])
+			self.beforeDoseNum = int(kwargs['beforeDoseNum'])
+			self.tid = kwargs['tid']
+			self.cid = kwargs['cid']
+			self.effectivetime = kwargs['effectivetime']
 
-# class Dose:
-# 	def __init__(self, troughTarget):
-# 		self.troughTarget = troughTarget
-
-# 		if troughTarget == 0:
-# 			self.doseArr = [15,12,12,12,12,7,10]
-# 		elif troughTarget == 1:
-# 			self.doseArr = [18,15,15,15,0,7,15]
-
-# 		self.freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
-
-
+	def save(self, cid, cursor):
+		if self.tid is None:
+			query = "set schema 'vancocalc'; INSERT INTO trough (tid, cid, trough, beforeDoseNum, active, effectivetime) \
+				VALUES (public.uuid_generate_v4(), %s, %s, %s, 1, now()) RETURNING tid, effectivetime;"
+			cursor.execute(query, (cid, self.trough, self.beforeDoseNum))
+			all_ids = cursor.fetchall()
+			tid = all_ids[0][0]
+			effectivetime = all_ids[0][1]
+			cursor.connection.commit()
+			self.tid = tid
+			self.cid = cid
+			self.effectivetime = effectivetime
