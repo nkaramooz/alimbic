@@ -10,7 +10,9 @@
 	<br>
 
 	<h4 class="text-center"> Recommended dose : {{case_payload.d_obj.dose}} mg {{case_payload.d_obj.freq}}</h4>
-	<h3> alert: {{case_payload.d_obj.alert}} </h3>
+	{% if case_payload.d_obj.alert != None %}
+		<h5 class="text-center"><i><b> {{case_payload.d_obj.alert}} </b></i></h5>
+	{% endif %}
 
 	<br>
 	<div class="form-row">

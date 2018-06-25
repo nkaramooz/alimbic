@@ -69,7 +69,7 @@ def vc_loading(request):
 		new_wt = request.POST['wt']
 		case = Case(cid=cid, cursor=cursor)
 		add_weight(case, new_wt, cid, cursor)
-		case_payload['d_obj'] = {'dose' : returnLoadingDoseForPatient(case), 'type' : 'loading', 'freq' : "Loading"}
+		case_payload['d_obj'] = {'dose' : returnLoadingDoseForPatient(case), 'type' : 'loading', 'freq' : "Loading", 'alert' : None}
 		case_payload['cid'] = cid
 		case_payload['uid'] = uid
 		case_payload['casename'] = casename
@@ -472,7 +472,7 @@ def returnNewMaintenanceDoseForPatient(case):
 			return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Dose adjusted for acute renal failure")
 	elif ((trough >= lowTrough) and (trough <= highTrough) and not arf):
 		print("therapeutic")
-		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
+		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=priorDose.alert)
 	elif (trough > highTrough):
 		print("supratherapeutic but minimal")
 		if (priorDose.dose >= 500):
@@ -1188,7 +1188,8 @@ class Case:
 
 		if (self.hd.value != 1):
 			if (self.bl_creatinine.value):
-				if ((currCr >= 1.5*self.bl_creatinine.value) or (currCr > (self.bl_creatinine.value + 0.3))):
+				print(self.bl_creatinine.value)
+				if ((currCr >= 1.5*self.bl_creatinine.value) or (currCr >= (self.bl_creatinine.value + 0.3))):
 					arfFromBaseline = True
 			
 			if (crCount < 3):
