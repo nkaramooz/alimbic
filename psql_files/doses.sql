@@ -9,6 +9,7 @@ create table doses (
 	dose integer,
 	freqIndex integer,
 	freqString varchar(40),
+	alert varchar,
 	active integer,
 	effectivetime timestamp
 );
