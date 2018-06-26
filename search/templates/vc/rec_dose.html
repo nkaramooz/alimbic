@@ -1,0 +1,50 @@
+
+{% load app_filters %}
+{% load staticfiles %}
+{% include 'vc/vc_header.html' %}
+
+<div class="vanco-body">
+
+	<div class="fixed-height">
+		<h2 class="text-center"> Case {{case_payload.casename}}</h2>
+	</div>
+
+	<br>
+	<br>
+
+	{% if case_payload.d_obj.dose == 0 %}
+		{% if case_payload.d_obj.freq != "None" %}
+			<h4 class="text-center"> Recommended dose : {{case_payload.d_obj.freq}} </h4>
+		{% else %}
+			<h4 class="text-center"> Recommended dose : None </h4>
+		{% endif %}
+	{% else %}
+		<h4 class="text-center"> Recommended dose : {{case_payload.d_obj.dose}} mg {{case_payload.d_obj.freq}}</h4>
+	{% endif %}
+	
+	{% if case_payload.d_obj.alert != None %}
+		<h5 class="text-center"><i><b> {{case_payload.d_obj.alert}} </b></i></h5>
+	{% endif %}
+
+	<br>
+	<div class="form-row">
+		<div class="col-md-6 text-center">
+			<form action=""  method="post"> 
+				{% csrf_token %}
+					<input type="hidden" name="dose" value="{{case_payload.d_obj.dose}}">
+					<input type="hidden" name="freq" value="{{case_payload.d_obj.freq}}">
+					<input type="hidden" name="alert" value="{{case_payload.d_obj.alert}}">
+					<input type="submit" name="acceptDose" value="Accept" class="btn btn-success">
+			</form>
+		</div>
+		<div class="col-md-6 text-center">
+			<form action="{% url 'search:custom_dose_form' cid=case_payload.cid %}" method="get"> 
+			{% csrf_token %}
+				<input type="hidden" name="dose" value="{{case_payload.d_obj.dose}}">
+				<input type="hidden" name="freq" value="{{case_payload.d_obj.freq}}">
+				<input type="hidden" name="alert" value="{{case_payload.d_obj.alert}}">
+				<input type="submit" name="changeDose" value="Change" class="btn btn-danger">
+			</form>
+		</div>
+	</div>
+</div>

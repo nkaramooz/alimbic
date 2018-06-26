@@ -1,0 +1,12 @@
+{% for a in user_payload %}
+	<div class="row fixed-height">
+		<div class="col-sm-2">
+		</div>
+		<div class="col-sm-8">
+			{{a.username}}
+		</div>
+		<div class="col-sm-2">	
+			<a href="{% url 'search:vc_cases' uid=a.uid %}"> View</a>
+		</div>
+	</div>
+{% endfor %}

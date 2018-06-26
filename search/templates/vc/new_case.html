@@ -1,4 +1,4 @@
-{% include 'search/vc_header.html' %}
+{% include 'vc/vc_header.html' %}
 
 <div class="vanco-body">
 	<h5 class="card-title">New case</h5>
@@ -6,7 +6,7 @@
 	<div class="vanco-calc">
 		<div class="card w-100">
 			<div class="card-block">
-				<form action="{% url 'search:vc_case_view' %}" method="post"> 
+				<form action="{% url 'search:vc_case_view' cid=None %}" method="post"> 
 				{% csrf_token %}
 					<div class="form-row">
 						<div class="form-group col-md-3">

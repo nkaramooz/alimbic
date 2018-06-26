@@ -568,6 +568,7 @@ if __name__ == "__main__":
 	query36="achr"
 	query37="Pulmonary veins. PVs."
 	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality. Many aspects of the management of atrial fibrillation remain controversial. We address nine specific controversies in atrial fibrillation management, briefly focusing on the relations between mechanisms and therapy, the roles of rhythm and rate control, the definition of optimum rate control, the need for early cardioversion to prevent remodelling, the comparison of electrical with pharmacological cardioversion, the selection of patients for long-term oral anticoagulation, the roles of novel long-term anticoagulation approaches and ablation therapy, and the potential usefulness of upstream therapy targeting substrate development. The background of every controversy is reviewed and our opinions expressed. Here, we hope to inform physicians about the most important controversies in this specialty and stimulate investigators to address unresolved issues."
+	query39="findings from the Baltimore ECA."
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -578,13 +579,13 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	print(clean_text("interleukin (IL)-6"))
-	res = annotate_text_not_parallel(query38, filter_words_df, cursor, False)
+	
+	res = annotate_text_not_parallel(query39, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
 	else:
-		# u.pprint(add_names(res))
+		u.pprint(add_names(res))
 		
 		# u.pprint(res)
 		acronym_check(res)

@@ -1,4 +1,4 @@
-{% include 'search/vc_header.html' %}
+{% include 'vc/vc_header.html' %}
 
 <div class="vanco-body">
 
@@ -10,31 +10,13 @@
 	<br>
 	<div class="form-row">
 		<div class="col-md-4 text-center">
-			<form action="{% url 'search:vc_loading' %}" method="get"> 
-				{% csrf_token %}
-					<div class="form-group">
-						<input type="hidden" name="uid" value="{{case_payload.uid}}">
-						<input type="hidden" name="username" value="{{case_payload.username}}">
-						<input type="hidden" name="cid" value="{{case_payload.cid}}">
-						<input type="hidden" name="casename" value="{{case_payload.casename}}">
-						<input type="submit" name="loading" value="Loading" class="btn btn-link">
-					</div>
-			</form>
+			<a href="{% url 'search:loading_form' cid=case_payload.cid %}" class = "btn btn-link"> Loading</a>
 		</div>
 		<div class="col-md-4 text-center">
-			<form action="{% url 'search:vc_maintenance' %}" method="get"> 
-				{% csrf_token %}
-					<div class="form-group">
-						<input type="hidden" name="uid" value="{{case_payload.uid}}">
-						<input type="hidden" name="username" value="{{case_payload.username}}">
-						<input type="hidden" name="cid" value="{{case_payload.cid}}">
-						<input type="hidden" name="casename" value="{{case_payload.casename}}">
-						<input type="submit" name="maintenance" value="Maintenance" class="btn btn-link">
-					</div>
-			</form>
+			<a href="{% url 'search:maintenance_form' cid=case_payload.cid %}" class = "btn btn-link"> Maintenance</a>
 		</div>
 		<div class="col-md-4 text-center">
-			<form action="{% url 'search:vc_redose' %}" method="get"> 
+			<form action="{% url 'search:redose_form' cid=case_payload.cid %}" method="get"> 
 				{% csrf_token %}
 					<div class="form-group">
 						<input type="hidden" name="uid" value="{{case_payload.uid}}">
@@ -83,15 +65,10 @@
 			{% endfor %}
 		</tbody>
 	</table>
-	<form action="{% url 'search:vc_case_view' %}" method="post"> 
+	<form action="{% url 'search:vc_case_view' cid=case_payload.cid %}" method="post"> 
 		<div class="form-row">
 		{% csrf_token %}
-			<div class="col-md-2">
-				<input type="hidden" name="uid" value="{{case_payload.uid}}">
-				<input type="hidden" name="username" value="{{case_payload.username}}">
-				<input type="hidden" name="cid" value="{{case_payload.cid}}">
-				<input type="hidden" name="casename" value="{{case_payload.casename}}">
-						
+			<div class="col-md-2">				
 				<input type="float" name="cr" class="form-control" id="cr">
 			</div>
 			<div class="col-md-2">

@@ -1,0 +1,42 @@
+{% include 'vc/vc_header.html' %}
+
+<div class="vanco-body">
+	<div class="row fixed-height">
+		<div class="col-sm-2">
+		</div>
+		<div class="col-sm-8">
+			<h2> {{cases_payload.username}}</h2>
+		</div>
+	</div>
+	<form action="{% url 'search:vc_new_case' uid=cases_payload.uid %}" method="get"> 
+		{% csrf_token %}
+
+		<div class="form-row">
+			<div class="form-group col-md-4">
+			</div>
+			<div class="form-group col-md-4">
+				<input type="hidden" name="uid" value="{{cases_payload.uid}}">
+				<input type="hidden" name="username" value="{{cases_payload.username}}">
+			</div>
+			<div class="form-group col-md-2">
+				<input type="submit" value="new case" class="btn btn-info">
+			</div>
+			<div class="form-group col-md-2">
+			</div>
+		</div>
+	</form>
+
+	{% for c in cases_payload.cases %}
+		<div class="row fixed-height">
+			<div class="col-sm-2">
+			</div>
+			<div class="col-sm-8">
+				{{c.casename}}
+			</div>
+			<div class="col-sm-2">
+				<a href="{% url 'search:vc_case_view' cid=c.cid %}" class = "btn btn-link"> View</a>
+			</div>
+		</div>
+	{% endfor %}
+	
+</div>

@@ -8,7 +8,7 @@ create table doses (
 	cid uuid,
 	dose integer,
 	freqIndex integer,
-	freqString varchar(40),
+	freqString varchar,
 	alert varchar,
 	active integer,
 	effectivetime timestamp

@@ -20,15 +20,20 @@ urlpatterns = [
     url(r'^concept_search/$', views.concept_search_results,  name='concept_search_results'),
     url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
     url(r'^concept_override/', views.concept_override, name='concept_override'),
-    url(r'^vancocalc/$', views.vc_main, name='vc_main'),
-    url(r'^vancocalc/cases/$', views.vc_cases, name='vc_cases'),
-    url(r'^vancocalc/case_view/$', views.vc_case_view, name='vc_case_view'),
-    url(r'^vancocalc/dosing/$', views.vc_dosing, name='vc_dosing'),
-    url(r'^vancocalc/new_case/$', views.vc_new_case, name='vc_new_case'),
-    url(r'^vancocalc/loading/$', views.vc_loading, name='vc_loading'),
-    url(r'^vancocalc/maintenance/$', views.vc_maintenance, name='vc_maintenance'),
-    url(r'^vancocalc/redose/$', views.vc_redose, name='vc_redose'),
-    url(r'^vancocalc/loading/$', views.vc_loading, name='vc_loading'),
-    # url(r'^ajax/vcSubmit/$', views.vcSubmit, name='vcSubmit'),
+
+    url(r'^vancomycin/$', views.vc_main, name='vc_main'),
+    url(r'^vancomycin/cases/(?P<uid>.*)$', views.vc_cases, name='vc_cases'),
+    url(r'^vancomycin/case_view/(?P<cid>.*)$', views.vc_case_view, name='vc_case_view'),
+    url(r'^vancomycin/case/(?P<cid>.*)/custom_dose$', views.custom_dose_form, name='custom_dose_form'),
+    url(r'^vancomycin/case/(?P<cid>.*)/loading/form$', views.loading_form, name='loading_form'),
+    url(r'^vancomycin/case/(?P<cid>.*)/loading_rec$', views.loading_rec, name='loading_rec'),
+    url(r'^vancomycin/(?P<uid>.*)/new_case/$', views.vc_new_case, name='vc_new_case'),
+
+    url(r'^vancomycin/case/(?P<cid>.*)/maintenance/form$', views.maintenance_form, name='maintenance_form'),
+    url(r'^vancomycin/case/(?P<cid>.*)/maintenance/rec$', views.maintenance_rec, name='maintenance_rec'),
+
+    url(r'^vancomycin/case/(?P<cid>.*)/redose/form$', views.redose_form, name='redose_form'),
+    url(r'^vancomycin/case/(?P<cid>.*)/redose/rec$', views.redose_rec, name='redose_rec'),
+    
     url(r'^ajax/vcTroughTarget/$', views.returnTroughTarget, name='returnTroughTarget'),
 ]
