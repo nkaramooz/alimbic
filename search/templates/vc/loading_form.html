@@ -1,4 +1,4 @@
-{% include 'search/vc_header.html' %}
+{% include 'vc/vc_header.html' %}
 
 <div class="vanco-body">
 
@@ -6,13 +6,9 @@
 		<h2 class="text-center"> Case {{case_payload.casename}} : Loading dose</h2>
 	</div>
 
-	<form action="{% url 'search:vc_loading' %}" method="post"> 
+	<form action="{% url 'search:loading_form' cid=case_payload.cid%}" method="post"> 
 		{% csrf_token %}
 			<div class="col-md-3">
-				<input type="hidden" name="uid" value="{{case_payload.uid}}">
-				<input type="hidden" name="username" value="{{case_payload.username}}">
-				<input type="hidden" name="cid" value="{{case_payload.cid}}">
-				<input type="hidden" name="casename" value="{{case_payload.casename}}">
 				<label for="wt"> Enter weight <b>(kg)</b> </label>
 				<input type="float" value="{{case_payload.weight}}" name="wt" class="form-control" id="wt">
 			</div>

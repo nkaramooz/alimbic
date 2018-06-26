@@ -44,66 +44,205 @@ def post_concept_override(request):
 	cursor.close()
 	return HttpResponseRedirect(reverse('search:concept_override'))
 
-###
-
-def vc_new_case(request):
-	new_case_payload = {}
-	new_case_payload['uid'] = request.GET['uid']
-	new_case_payload['username'] = request.GET['username']
-	return render(request, 'search/new_case.html', {'new_case_payload' : new_case_payload})
-
-def vc_loading(request):
+############################## VC LOADING DOSE ##############################
+def loading_form(request, cid):
 	cursor = pg.return_postgres_cursor()
 	case_payload = {}
 	if request.method == "GET":
-		uid, username, casename, cid = get_basics(request.GET)
 		case = Case(cid=cid, cursor=cursor)
 		case_payload['weight'] = case.wt_arr[-1].weight
-		case_payload['uid'] = uid
-		case_payload['username'] = username
-		case_payload['casename'] = casename
+		case_payload['casename'] = get_casename(cid, cursor)
 		case_payload['cid'] = cid
-		return render(request, 'search/weight.html', {'case_payload' : case_payload})
-	elif 'loadingWt' in request.POST:
-		uid, username, casename, cid = get_basics(request.POST)
+		return render(request, 'vc/loading_form.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
 		new_wt = request.POST['wt']
 		case = Case(cid=cid, cursor=cursor)
-		add_weight(case, new_wt, cid, cursor)
+		case.addWt(new_wt)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:loading_rec', kwargs={'cid' : cid}))
+
+def loading_rec(request, cid):
+	cursor = pg.return_postgres_cursor()
+	if request.method == "GET":
+		case_payload = {}
+		case = Case(cid=cid, cursor=cursor)
 		case_payload['d_obj'] = {'dose' : returnLoadingDoseForPatient(case), 'type' : 'loading', 'freq' : "Loading", 'alert' : None}
 		case_payload['cid'] = cid
-		case_payload['uid'] = uid
-		case_payload['casename'] = casename
-		case_payload['username'] = username
-		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
+		case_payload['casename'] = get_casename(cid, cursor)
+		return render(request, 'vc/rec_dose.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
+		d_obj = Dose(dose=request.POST['dose'], freqIndex=None, freqString=request.POST['freq'], alert=request.POST['alert'])
+		case = Case(cid=cid, cursor=cursor)
+		case.addDose(d_obj)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:vc_case_view', args=(cid,)))
 
+############################## VC MAINTENANCE DOSE ##########################
+
+def maintenance_form(request, cid):
+	cursor = pg.return_postgres_cursor()
+	case_payload = {}
+	if request.method == "GET":
+		case = Case(cid=cid, cursor=cursor)
+		case_payload['casename'] = get_casename(cid, cursor)
+		case_payload['cid'] = cid
+		case_payload['weight'] = case.wt_arr[-1].weight
+
+		return render(request, 'vc/maintenance_form.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
+		case = Case(cid=cid, cursor=cursor)
+		cr = request.POST['cr']
+		weight = request.POST['wt']
+		case = Case(cid=cid, cursor=cursor)
+		case.addCr(cr)
+		case.addWt(weight)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:maintenance_rec', kwargs={'cid' : cid}))
+
+def maintenance_rec(request, cid):
+	cursor = pg.return_postgres_cursor()
+	case_payload = {}
+	if request.method == "GET":
+		case = Case(cid=cid, cursor=cursor)
+		d_obj = returnInitialMaintenanceDose(case)
+		
+		if d_obj.dose == 0 and d_obj.freqString != None:
+			d_obj.alert = "Discuss with pharmacy"
+		elif case.returnARF() and case.hd.value is not 1 and case.crrt.value is not 1:
+			d_obj.alert = "Patient may be in acute renal failure. Trough should be drawn before the 3rd dose"
+		elif d_obj.freqString == "q8":
+			d_obj.alert = "Trough should be drawn before the 5th dose. Consider checking BMPs twice daily."
+		else:
+			d_obj.alert = "Trough should be drawn before the 4th dose."
+		# case.addDose(d_obj) Doesn't seem like this should be added yet
+
+		case_payload['casename'] = get_casename(cid, cursor)
+		case_payload['cid'] = cid
+		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
+
+		return render(request, 'vc/rec_dose.html', {'case_payload' : case_payload})
+	else:
+		d_obj = Dose(dose=request.POST['dose'], freqIndex=None, freqString=request.POST['freq'], alert=request.POST['alert'])
+		case = Case(cid=cid, cursor=cursor)
+		case.addDose(d_obj)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:vc_case_view', args=(cid,)))
+
+############################## VC CUSTOM DOSE ##############################
+
+def custom_dose_form(request, cid):
+	cursor = pg.return_postgres_cursor()
+	if request.method == "GET":
+		case_payload = {}
+		case_payload['casename'] = get_casename(cid, cursor)
+
+		case_payload['rec_dose'] = {'dose' : request.GET['dose'], 'freq':request.GET['freq'], 'alert' : request.GET['alert'] }
+		return render(request, 'vc/custom_dose.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
+		dose = int(request.POST['doseSelect'])
+		freqString = str(request.POST['freqSelect'])
+		alert = str(request.POST['alert'])
+		d_obj = Dose(dose=dose, freqIndex=None, freqString=freqString, alert=alert)
+		case = Case(cid=cid, cursor=cursor)
+		case.addDose(d_obj)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:vc_case_view', args=(cid,)))
+
+############################## VC REDOSE DOSE ###############################
+
+def redose_form(request, cid):
+	cursor = pg.return_postgres_cursor()
+	case_payload = {}
+
+	if request.method == "GET":
+		case = Case(cid=cid, cursor=cursor)
+		case_payload['casename'] = get_casename(cid, cursor)
+		case_payload['cid'] = cid
+		case_payload['weight'] = case.wt_arr[-1].weight
+		return render(request, 'vc/redose_form.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
+		weight=request.POST['wt']
+		cr = request.POST['cr']
+		trough = float(request.POST['trough'])
+		doseNum = int(request.POST['doseNum'])
+		case = Case(cid=cid, cursor=cursor)
+		case.addCr(cr)
+		case.addWt(weight)
+		case.addTrough(trough, doseNum)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:redose_rec', args=(cid,)))
+
+def redose_rec(request, cid):
+	cursor = pg.return_postgres_cursor()
+	case_payload = {}
+
+	if request.method == "GET":
+		case = Case(cid=cid, cursor=cursor)
+		d_obj = returnNewMaintenanceDoseForPatient(case)
+		case_payload['casename'] = get_casename(cid, cursor)
+		case_payload['cid'] = cid
+		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
+		return render(request, 'vc/rec_dose.html', {'case_payload' : case_payload})
+	elif request.method == "POST":
+		case = Case(cid=cid, cursor=cursor)
+		d_obj = returnNewMaintenanceDoseForPatient(case)
+		case.addDose(d_obj)
+		case.save(cid, cursor)
+		return HttpResponseRedirect(reverse('search:vc_case_view', args=(cid,)))
+		
+
+
+############################## VC CASE / USER MGMT ##########################
+
+def vc_main(request):
+	vc_payload = {}
+	cursor = pg.return_postgres_cursor()
+	if request.method == "POST":
+		username=request.POST['username']
+		u.insert_new_vc_user(username, cursor)
 	
-def add_weight(case, weight, cid, cursor):
-	case.addWt(weight)
-	case.save(cid, cursor)
+	user_df = get_vc_users(cursor)
+	user_payload = get_user_payload(user_df)
 
+	return render(request, 'vc/main.html', {'user_payload' : user_payload})
 
-def get_basics(r):
-	uid = r['uid']
-	username = r['username']
-	casename = r['casename']
-	cid = r['cid']
+def vc_cases(request, uid):
+	cases_payload = {}
+	cursor = pg.return_postgres_cursor()
+	username = ""
+	cases_df = None
 
-	return uid, username, casename, cid
+	if request.method == "POST":
 
-def vc_case_view(request):
+		username = get_username(uid, cursor)
+		casename = request.POST['casename']
+		u.insert_new_vc_case(uid, casename, cursor)
+	else:
+		username = get_username(uid, cursor)
+	
+	cases_df = get_vc_cases(cursor, uid)
+	cases_payload['cases'] = get_cases_payload(cases_df)
+	cases_payload['uid'] = uid
+	cases_payload['username'] = username
+
+	return render(request, 'vc/cases.html', {'cases_payload' : cases_payload})
+
+def vc_new_case(request, uid):
+	new_case_payload = {}
+	new_case_payload['uid'] = uid
+	new_case_payload['username'] = request.GET['username']
+	return render(request, 'vc/new_case.html', {'new_case_payload' : new_case_payload})
+
+def vc_case_view(request, cid):
 	case_payload = {}
 	cursor = pg.return_postgres_cursor()
-	cid = ""
 	casename=""
 	username=""
 	case = None
 	uid = ""
 
 	if request.method == "GET":
-		uid = request.GET['uid']
-		username = request.GET['username']
-		casename = request.GET['casename']
-		cid = request.GET['cid']
+		casename = get_casename(cid, cursor)
 		case = Case(cid=cid, cursor=cursor)
 	elif 'create' in request.POST:
 		cursor = pg.return_postgres_cursor()
@@ -132,116 +271,21 @@ def vc_case_view(request):
 			'targetTrough' : targetTrough, 'indication' : indication}
 		case = Case(**args)
 		case.save(cid, cursor)
-	elif 'addCr' in request.POST:
-		uid = request.POST['uid']
-		username = request.POST['username']
-		casename = request.POST['casename']
-		cid = request.POST['cid']
+
+	elif request.method=='POST':
+		cursor = pg.return_postgres_cursor()
 		creatinine = request.POST['cr']
 		case = Case(cid=cid, cursor=cursor)
 		case.addCr(creatinine)
 		case.save(cid, cursor)
-	elif 'acceptDose' in request.POST:
-		uid, username, casename, cid = get_basics(request.POST)
-		d_obj = Dose(dose=request.POST['dose'], freqIndex=None, freqString=request.POST['freq'], alert=request.POST['alert'])
-		case = Case(cid=cid, cursor=cursor)
-		case.addDose(d_obj)
-		case.save(cid, cursor)
 
-	
 	case_payload['uid'] = uid
-	case_payload['username'] = username
 	case_payload['casename'] = casename
 	case_payload['cid'] = cid
-
 	case_payload = get_case_payload(case, case_payload)
 
-	return render(request, 'search/case_view.html', {'case_payload' : case_payload})
+	return render(request, 'vc/case_view.html', {'case_payload' : case_payload})
 
-def vc_maintenance(request):
-	case_payload = {}
-	cursor = pg.return_postgres_cursor()
-	cid = ""
-	casename=""
-	username=""
-	case = None
-	uid = ""
-
-	if 'maintenance' in request.GET:
-		uid, username, casename, cid = get_basics(request.GET)
-		case = Case(cid=cid, cursor=cursor)
-		case_payload['uid'] = uid
-		case_payload['username'] = username
-		case_payload['casename'] = casename
-		case_payload['cid'] = cid
-		case_payload['weight'] = case.wt_arr[-1].weight
-
-		return render(request, 'search/vc_maintenance.html', {'case_payload' : case_payload})
-	elif 'maintenanceRec' in request.POST:
-		uid, username, casename, cid = get_basics(request.POST)
-		weight=request.POST['wt']
-		cr = request.POST['cr']
-		case = Case(cid=cid, cursor=cursor)
-		case.addCr(cr)
-		case.addWt(weight)
-		case.save(cid, cursor)
-		d_obj = returnInitialMaintenanceDose(case)
-		if case.returnARF() and case.hd.value is not 1 and case.crrt.value is not 1:
-			d_obj.alert = "Patient may be in acute renal failure. Trough should be drawn before the 3rd dose"
-		elif d_obj.freqString == "q8":
-			d_obj.alert = "Trough should be drawn before the 5th dose. Consider checking BMPs twice daily."
-		else:
-			d_obj.alert = "Trough should be drawn before the 4th dose."
-		# case.addDose(d_obj) Doesn't seem like this should be added yet
-		case_payload['uid'] = uid
-		case_payload['username'] = username
-		case_payload['casename'] = casename
-		case_payload['cid'] = cid
-		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
-		case_payload['changeAction'] = "{% url 'search:vc_case_view' %}"
-		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
-	# elif 'customDose' in request.GET:
-
-
-def vc_redose(request):
-	case_payload = {}
-	cursor = pg.return_postgres_cursor()
-	cid = ""
-	casename=""
-	username=""
-	case = None
-	uid = ""
-
-	if 'redose' in request.GET:
-		uid, username, casename, cid = get_basics(request.GET)
-		case = Case(cid=cid, cursor=cursor)
-		case_payload['uid'] = uid
-		case_payload['username'] = username
-		case_payload['casename'] = casename
-		case_payload['cid'] = cid
-		case_payload['weight'] = case.wt_arr[-1].weight
-		return render(request, 'search/vc_redose.html', {'case_payload' : case_payload})
-	else:
-		uid, username, casename, cid = get_basics(request.POST)
-		weight=request.POST['wt']
-		cr = request.POST['cr']
-		trough = float(request.POST['trough'])
-		doseNum = int(request.POST['doseNum'])
-		case = Case(cid=cid, cursor=cursor)
-		case.addCr(cr)
-		case.addWt(weight)
-		case.addTrough(trough, doseNum)
-		case.save(cid, cursor)
-		d_obj = returnNewMaintenanceDoseForPatient(case)
-
-		case_payload['uid'] = uid
-		case_payload['username'] = username
-		case_payload['casename'] = casename
-		case_payload['cid'] = cid
-		case_payload['d_obj'] = {'dose' : d_obj.dose, 'freq' : d_obj.freqString, 'type' : 'maintenance', 'alert' : d_obj.alert}
-		return render(request, 'search/vc_rec_dose.html', {'case_payload' : case_payload})
-
-	
 
 def get_case_payload(case, case_payload):
 	case_payload["chf"] = case.chf.value
@@ -254,45 +298,18 @@ def get_case_payload(case, case_payload):
 
 	return case_payload
 
-def vc_dosing(request):
-	return render(request, 'search/vanco_calc.html')
 
-def vc_main(request):
-	vc_payload = {}
-	cursor = pg.return_postgres_cursor()
-	if request.method == "POST":
-		username=request.POST['username']
-		u.insert_new_vc_user(username, cursor)
+def get_username(uid, cursor):
+	query = "select username from vancocalc.users where uid=%s"
+	user_df = pg.return_df_from_query(cursor, query, (uid,), ["username"])
 	
-	user_df = get_vc_users(cursor)
-	user_payload = get_user_payload(user_df)
+	return user_df["username"].item()
 
-	return render(request, 'search/vc_main.html', {'user_payload' : user_payload})
-
-def vc_cases(request):
-	cases_payload = {}
-	cursor = pg.return_postgres_cursor()
-
-	uid = ""
-	username = ""
-	cases_df = None
-
-	if request.method == "POST":
-		uid = request.POST['uid']
-		username = request.POST['username']
-		casename = request.POST['casename']
-		u.insert_new_vc_case(uid, casename, cursor)
-	else:
-		uid = request.GET['uid']
-		username = request.GET['username']
+def get_casename(cid, cursor):
+	query = "select casename from vancocalc.cases where cid=%s"
+	user_df = pg.return_df_from_query(cursor, query, (cid,), ["casename"])
 	
-	cases_df = get_vc_cases(cursor, uid)
-	cases_payload['cases'] = get_cases_payload(cases_df)
-	cases_payload['uid'] = uid
-	cases_payload['username'] = username
-
-
-	return render(request, 'search/vc_cases.html', {'cases_payload' : cases_payload})
+	return user_df["casename"].item()
 
 def get_vc_users(cursor):
 	query="select uid, username from (select uid, effectivetime, \
@@ -411,6 +428,7 @@ def returnInitialMaintenanceDose(case):
 				dfs = "single loading dose followed by kintetics"
 	d = d * case.wt_arr[-1].dosingWeight
 	d = returnRoundedDose(d)
+
 	d_obj = Dose(dose=d, freqIndex=dfi, freqString=dfs, alert=None)
 
 	return d_obj
@@ -452,10 +470,8 @@ def returnNewMaintenanceDoseForPatient(case):
 			return Dose(dose=newDose, freqIndex=3, freqString="q24", alert=None)
 	# Supratherapeutic by a lot
 	elif (trough > (highTrough + 2)):
-		print("very high")
 		return Dose(dose=0, freqIndex=None, freqString=None, alert="Consider holding a dose or re-checking trough daily before resuming vancomycin. Discuss with pharmacy.")
 	elif arf:
-		print("ARF")
 		arfMultiplier = None
 		if (case.targetTrough == 1):
 			arfMultiplier = 12
@@ -467,14 +483,18 @@ def returnNewMaintenanceDoseForPatient(case):
 		freq = returnRoundedFrequency(halfLife*1.5)
 		freqString = "q" + str(freq)
 		if (trough > highTrough):
-			return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Due to a supratherapeutic trough, consider holding next dose before resuming recommended dosing schedule. Dose adjusted for acute renal failure.")
+			if new_dose > priorDose.dose:
+				return Dose(dose=priorDose.dose, freqIndex=None, freqString=priorDose.freqString, alert="Patient in acute renal failure. Monitor kidney function and urine output closely on current dose.")
+			else:
+				return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Due to a supratherapeutic trough, consider holding next dose before resuming recommended dosing schedule. Dose adjusted for acute renal failure.")
 		else:
-			return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Dose adjusted for acute renal failure")
+			if (trough > lowTrough and new_dose > priorDose.dose):
+				return Dose(dose=priorDose.dose, freqIndex=None, freqString=priorDose.freqString, alert="Patient in acute renal failure. Monitor kidney function and urine output closely on current dose")
+			else:
+				return Dose(dose=new_dose, freqIndex=None, freqString=freqString, alert="Dose adjusted for acute renal failure")
 	elif ((trough >= lowTrough) and (trough <= highTrough) and not arf):
-		print("therapeutic")
 		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=priorDose.alert)
 	elif (trough > highTrough):
-		print("supratherapeutic but minimal")
 		if (priorDose.dose >= 500):
 			new_dose = priorDose.dose -250
 			return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert="Due to a supratherapeutic trough, consider holding next dose before resuming recommended dosing schedule")
@@ -482,7 +502,6 @@ def returnNewMaintenanceDoseForPatient(case):
 			return Dose(dose=0, freqIndex=None, freqString=None, alert="Consider holding a dose or re-checking trough before resuming vancomycin. Recommend discussing with pharmacy to re-dose when trough enters normal range")
 	# If much less than trough goal
 	elif (trough < lowTrough -5):
-		print("low")
 		new_dose = returnRoundedDose(priorDose.dose * 1.75)
 		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
 	else:

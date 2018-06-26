@@ -1,0 +1,68 @@
+{% include 'vc/vc_header.html' %}
+
+<div class="vanco-body">
+	<div class="fixed-height">
+		<h2 class="text-center"> Case {{case_payload.casename}}</h2>
+	</div>
+
+	<br>
+	<br>
+	{{case_payload}}
+	{% if case_payload.rec_dose.dose == "0" %}
+		{% if case_payload.rec_dose.freq != "None" %}
+			<h4 class="text-center"> Recommended dose : None - {{case_payload.rec_dose.freq}} </h4>
+		{% else %}
+			<h4 class="text-center"> Recommended dose : None </h4>
+		{% endif %}
+	{% else %}
+		<h4 class="text-center"> Recommended dose : {{case_payload.rec_dose.dose}} mg {{case_payload.rec_dose.freq}}</h4>
+	{% endif %}
+	
+	{% if case_payload.rec_dose.alert != "None" %}
+		<h5 class="text-center"><i><b> {{case_payload.rec_dose.alert}} </b></i></h5>
+	{% endif %}
+	<br>
+	<form action="" method="post">
+		{% csrf_token %}
+		<div class="form-row align-items-center">
+			<div class="col-md-6">
+				<label class="mr-sm-2" for="inlineFormCustomSelect">Dose</label>
+				<select class="custom-select mr-sm-2" name="doseSelect" id="inlineFormCustomSelect">
+					<option disabled selected value> -- Select --</option>
+					<option value="250"> 250 mg </option>
+					<option value="500"> 500 mg </option>
+					<option value="750"> 750 mg </option>
+					<option value="1000"> 1000 mg </option>
+					<option value="1250"> 1250 mg </option>
+					<option value="1500"> 1500 mg </option>
+					<option value="1750"> 1750 mg </option>
+					<option value="2000"> 2000 mg </option>
+				</select>
+			</div>
+			<div class="col-md-6">
+				<label class="mr-sm-2" for="inlineFormCustomSelect">Frequency</label>
+				<select class="custom-select mr-sm-2" name="freqSelect" id="inlineFormCustomSelect">
+					<option disabled selected value> -- Select --</option>
+					<option value="Loading"> Loading </option>
+					<option value="q8"> q8 </option>
+					<option value="q12"> q12 </option>
+					<option value="q24"> q24 </option>
+					<option value="q48"> q48 </option>
+					<option value="post-HD"> post-HD </option>
+				</select>
+			</div>
+		</div>
+		<br>
+		<br>
+		<input type="hidden" name="alert" value="{{case_payload.d_obj.alert}}">
+		<div class="form-row align-items-center">
+			<div class="col-md-3">
+			</div>
+			<div class="col-md-6 text-center">
+				<input type="submit" name="submit" value="Submit" class="btn btn-success btn-block">
+			</div>
+			<div class="col-md-3">
+			</div>
+		</div>
+	</form>
+</div>
