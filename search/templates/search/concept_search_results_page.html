@@ -1,20 +1,5 @@
 
-{% load app_filters %}
-{% load staticfiles %}
-{% include 'search/header_template.html' %}
-<script src="{% static "js/search-results.js" %}"></script>
-
-<nav class="navbar navbar-expand-sm navbar-light" style="background-color: #e3f2fd;">
-
-		<div class="collapse navbar-collapse" id="navbarNavAltMarkup">
-			<div class="navbar-nav">
-				<a class="nav-item nav-link active" href="/concept_search_home_page">Search</a>
-				<a class="nav-item nav-link" href="/vancocalc">Vancomycin</a>
-
-			</div>
-		</div>
-	</nav>
-
+{% include 'search/main_header.html' %}
 {% url 'search:concept_search' as concept_search %}
 {% url 'search:pivot_search' as pivot %}
 {% include 'search/search_bar_template.html' with action=concept_search %}
@@ -29,11 +14,6 @@
 			{% endfor %} 
 		</h5>
 	</div>
-
-	
-
-
-
 
 
 	<div class="glance">

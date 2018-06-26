@@ -6,7 +6,9 @@ deprecated/
 __pycache__/
 db.sqlite3
 *.pyc
-
+psql_files/pg_upgrade_internal.log
+psql_files/pg_upgrade_server.log
+psql_files/pg_upgrade_utility.log
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
