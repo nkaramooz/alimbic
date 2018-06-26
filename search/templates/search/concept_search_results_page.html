@@ -1,5 +1,5 @@
 
-{% include 'search/main_header.html' %}
+{% include 'search/main_header.html' with css='css/search.css' %}
 {% url 'search:concept_search' as concept_search %}
 {% url 'search:pivot_search' as pivot %}
 {% include 'search/search_bar_template.html' with action=concept_search %}
