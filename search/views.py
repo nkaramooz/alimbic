@@ -504,7 +504,11 @@ def returnNewMaintenanceDoseForPatient(case):
 	elif (trough < lowTrough -5):
 		new_dose = returnRoundedDose(priorDose.dose * 1.75)
 		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
+	#If within 2, go ahead and use prior dose
+	elif (trough > lowTrough-2):
+		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
 	else:
+		print(lowTrough-2)
 		new_dose = priorDose.dose + 250
 		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
 
