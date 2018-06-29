@@ -29,6 +29,7 @@ create table augmented_active_selected_concept_key_words_v2 as (
                     ,active
                     ,row_number () over (partition by description_id order by effectivetime desc) as row_num 
                 from annotation.augmented_selected_concept_descriptions
+
                 ) tb, unnest(string_to_array(replace(replace(replace(replace(term, ' - ', ' '), '-', ' '), ',', ''), '''', ''), ' '))
                 with ordinality as f(word, word_ord)
             where row_num = 1 and active = '1'
@@ -59,6 +60,7 @@ create table augmented_active_selected_concept_key_words_v2 as (
                         ,active
                         ,row_number () over (partition by description_id order by effectivetime desc) as row_num 
                     from annotation.augmented_selected_concept_descriptions
+
                     ) tb
                 where row_num = 1 and active = '1'
                 ) nm
