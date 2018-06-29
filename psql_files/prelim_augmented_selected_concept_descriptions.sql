@@ -52,6 +52,6 @@ create table prelim_augmented_selected_concept_descriptions as (
 	from annotation.description_blacklist
 );
 
-create index if not exists ind_prelim_aug_description_id on prelim_augmented_selected_concept_descriptions(description_id);
+create index if not exists ind_prelim_aug_description_id on prelim_augmented_selected_concept_descriptions(id);
 create index if not exists ind_prelim_aug_effectivetime on prelim_augmented_selected_concept_descriptions(effectivetime);
 create index if not exists ind_prelim_aug_active on prelim_augmented_selected_concept_descriptions(active);
