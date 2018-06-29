@@ -144,7 +144,7 @@ def acronym_check(results_df):
 	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
 	final = non_acronyms_df.append(approved_acronyms)
-	u.pprint(final)
+	return final
 	
 
 

@@ -613,7 +613,7 @@ def get_snomed_annotation(text, filter_words_df):
 		return None
 	else:
 		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor, True)
-
+		annotation = ann.acronym_check(annotation)
 		if annotation is not None:
 			return annotation
 		else:
