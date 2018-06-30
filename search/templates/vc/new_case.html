@@ -11,13 +11,13 @@
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="casename">Case name</label>
-							<input type="text" maxlength="4" name="casename" class="form-control" id="casename">
+							<input type="text" maxlength="4" name="casename" class="form-control" id="casename" required>
 						</div>
 					</div>
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="age">Age</label>
-							<input type="text" name="age" class="form-control" id="age">
+							<input type="number" name="age" class="form-control" id="age" required>
 						</div>
 					</div>
 					<div class="form-row">
@@ -39,38 +39,38 @@
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="weight">Weight <b>(kg)</b></label>
-							<input type="text" name="weight" class="form-control" id="weight">
+							<input type="number" name="weight" class="form-control" id="weight" step=".1" required>
 						</div>
 					</div>
 
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="height-ft">Height <b>(ft)</b></label>
-							<input type="text" name="height-ft" class="form-control" id="height-ft">
+							<input type="number" name="height-ft" class="form-control" id="height-ft" required>
 						</div>
 					</div>
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="height-in">Height <b>(in)</b></label>
-							<input type="text" name="height-in" class="form-control" id="height-in">
+							<input type="number" name="height-in" class="form-control" id="height-in" required>
 						</div>
 					</div>
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="creatinine">Current creatinine <b>(mg/dL)</b> </label>
-							<input type="text" name="creatinine" class="form-control" id="creatinine">
+							<input type="number" name="creatinine" class="form-control" id="creatinine" step=".01"required>
 						</div>
 					</div>
 					<div class="form-row">
 						<div class="form-group col-md-3">
 							<label for="bl_creatinine">Baseline creatinine <b>(mg/dL)</b> </label>
-							<input type="text" name="bl_creatinine" class="form-control" id="bl_creatinine">
+							<input type="number" name="bl_creatinine" class="form-control" id="bl_creatinine" step=".01" required>
 						</div>
 					</div>
 					<div class="form-row">
 						<div class="form-group col-md-6">
 							<label for="indication">Indication</label>
-							<select class="form-control" id="indication">
+							<select class="form-control" id="indication" required>
 								<option disabled selected value> -select indication- </option>
 								<option>Bacteremia</option>
 								<option>Brain abscess</option>
@@ -92,7 +92,7 @@
 					<div class="form-row">
 						<div class="form-group col-md-6">
 							<label for="targetTrough">Trough target</label>
-							<select class="form-control" id="targetTrough" name="targetTrough">
+							<select class="form-control" id="targetTrough" name="targetTrough" required>
 								<option disable selected value> -select indication or trough target-</option>
 								<option value="0">10-15</option>
 								<option value="1">15-20</option>

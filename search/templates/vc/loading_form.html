@@ -10,7 +10,7 @@
 		{% csrf_token %}
 			<div class="col-md-3">
 				<label for="wt"> Enter weight <b>(kg)</b> </label>
-				<input type="float" value="{{case_payload.weight}}" name="wt" class="form-control" id="wt">
+				<input type="number" value="{{case_payload.weight}}" name="wt" class="form-control" id="wt" step=".1" required>
 			</div>
 			<br>
 			<div class="col-md-6">
