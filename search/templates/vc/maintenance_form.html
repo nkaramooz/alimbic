@@ -11,14 +11,14 @@
 			<div class="form-row">
 				<div class="col-md-3">
 					<label for="wt"> Enter weight <b>(kg)</b> </label>
-					<input type="float" value="{{case_payload.weight}}" name="wt" class="form-control" id="wt">
+					<input type="number" value="{{case_payload.weight}}" name="wt" class="form-control" id="wt" step=".1" required>
 				</div>
 			</div>
 			<br>
 			<div class="form-row">
 				<div class="col-md-3">
 					<label for="cr"> Enter creatine <b>g/dL</b> </label>
-					<input type="float" name="cr" class="form-control" id="cr">
+					<input type="number" name="cr" class="form-control" id="cr" step=".01" required>
 				</div>
 			</div>
 			<br>
