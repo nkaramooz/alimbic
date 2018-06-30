@@ -11,7 +11,7 @@ import math
 from django.http import JsonResponse
 # Create your views here.
 
-INDEX_NAME='pubmedx1'
+INDEX_NAME='pubmed4'
 
 
 lowDoseArr = [15,12,12,12,12,7,10]
