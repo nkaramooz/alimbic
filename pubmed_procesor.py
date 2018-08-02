@@ -16,7 +16,7 @@ import boto3
 import re
 
 
-INDEX_NAME = 'pubmedx1'
+INDEX_NAME = 'pbt2'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -65,7 +65,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) > 1990):
 	
-				json_str = get_article_info(elem, json_str)
+				json_str = get_article_info_2(elem, json_str)
 				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
 
@@ -84,7 +84,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						json_str['title_conceptids'] = None
 						json_str['title_dids'] = None
 
-					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids(json_str['article_abstract'], filter_words_df)
+					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df)
 	
 					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
 		
@@ -427,6 +427,23 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 	else:
 		return None, None
 
+def get_abstract_conceptids_2(abstract_dict, filter_words_df):
+	cid_dict = {}
+	did_dict = {}
+
+	if abstract_dict is not None:
+		for k1 in abstract_dict:
+			res = get_snomed_annotation(abstract_dict[k1], filter_words_df)
+			if res is not None:
+				cid_dict[k1] = res['conceptid'].tolist()
+				did_dict[k1] = res['description_id'].tolist()
+			else:
+				cid_dict[k1] = None
+				did_dict[k1] = None
+		return cid_dict, did_dict
+	else:
+		return None, None
+
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
 	for item in elem:
@@ -607,6 +624,75 @@ def get_article_info(elem, json_str):
 
 	return json_str
 
+def get_article_info_2(elem, json_str):
+
+	try:
+		article_elem = elem.find('./MedlineCitation/Article')
+	except:
+		json_str['article_title'] = None
+		json_str['article_abstract'] = None
+		json_str['article_type'] = None
+		json_str['article_type_id'] = None
+
+	try:
+		title_elem = article_elem.find('./ArticleTitle')
+		json_str['article_title'] = title_elem.text
+	except:
+		json_str['article_title'] = None
+
+	try:
+		abstract_elem = article_elem.find('./Abstract')
+		abstract_dict = {}
+
+		for abstract_sub_elem in abstract_elem:
+
+			if not abstract_sub_elem.attrib:
+
+				if 'unassigned' not in abstract_dict.keys():
+					abstract_dict['unassigned'] = abstract_sub_elem.text 
+				else:
+					abstract_dict['unassigned'] = abstract_dict['unassigned'] + "\r" + abstract_sub_elem.text
+
+			else:			
+				try:
+					if abstract_sub_elem.attrib['NlmCategory'].lower() in abstract_dict.keys():
+						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = \
+							abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] + "\r" + abstract_sub_elem.text 
+					else:
+						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = abstract_sub_elem.text
+				except:
+					
+					try: 
+						if abstract_sub_elem.attrib['Label'].lower() in abstract_dict.keys():
+							abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = \
+								abstract_dict[abstract_sub_elem.attrib['Label'].lower()] + "\r" + abstract_sub_elem.text 
+						else:
+							abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text
+					except:
+						if 'unassigned' not in abstract_dict.keys():
+							abstract_dict['unassigned'] = abstract_sub_elem.text 
+						else:
+							abstract_dict['unassigned'] = abstract_dict['unassigned'] + "\r" + abstract_sub_elem.text
+
+		json_str['article_abstract'] = abstract_dict
+
+	except:
+		json_str['article_abstract'] = None
+
+	try:
+		article_type_elem = article_elem.findall('./PublicationTypeList/PublicationType')
+		json_str['article_type'] = []
+		json_str['article_type_id'] = []
+
+		for node in article_type_elem:
+			json_str['article_type'].append(node.text)
+			json_str['article_type_id'].append(node.attrib['UI'])
+	except:
+		json_str['article_type'] = None
+		json_str['article_type_id'] = None
+
+	return json_str
+
 def get_snomed_annotation(text, filter_words_df):
 	cursor = pg.return_postgres_cursor()
 	if text is None:
@@ -629,7 +715,8 @@ if __name__ == "__main__":
 	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 	cursor.close()
 
-	start_file = 510
+	# start_file = 510
+	start_file = 600
 	while (start_file < 893):
 		print(start_file)
 		load_pubmed_local_2(start_file, filter_words_df)
