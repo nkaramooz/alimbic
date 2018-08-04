@@ -1012,79 +1012,69 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 			abstract_cids = get_abstract_cids(sr)
 
 			agg_tx = get_query_concept_types_df_2(title_cids, cursor, 'treatment')
-			agg_tx['count'] = 1
-			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
-			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
-			agg_tx = ann.add_names(agg_tx)
-			agg_tx = agg_tx.sort_values(['count'], ascending=False)
+			if len(agg_tx) > 0:
+				agg_tx['count'] = 1
+				agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
+				agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
+				agg_tx = ann.add_names(agg_tx)
+				agg_tx = agg_tx.sort_values(['count'], ascending=False)
 
 
-			for index,row in agg_tx.iterrows():
-				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-				sub_dict['treatment'].append(item_dict)
+				for index,row in agg_tx.iterrows():
+					item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
+					sub_dict['treatment'].append(item_dict)
 		
 			agg_dx = get_query_concept_types_df_2(abstract_cids, cursor, 'diagnostic')
-			agg_dx.append(get_query_concept_types_df_2(title_cids, cursor, 'diagnostic'))
-			agg_dx['count'] = 1
-			agg_dx = agg_dx.groupby(['conceptid'],  as_index=False)['count'].sum()
-			agg_dx = de_dupe_synonyms_2(agg_dx, cursor)
-			agg_dx = ann.add_names(agg_dx)
-			agg_dx = agg_dx.sort_values(['count'], ascending=False)
+			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, cursor, 'diagnostic'))
 
-			for index,row in agg_dx.iterrows():
-				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-				sub_dict['diagnostic'].append(item_dict)
+			if len(agg_dx) > 0:
+				agg_dx['count'] = 1
+				agg_dx = agg_dx.groupby(['conceptid'],  as_index=False)['count'].sum()
+				agg_dx = de_dupe_synonyms_2(agg_dx, cursor)
+				agg_dx = ann.add_names(agg_dx)
+				agg_dx = agg_dx.sort_values(['count'], ascending=False)
+
+				for index,row in agg_dx.iterrows():
+					item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
+					sub_dict['diagnostic'].append(item_dict)
 			
 			result_dict[root_cid] = sub_dict
 	elif query_type == 'symptom':
-		# condition_query =  	{"from" : 0, \
-		# 		 "size" : 1000, \
-		# 		 "query": \
-		# 	 		{"bool": { \
-		# 				"must": \
-		# 					[{"query_string": {"fields" : ["title_conceptids", "abstract_conceptids"], \
-		# 					 "query" : get_concept_query_string(query_concept_list, cursor)}}], \
-		# 				"must_not": [get_article_type_filters()]}}}
+
 		condition_query = { "from" : 0, "size" : 400, \
 						"query": {"bool" : {"must": \
-							[{"query_string": {"fields" : ["title_conceptids^5"], \
+							[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
 							 "query" : get_concept_query_string(query_concept_list, cursor)}}], "must_not" : get_article_type_filters()}}}
-						
-		# condition_query = {"from" : 0, \
-		# 		 "size" : 100, \
-		# 		 "query": get_query(query_concept_list, None, cursor)}
-
 		sr = es.search(index=INDEX_NAME, body=condition_query)
 
 		sr_conceptids = get_conceptids_from_sr(sr)
 
 		if len(sr_conceptids) > 0:
-
-			dist_sr_conceptids = list(set(sr_conceptids))
-
-			agg_df = get_query_concept_types_df(dist_sr_conceptids, cursor)
-			agg_df = agg_df[agg_df['concept_type'].isin(['condition'])]
-
-			concept_types = list(set(agg_df['concept_type'].tolist()))
-
 			sub_dict = dict()
 			sub_dict['term'] = root_concept_name
 			sub_dict['condition'] = []
 
-			sr_conceptid_df = agg_df.copy()
-			sr_conceptid_df['count'] = 1
-			sr_conceptid_df = sr_conceptid_df.groupby(['conceptid'], as_index=False)['count'].sum()
+			title_cids = get_title_cids(sr)
+			# abstract_cids = get_abstract_cids(sr)
 
-			if len(sr_conceptid_df) > 0:
-							
-				sr_conceptid_df = de_dupe_synonyms(sr_conceptid_df, cursor)
-				sr_conceptid_df = ann.add_names(sr_conceptid_df)
-				sr_conceptid_df = sr_conceptid_df.sort_values(['count'], ascending=False)
+			agg_dx = get_query_concept_types_df_2(title_cids, cursor, 'condition')
+			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, cursor, 'cause'))
 
-				for index,row in sr_conceptid_df.iterrows():
+			# u.pprint(get_query_concept_types_df_2(title_cids, cursor, 'cause'))
+			if len(agg_dx) > 0:
+				agg_dx['count'] = 1
+				agg_dx = agg_dx.groupby(['conceptid'], as_index=False)['count'].sum()
+				agg_dx = de_dupe_synonyms_2(agg_dx, cursor)
+				agg_dx = ann.add_names(agg_dx)
+				agg_dx = agg_dx.sort_values(['count'], ascending=False)
+
+
+				for index,row in agg_dx.iterrows():
 					item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 					sub_dict['condition'].append(item_dict)
+		
 			result_dict[root_cid] = sub_dict
+			u.pprint(result_dict)
 
 
 	return result_dict
@@ -1110,20 +1100,23 @@ def de_dupe_synonyms(df, cursor):
 
 def de_dupe_synonyms_2(df, cursor):
 
-	synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
+	if len(df) > 0:
+		synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
 
-	for ind,t in df.iterrows():
-		cnt = df[df['conceptid'] == t['conceptid']]
-		ref = synonyms[synonyms['reference_conceptid'] == t['conceptid']]
+		for ind,t in df.iterrows():
+			cnt = df[df['conceptid'] == t['conceptid']]
+			ref = synonyms[synonyms['reference_conceptid'] == t['conceptid']]
 
-		if len(ref) > 0:
-			new_conceptid = ref.iloc[0]['synonym_conceptid']
-			if len(df[df['conceptid'] == new_conceptid].index):
-				df.loc[ind, 'conceptid'] = new_conceptid
+			if len(ref) > 0:
+				new_conceptid = ref.iloc[0]['synonym_conceptid']
+				if len(df[df['conceptid'] == new_conceptid].index):
+					df.loc[ind, 'conceptid'] = new_conceptid
 
-	# df = df.groupby(['conceptid'], as_index=False)['count'].sum()
+		# df = df.groupby(['conceptid'], as_index=False)['count'].sum()
 
-	return df 
+		return df 
+	else:
+		return None
 
 def get_conceptids_from_sr(sr):
 	conceptid_list = []
