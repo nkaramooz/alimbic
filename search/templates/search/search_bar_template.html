@@ -19,14 +19,14 @@
 				<input type="text" name="query" class="search-field form-control" value="{{query}}">
 			</div>
 			<div class="form-group col-md-2">
+				<input type="hidden" name="query_type" value="keyword">
 				<input type="submit" value="search" class="btn btn-primary">
 			</div>
 		</div>
 		<div class="form-row filters">
 			<div class="form-group col-md-6">
       			<label for="journal_filter">Journals</label>
-      			<select class="form-control js-example-basic-multiple" name="journals[]" multiple="multiple" id="journal_filter">
-			  			
+      			<select class="form-control js-example-basic-multiple" name="journals[]" multiple="multiple" id="journal_filter">  			
 			  			<option value="Am Fam Physician" {% if 'Am Fam Physician' in journals %} selected="selected" {% endif %}>Am Fam Physician</option>
 			  			<option value="Am. J. Hypertens." {% if 'Am. J. Hypertens.' in journals %} selected="selected" {% endif %} >Am. J. Hypertens.</option>
 			  			<option value="Ann. Intern. Med" {% if 'Ann. Intern. Med' in journals %} selected="selected" {% endif %}>Ann. Intern. Med</option>

@@ -20,7 +20,7 @@ create table augmented_active_selected_concept_key_words_v2 as (
                 ,conceptid
                 ,term
                 ,word
-                ,word_ord
+                ,row_number () over (partition by description_id) as word_ord
             from (
                 select 
                     description_id
@@ -31,10 +31,9 @@ create table augmented_active_selected_concept_key_words_v2 as (
                 from annotation.augmented_selected_concept_descriptions
 
                 ) tb, unnest(string_to_array(replace(replace(replace(replace(term, ' - ', ' '), '-', ' '), ',', ''), '''', ''), ' '))
-                with ordinality as f(word, word_ord)
-            where row_num = 1 and active = '1'
+                with ordinality as f(word)
+            where row_num = 1 and active = '1' and lower(word) not in (select lower(words) from annotation.filter_words)
             ) nm
-        where lower(word) not in (select lower(words) from annotation.filter_words)
     ) concept_table
     join (
         select

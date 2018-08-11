@@ -42,6 +42,41 @@ def get_conceptid_name(conceptid, cursor):
 	name = pg.return_df_from_query(cursor, search_query, None, ['term'])['term'].to_string(index=False)
 	return name
 
+def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cursor):
+	insert_query = """
+		set schema 'annotation';
+		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(insert_query, (root_cid,associated_cid, new_rel_type, 1))
+	cursor.connection.commit()
+
+	insert_query = """
+		set schema 'annotation';
+		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+
+	cursor.execute(insert_query, (root_cid,associated_cid, new_rel_type, 1))
+	cursor.connection.commit()
+
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
+	return True
 
 def add_description(conceptid, description, cursor):
 
