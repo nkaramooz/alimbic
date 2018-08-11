@@ -105,9 +105,9 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
-		joined_results['final_score'] = joined_results['final_score'] + 0.04*joined_results['term_length']
+		joined_results['final_score'] = joined_results['final_score'] + 0.5*joined_results['term_length']
 
-		
+		# u.pprint(joined_results)
 		final_results = prune_results_v2(joined_results, joined_results)
 		
 		if len(final_results.index) > 0:
@@ -571,6 +571,7 @@ if __name__ == "__main__":
 	query39="findings from the Baltimore ECA."
 	query40 = "bare metal stent"
 	query41 = "ECG"
+	query42="lung adenocarcinoma"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -582,7 +583,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	
-	res = annotate_text_not_parallel(query41, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query32, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")

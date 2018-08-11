@@ -16,7 +16,7 @@ import boto3
 import re
 
 
-INDEX_NAME = 'pbt2'
+INDEX_NAME = 'pubmedx1'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -86,9 +86,9 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df)
 	
-					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d")
+					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		
-					json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
+					# json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
 	
 					json_str['filename'] = filename
 					pmid = json_str['pmid']
@@ -115,75 +115,6 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 
 
-
-def load_local(start_file, filter_words_df):
-	es = u.get_es_client()
-	number_of_processes = 60
-	pool = Pool(processes=number_of_processes)
-
-	index_exists = es.indices.exists(index=INDEX_NAME)
-	if not index_exists:
-		es.indices.create(index=INDEX_NAME, body={})
-
-	folder_arr = ['resources/production_baseline_2']
-
-	for folder_path in folder_arr:
-		file_counter = 0
-
-		for filename in os.listdir(folder_path):
-			abstract_counter = 0
-			file_path = folder_path + '/' + filename
-			
-			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
-
-			if file_num >= start_file:
-
-				print(filename)
-			
-				file_timer = u.Timer('file')
-
-				tree = ET.parse(file_path)		
-				root = tree.getroot()
-
-				file_abstract_counter = 0
-
-				for elem in root:
-					if elem.tag == 'PubmedArticle':
-						params = (elem, filter_words_df, filename)
-						pool.apply_async(index_doc_from_elem, params)
-						file_abstract_counter += 1
-						abstract_counter += 1
-
-					elif elem.tag == 'DeleteCitation':
-						delete_pmid_arr = get_deleted_pmid(elem)
-
-						for pmid in delete_pmid_arr:
-							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-							query_result = es.search(index=INDEX_NAME, body=get_article_query)
-
-							if query_result['hits']['total'] == 0:
-								continue
-							elif query_result['hits']['total'] == 1:
-								article_id = query_result['hits']['hits'][0]['_id']
-								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-							else:
-								print("delete: more than one document found")
-								print(pmid)
-						elem.clear()
-					else:
-						elem.clear()
-		
-				file_timer.stop()
-				
-				if file_num >= start_file+10:
-					break
-
-		# if file_num+10 < 893:
-		# 	break
-	pool.close()
-	pool.join()
-
-
 def load_pubmed_local_2(start_file, filter_words_df):
 	es = u.get_es_client()
 	number_of_processes = 8
@@ -200,7 +131,46 @@ def load_pubmed_local_2(start_file, filter_words_df):
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
-		es.indices.create(index=INDEX_NAME, body={})
+		settings = {"mappings" : {"abstract" : {"properties" : {
+			"journal_issn" : {"type" : "keyword"}
+			,"journal_issn_type" : {
+				"properties" : {"IssnType" : {"type" : "keyword"}}
+				}
+			,"journal_title" : {"type" : "text"}
+			,"journal_iso_abbrev" : {"type" : "keyword"}
+			,"journal_volume" : {"type" : "text"}
+			,"journal_issue" : {"type" : "text"}
+			,"journal_pub_year" : {"type" : "integer"}
+			,"journal_pub_month" : {"type" : "keyword"}
+			,"journal_pub_day" : {"type" : "keyword"}
+			,"journal_issue" : {"type" : "keyword"}
+			,"article_title" : {"type" : "text"}
+			,"article_abstract" : {"properties" : {}}
+			,"pmid" : {"type" : "integer"}
+			,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
+				"doi" : {"type" : "keyword"},
+				"pii" : {"type" : "keyword"}}}
+			,"citations_pmid" : {"type" : "keyword"}
+			,"title_conceptids" : {"type" : "keyword"}
+			,"title_dids" : {"type" : "keyword"}
+			,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
+				"background_cid" : {"type" : "keyword"},
+				"conclusions_cid" : {"type" : "keyword"},
+				"objective_cid" : {"type" : "keyword"},
+				"results_cid" : {"type" : "keyword"},
+				"unlabelled_cid" : {"type" : "keyword"}}}
+			,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
+				"background_did" : {"type" : "keyword"},
+				"conclusions_did" : {"type" : "keyword"},
+				"objective_did" : {"type" : "keyword"},
+				"results_did" : {"type" : "keyword"}}}
+			,"article_type_id" : {"type" : "keyword"}
+			,"article_type" : {"type" : "keyword"}
+			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
+			,"filename" : {"type" : "keyword"}
+		}}}}
+		es.indices.create(index=INDEX_NAME, body=settings)
+		
 
 	folder_arr = ['resources/production_baseline_2', 'resources/production_updates_10_21_17']
 
@@ -214,8 +184,6 @@ def load_pubmed_local_2(start_file, filter_words_df):
 			file_num = int(re.findall('medline17n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
-
-
 				print(filename)
 			
 				file_timer = u.Timer('file')
@@ -255,8 +223,8 @@ def load_pubmed_local_2(start_file, filter_words_df):
 				if file_num >= start_file+10:
 					break
 				
-		if file_num+10 < 893:
-			break
+		# if file_num+10 < 893:
+		# 	break
 				
 				
 
@@ -415,6 +383,7 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 			for k2 in abstract_dict[k1]:
 				res = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
 				if res is not None:
+
 					sub_cid_dict[k2] = res['conceptid'].tolist()
 					sub_did_dict[k2] = res['description_id'].tolist()
 				else:
@@ -434,12 +403,14 @@ def get_abstract_conceptids_2(abstract_dict, filter_words_df):
 	if abstract_dict is not None:
 		for k1 in abstract_dict:
 			res = get_snomed_annotation(abstract_dict[k1], filter_words_df)
+			k1_cid = str(k1) + "_cid"
+			k1_did = str(k1) + "_did"
 			if res is not None:
-				cid_dict[k1] = res['conceptid'].tolist()
-				did_dict[k1] = res['description_id'].tolist()
+				cid_dict[k1_cid] = res['conceptid'].tolist()
+				did_dict[k1_did] = res['description_id'].tolist()
 			else:
-				cid_dict[k1] = None
-				did_dict[k1] = None
+				cid_dict[k1_cid] = None
+				did_dict[k1_did] = None
 		return cid_dict, did_dict
 	else:
 		return None, None
@@ -596,7 +567,7 @@ def get_article_info(elem, json_str):
 				abstract_dict['text'] =  sub_elem_dict
 			else:
 				if abstract_sub_elem.attrib['Label'] == "":
-					sub_elem_dict["unassigned"] == abstract_sub_elem.text
+					sub_elem_dict["unlabelled"] == abstract_sub_elem.text
 				else:
 					sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
 
@@ -648,10 +619,10 @@ def get_article_info_2(elem, json_str):
 
 			if not abstract_sub_elem.attrib:
 
-				if 'unassigned' not in abstract_dict.keys():
-					abstract_dict['unassigned'] = abstract_sub_elem.text 
+				if 'unlabelled' not in abstract_dict.keys():
+					abstract_dict['unlabelled'] = abstract_sub_elem.text 
 				else:
-					abstract_dict['unassigned'] = abstract_dict['unassigned'] + "\r" + abstract_sub_elem.text
+					abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + abstract_sub_elem.text
 
 			else:			
 				try:
@@ -669,10 +640,10 @@ def get_article_info_2(elem, json_str):
 						else:
 							abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text
 					except:
-						if 'unassigned' not in abstract_dict.keys():
-							abstract_dict['unassigned'] = abstract_sub_elem.text 
+						if 'unlabelled' not in abstract_dict.keys():
+							abstract_dict['unlabelled'] = abstract_sub_elem.text 
 						else:
-							abstract_dict['unassigned'] = abstract_dict['unassigned'] + "\r" + abstract_sub_elem.text
+							abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + abstract_sub_elem.text
 
 		json_str['article_abstract'] = abstract_dict
 
@@ -716,8 +687,8 @@ if __name__ == "__main__":
 	cursor.close()
 
 	# start_file = 510
-	start_file = 600
-	while (start_file < 893):
+	start_file = 622
+	while (start_file < 1352):
 		print(start_file)
 		load_pubmed_local_2(start_file, filter_words_df)
 		start_file += 11
