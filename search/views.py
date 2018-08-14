@@ -11,7 +11,7 @@ import math
 from django.http import JsonResponse
 # Create your views here.
 
-INDEX_NAME='pubmedx'
+INDEX_NAME='pubmedx1'
 
 
 lowDoseArr = [15,12,12,12,12,7,10]
@@ -692,6 +692,7 @@ def concept_search_results(request):
 		if "concept_type_override" in request.POST:
 			if 'error_present' in request.POST:
 				if request.POST['error_present'] == 'true':
+					u.pprint(request.POST)
 					root_cid = request.POST['root_cid']
 					associated_cid = request.POST['associated_cid']
 
@@ -706,8 +707,10 @@ def concept_search_results(request):
 					try:
 						concept_type = request.POST['concept_type']
 					except:
-						error_type = None
+						concept_type = None
+
 					curr_concept_type = None
+					
 					try:
 						curr_concept_type = request.POST['curr_concept_type']
 					except:
@@ -717,98 +720,95 @@ def concept_search_results(request):
 						print(root_cid)
 						print(request.POST)
 						u.modify_concept_type(root_cid, None, concept_type, curr_concept_type, cursor)
-	else:
-		if request.GET['query_type'] == 'pivot':
-			conceptid1 = request.GET['conceptid1']
-			conceptid2 = request.GET['conceptid2']
-			term1 = request.GET['term1']
-			term2 = request.GET['term2']
-			query = term1 + " " + term2
-			params = {}
-			try:
-				params['journals'] = request.GET.getlist('journals[]')
-			except:
-				params['journals'] = []
-		
-			try:
-				if request.GET['start_year'] == '':
-					params['start_year'] = None
-				else:
-					params['start_year'] = request.GET['start_year']
-				
-			except:
+					elif error_type == 'too_broad':
+						print(root_cid)
+						print(request.POST)
+						u.modify_concept_type(root_cid, None, 'too_broad', curr_concept_type, cursor)
+					elif error_type == 'contextual_mistype':
+						print(root_cid)
+						print(request.POST)
+						u.modify_concept_type(root_cid, associated_cid, concept_type, curr_concept_type, cursor)
+					elif error_type == 'annotation_error':
+						print(root_cid)
+						print(request.POST)
+						u.log_annotation_error(root_cid, associated_cid, curr_concept_type, cursor)
+
+	if request.GET['query_type'] == 'pivot':
+		conceptid1 = request.GET['conceptid1']
+		conceptid2 = request.GET['conceptid2']
+		term1 = request.GET['term1']
+		term2 = request.GET['term2']
+		query = term1 + " " + term2
+		params = {}
+		try:
+			params['journals'] = request.GET.getlist('journals[]')
+		except:
+			params['journals'] = []
+	
+		try:
+			if request.GET['start_year'] == '':
 				params['start_year'] = None
-		
-			try:
-				if request.GET['end_year'] == '':
-					params['end_year'] = None 
-				else:
-					params['end_year'] = request.GET['end_year']
-			except:
-				params['end_year'] = None
-		
-			res = conceptid_search_results(request, query, conceptid1, conceptid2, params['journals'], params['start_year'], params['end_year'])
-			params.update(res)
-		
-			return render(request, 'search/concept_search_results_page.html', params)
-		elif request.GET['query_type'] == 'keyword':
-
-			journals = request.GET.getlist('journals[]')
-
-			query = request.GET['query']
-			start_year = request.GET['start_year']
-			end_year = request.GET['end_year']
-
-			es = u.get_es_client()	
-
-			query = ann.clean_text(query)
-
-			
-			filter_words_query = "select words from annotation.filter_words"
-			filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-
-			query_concepts_df = ann.annotate_text_not_parallel(query, filter_words_df, cursor, True)
-
-			sr = dict()
-			related_dict = dict()
-			query_concepts_dict = dict()
-			if query_concepts_df is not None:
-				unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
-				full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
-
-				flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
-				
-				query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
-				symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
-				condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
-				query_concept_count = len(query_concepts_df.index)
-
-				# single condition query
-				if (symptom_count == 0 and condition_count != 0 and query_concept_count == 1):
-					related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'condition')
-				elif (symptom_count != 0 and condition_count == 0):
-					related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'symptom')
-				else:
-					related_dict = None
-
-				query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
-
-				es_query = {"from" : 0, \
-						 "size" : 100, \
-						 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor)}
-
-				sr = es.search(index=INDEX_NAME, body=es_query)
-
-			###UPDATE QUERY BELOW FOR FILTERS
 			else:
-				es_query = get_text_query(query)
-				sr = es.search(index=INDEX_NAME, body=es_query)
-
-			sr_payload = get_sr_payload(sr['hits']['hits'])
-
-			return render(request, 'search/concept_search_results_page.html', \
-				{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
-				'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}})
+				params['start_year'] = request.GET['start_year']
+			
+		except:
+			params['start_year'] = None
+	
+		try:
+			if request.GET['end_year'] == '':
+				params['end_year'] = None 
+			else:
+				params['end_year'] = request.GET['end_year']
+		except:
+			params['end_year'] = None
+	
+		res = conceptid_search_results(request, query, conceptid1, conceptid2, params['journals'], params['start_year'], params['end_year'])
+		params.update(res)
+	
+		return render(request, 'search/concept_search_results_page.html', params)
+	else:
+		journals = request.GET.getlist('journals[]')
+		query = request.GET['query']
+		start_year = request.GET['start_year']
+		end_year = request.GET['end_year']
+		es = u.get_es_client()	
+		query = ann.clean_text(query)
+		
+		filter_words_query = "select words from annotation.filter_words"
+		filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+		query_concepts_df = ann.annotate_text_not_parallel(query, filter_words_df, cursor, True)
+		sr = dict()
+		related_dict = dict()
+		query_concepts_dict = dict()
+		if query_concepts_df is not None:
+			unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
+			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
+			
+			query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
+			symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
+			condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
+			query_concept_count = len(query_concepts_df.index)
+			# single condition query
+			if (symptom_count == 0 and condition_count != 0 and query_concept_count == 1):
+				related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'condition')
+			elif (symptom_count != 0 and condition_count == 0):
+				related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'symptom')
+			else:
+				related_dict = None
+			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+			es_query = {"from" : 0, \
+					 "size" : 100, \
+					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor)}
+			sr = es.search(index=INDEX_NAME, body=es_query)
+		###UPDATE QUERY BELOW FOR FILTERS
+		else:
+			es_query = get_text_query(query)
+			sr = es.search(index=INDEX_NAME, body=es_query)
+		sr_payload = get_sr_payload(sr['hits']['hits'])
+		return render(request, 'search/concept_search_results_page.html', \
+			{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
+			'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}})
 
 
 
@@ -892,12 +892,12 @@ def get_concept_names_dict_for_sr(sr):
 
 def get_article_type_filters():
 	filt = [ \
-			{"match": {"article_type" : "Letter"}}, \
-			{"match": {"article_type" : "Editorial"}}, \
-			{"match": {"article_type" : "Comment"}}, \
-			{"match": {"article_type" : "Biography"}}, \
-			{"match": {"article_type" : "Patient Education Handout"}}, \
-			{"match": {"article_type" : "News"}}
+			{"term": {"article_type" : "Letter"}}, \
+			{"term": {"article_type" : "Editorial"}}, \
+			{"term": {"article_type" : "Comment"}}, \
+			{"term": {"article_type" : "Biography"}}, \
+			{"term": {"article_type" : "Patient Education Handout"}}, \
+			{"term": {"article_type" : "News"}}
 			]
 	return filt
 
@@ -927,7 +927,7 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 							[{"query_string": {"fields" : ["article_title^5", "article_abstract.*"], \
 							"query" : unmatched_terms}}]}
 
-	
+
 	if (len(journals) > 0) or start_year or end_year:
 		d = {"bool" : {}}
 
@@ -947,7 +947,7 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 		# print(es_query["bool"]["must"].append("test"))
 		# es_query["bool"]["filter"] = d["filter"]
 		es_query["bool"]["filter"] = d
-		print(es_query)
+
 		# es_query["bool"]["must"].append({"bool" : {"must" : [{"term" : {"_source.journal_iso_abbrev": 'N. Engl. J. Med.'}}]}})
 		# es_query["bool"]["filter"] = {"bool" : {"must" : [{"match" : {"journal_iso_abbrev": "N. Engl. J. Med."}}]}}
 		# es_query["bool"]["must"].append({"filter" : {"journal_iso_abbrev" : 'N. Engl. J. Med.'}})
@@ -1032,21 +1032,55 @@ def get_query_concept_types_df(flattened_concept_list, cursor):
 
 	return query_concept_type_df
 
-def get_query_concept_types_df_2(flattened_concept_list, cursor, concept_type):
+def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cursor, concept_type):
 
 	if len(flattened_concept_list) > 0:
-		concept_type_query_string = "select distinct root_cid as conceptid, rel_type as concept_type from annotation.concept_types where root_cid in %s and \
-			rel_type = %s"
 
-		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
-			(tuple(flattened_concept_list),concept_type), ["conceptid", "concept_type"])
+		concept_type_query_string = """
+				select
+				tb2.conceptid
+				,tb2.concept_type
+			from (
+				select
+					root_cid as conceptid
+				  	,rel_type as concept_type
+				from (
+					select 
+						root_cid
+				    	,associated_cid
+				    	,rel_type
+				    	,effectivetime
+				    	,active
+				    	,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
+					from annotation.concept_types
+					where root_cid in %s and associated_cid in %s and rel_type=%s) tb1
+				where active=1 and row_num=1 ) tb2
+			union
+				select
+					root_cid as conceptid
+			    	,rel_type as concept_type
+				from (
+					select 
+						root_cid
+					    ,associated_cid
+					    ,rel_type
+					    ,effectivetime
+					    ,active
+					    ,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
+					from annotation.concept_types
+					where root_cid in %s and rel_type=%s) tb3
+			    where active=1 and row_num=1
+		"""
+		### THIS WONT WORK WITH MULTIPLE CONCEPTS
+
+		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (tuple(flattened_concept_list), tuple(query_concept_list[0]), \
+				concept_type, tuple(flattened_concept_list), concept_type), ["conceptid", "concept_type"])
 
 		return query_concept_type_df
 	else:
 		return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
 def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_type):
-
 	result_dict = dict()
 	es = u.get_es_client()
 	root_concept_name = ""
@@ -1073,7 +1107,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 			 		{"bool": { \
 						"must": \
 							[{"query_string": {"fields" : ["title_conceptids"], \
-							 "query" : get_concept_query_string(query_concept_list, cursor)}}], \
+							 "query" : get_concept_query_string(query_concept_list, cursor), "fuzziness" : 0}}], \
 						"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
 							"query" : '30207005'}}]}}}
 		sr = es.search(index=INDEX_NAME, body=treatments_query)
@@ -1089,7 +1123,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 			title_cids = get_title_cids(sr)
 			abstract_cids = get_abstract_cids(sr)
 
-			agg_tx = get_query_concept_types_df_2(title_cids, cursor, 'treatment')
+			agg_tx = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'treatment')
 			if len(agg_tx) > 0:
 				agg_tx['count'] = 1
 				agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
@@ -1102,8 +1136,8 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 					item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 					sub_dict['treatment'].append(item_dict)
 
-			agg_dx = get_query_concept_types_df_2(abstract_cids, cursor, 'diagnostic')
-			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, cursor, 'diagnostic'))
+			agg_dx = get_query_concept_types_df_2(abstract_cids, query_concept_list, cursor, 'diagnostic')
+			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'diagnostic'))
 
 			if len(agg_dx) > 0:
 				agg_dx['count'] = 1
@@ -1122,7 +1156,7 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 		condition_query = { "from" : 0, "size" : 400, \
 						"query": {"bool" : {"must": \
 							[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
-							 "query" : get_concept_query_string(query_concept_list, cursor)}}], "must_not" : get_article_type_filters()}}}
+							 "query" : get_concept_query_string(query_concept_list, cursor), "fuzziness" : 0}}], "must_not" : get_article_type_filters()}}}
 		sr = es.search(index=INDEX_NAME, body=condition_query)
 
 		sr_conceptids = get_conceptids_from_sr(sr)
@@ -1135,8 +1169,8 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 			title_cids = get_title_cids(sr)
 			# abstract_cids = get_abstract_cids(sr)
 
-			agg_dx = get_query_concept_types_df_2(title_cids, cursor, 'condition')
-			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, cursor, 'cause'))
+			agg_dx = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'condition')
+			agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'cause'))
 
 			# u.pprint(get_query_concept_types_df_2(title_cids, cursor, 'cause'))
 			if len(agg_dx) > 0:
@@ -1152,8 +1186,6 @@ def get_related_conceptids(query_concept_list, unmatched_terms, cursor, query_ty
 					sub_dict['condition'].append(item_dict)
 		
 			result_dict[root_cid] = sub_dict
-			u.pprint(result_dict)
-
 
 	return result_dict
 

@@ -313,7 +313,7 @@ def add_names(results_df):
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
-		search_query = "select distinct on (conceptid) conceptid, term from annotation.augmented_selected_concept_descriptions \
+		search_query = "select conceptid, term from annotation.preferred_concept_names \
 			where conceptid in %s"
 
 		params = (tuple(results_df['conceptid']),)

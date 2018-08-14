@@ -64,6 +64,7 @@ create table base_concept_types as (
 				when supertypeid = '363679005' then 'diagnostic' -- Imaging (procedure)
 				when supertypeid = '56402004' then 'diagnostic' --  Biopsy of mucous membrane (procedure)
 				when supertypeid = '392089008' then 'treatment' -- Breast procedure (procedure)
+				when supertypeid = '65818007' then 'treatment' -- Stent device (physical object)
 
 				when supertypeid = '303679003' then 'diagnostic' -- Computed tomography of systems (procedure)
 				when supertypeid = '265244003' then 'treatment' -- Endocrine system and/or breast operations (procedure)

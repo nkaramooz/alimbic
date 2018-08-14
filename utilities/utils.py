@@ -27,22 +27,58 @@ def get_conceptid_name(conceptid, cursor):
 	search_query = """
 		select 
 			term
-		from (
-		select 
-			length(term)
-    		,term
-    		,conceptid
-    		, row_number () over (partition by conceptid order by length(term) desc) as row_num
-		from annotation.augmented_selected_concept_descriptions 
+		from annotation.preferred_concept_names
 		where conceptid = '%s'
-		) tb
-		where row_num = 1
 	""" % conceptid
 
 	name = pg.return_df_from_query(cursor, search_query, None, ['term'])['term'].to_string(index=False)
 	return name
 
+def log_annotation_error(root_cid, associated_cid, old_rel_type, cursor):
+	log_query = """
+		set schema 'annotation';
+		INSERT INTO annotation_errors (root_cid, associated_cid, effectivetime)
+		VALUES(%s, %s, now())
+	"""
+
+	cursor.execute(log_query, (root_cid, associated_cid))
+	cursor.connection.commit()
+
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
+	return True
+
 def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cursor):
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
+	remove_query = """
+		set schema 'annotation';
+		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
+		VALUES (%s, %s, %s, %s, now())
+	"""
+	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
+	cursor.connection.commit()
+
 	insert_query = """
 		set schema 'annotation';
 		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
@@ -58,22 +94,6 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	"""
 
 	cursor.execute(insert_query, (root_cid,associated_cid, new_rel_type, 1))
-	cursor.connection.commit()
-
-	remove_query = """
-		set schema 'annotation';
-		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
-		VALUES (%s, %s, %s, %s, now())
-	"""
-	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
-	cursor.connection.commit()
-
-	remove_query = """
-		set schema 'annotation';
-		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
-		VALUES (%s, %s, %s, %s, now())
-	"""
-	cursor.execute(remove_query, (root_cid,associated_cid, old_rel_type, 0))
 	cursor.connection.commit()
 
 	return True
@@ -458,9 +478,7 @@ def insert_new_vc_case(uid, casename, cursor):
 	return cid
 
 def get_es_client():
-	# es = Elasticsearch(hosts=[{'host': \
-	# 	'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', \
-	# 	'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	# es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	return es
 
