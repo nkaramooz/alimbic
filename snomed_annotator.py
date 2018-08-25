@@ -58,9 +58,10 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		if word.upper() != word:
 			word = word.lower()
 
-		if (filter_df['words'] == word).any():
-			continue
-		else:
+		# if (filter_df['words'] == word).any():
+		# 	continue
+		# else:
+		if True:
 			if word.lower() != 'vs':
 				word = lmtzr.lemmatize(word)
 
@@ -583,7 +584,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	
-	res = annotate_text_not_parallel(query32, filter_words_df, cursor, False)
+	res = annotate_text_not_parallel(query2, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
@@ -604,5 +605,4 @@ if __name__ == "__main__":
 	# 	counter -= 1
 	# u.pprint(sum_time/20)
 	u.pprint("*****************************")
-	
 	
