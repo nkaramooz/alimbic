@@ -194,10 +194,10 @@ def deactivate_description_id(description_id, cursor):
 
 
 		delete_description_id_from_table(description_id, \
-			"augmented_active_selected_concept_key_words_v2", cursor)
+			"augmented_active_key_words_v3", cursor)
 		
 		delete_description_id_from_table(description_id, \
-			"augmented_active_selected_concept_key_words_lemmas_2", cursor)
+			"lemmas_3", cursor)
 
 
 		if is_duplicate_description_id_for_table(description_id, \
@@ -420,7 +420,8 @@ def lemmatize_description_id(description_id, cursor):
 
 
 def lemmatize_table():
-	query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
+	# query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
+	query = "select * from annotation.augmented_active_key_words_v3"
 	cursor = pg.return_postgres_cursor()
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
@@ -433,16 +434,26 @@ def lemmatize_table():
 	new_candidate_df.loc[new_candidate_df.word != 'vs', 'word'] = new_candidate_df.loc[new_candidate_df.word != 'vs']['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()
 
-	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
+	# new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
+	# 	engine, schema='annotation', if_exists='replace', index=False)
+	new_candidate_df.to_sql('lemmas_3', \
 		engine, schema='annotation', if_exists='replace', index=False)
 
+	# index_query = """
+	# 	set schema 'annotation';
+	# 	create index lemmas_conceptid_ind on augmented_active_selected_concept_key_words_lemmas_2(conceptid);
+	# 	create index lemmas_description_id_ind on augmented_active_selected_concept_key_words_lemmas_2(description_id);
+	# 	create index lemmas_term_ind on augmented_active_selected_concept_key_words_lemmas_2(term);
+	# 	create index lemmas_word_ind on augmented_active_selected_concept_key_words_lemmas_2(word);
+	# 	create index lemmas_word_ord_ind on augmented_active_selected_concept_key_words_lemmas_2(word_ord);
+	# """
 	index_query = """
 		set schema 'annotation';
-		create index lemmas_conceptid_ind on augmented_active_selected_concept_key_words_lemmas_2(conceptid);
-		create index lemmas_description_id_ind on augmented_active_selected_concept_key_words_lemmas_2(description_id);
-		create index lemmas_term_ind on augmented_active_selected_concept_key_words_lemmas_2(term);
-		create index lemmas_word_ind on augmented_active_selected_concept_key_words_lemmas_2(word);
-		create index lemmas_word_ord_ind on augmented_active_selected_concept_key_words_lemmas_2(word_ord);
+		create index lemmas3_conceptid_ind on lemmas_3(conceptid);
+		create index lemmas3_description_id_ind on lemmas_3(description_id);
+		create index lemmas3_term_ind on lemmas_3(term);
+		create index lemmas3_word_ind on lemmas_3(word);
+		create index lemmas3_word_ord_ind on lemmas_3(word_ord);
 	"""
 
 	cursor.execute(index_query, None)

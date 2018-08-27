@@ -12,7 +12,7 @@ import time
 import multiprocessing as mp
 import copy
 import utilities.utils as u, utilities.pglib as pg
-
+import unittest
 
 
 def get_new_candidate_df(word, cursor, case_sensitive):
@@ -21,16 +21,31 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	new_candidate_query = ""
 
 	if case_sensitive:
+		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+		# 	case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+		# 	description_id in \
+		# 	(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
+		# 		(word_ord = 1 or word_ord = 2))"
 		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-			case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
-			(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
+			(select description_id from annotation.lemmas_3 where word = %s and \
 				(word_ord = 1 or word_ord = 2))"
 	else:
+		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+		# 	case when word ilike %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+		# 	description_id in \
+		# 	(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word ilike %s and \
+		# 		(word_ord = 1 or word_ord = 2))"
+		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
+		# 	case when word ilike %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
+		# 	description_id in \
+		# 	(select description_id from annotation.lemmas_3 where word ilike %s and \
+		# 		(word_ord = 1 or word_ord = 2))"
 		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-			case when word ilike %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
+			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
-			(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word ilike %s and \
+			(select description_id from annotation.lemmas_3 where word = %s and \
 				(word_ord = 1 or word_ord = 2))"
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
@@ -39,7 +54,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive):
-
+	
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
@@ -76,7 +91,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 				candidate_df_arr.append(new_candidate_df)
 						
 
-			candidate_df_arr, new_results_df = get_results(candidate_df_arr)
+			candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 			results_df = results_df.append(new_results_df)
 	# u.pprint(results_df)
 	if len(results_df.index) > 0:
@@ -85,11 +100,11 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
 		
-		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'term', 'order_score']].groupby(\
+		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
 
 
-		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'term']].drop_duplicates()
+		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
 
 		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
@@ -118,13 +133,14 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 
 	return None
 
-def get_results(candidate_df_arr):
+def get_results(candidate_df_arr, end_index):
 	## no description here
 	new_candidate_df_arr = []
 	results_df = pd.DataFrame()
 	for index,df in enumerate(candidate_df_arr):
 		exclusion_series = df[df['l_dist'] == 0]['description_id'].tolist()
-		new_results = df[~df['description_id'].isin(exclusion_series)]
+		new_results = df[~df['description_id'].isin(exclusion_series)].copy()
+		new_results['description_end_index'] = end_index
 		
 		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
 		if len(remaining_candidates.index) != 0:
@@ -324,13 +340,6 @@ def add_names(results_df):
 		return results_df
 
 
-def annotate_line(line, filter_words_df):
-	cursor = pg.return_postgres_cursor()
-	line = clean_text(line)
-	annotation = return_line_snomed_annotation(cursor, line, 93, filter_words_df)
-
-	return annotation
-
 def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive):
 
 	line = clean_text(line)
@@ -503,6 +512,40 @@ def clean_text(line):
 	line = re.sub("\(.*?\)","",line)
 	return line
 
+def timeLimit(t, ref):
+	return (t <= ref)
+
+class TestAnnotator(unittest.TestCase):
+
+	def test_equal(self):
+		queryArr = [("protein c deficiency protein s deficiency", 10, ['1233987014', '1221214016']),
+			("chronic obstructive pulmonary disease and congestive heart failure", 22, ['475431013', '70653017'])]
+
+
+		cursor = pg.return_postgres_cursor()
+		for q in queryArr:
+			check_timer = u.Timer(q[0])
+		
+			filter_words_query = "select words from annotation.filter_words"
+			filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+
+			res = annotate_text_not_parallel(q[0], filter_words_df, cursor, False)
+			u.pprint("=============================")
+			
+			if res is not None:
+				res = acronym_check(res)
+			
+			u.pprint(res)
+			t = check_timer.stop_num()
+			d = ((q[1]-t)/t)*100
+			self.assertTrue(timeLimit(t, q[1]))
+			print(res['description_id'].values)
+			self.assertTrue(set(res['description_id'].values) == set(q[2]))
+			print(t)
+			u.pprint("============================")
+
+	
+
 if __name__ == "__main__":
 
 	# query = """
@@ -515,7 +558,7 @@ if __name__ == "__main__":
 		chronic obstructive pulmonary disease and congestive heart failure
 	"""
 	query3 = """
-		Cough as night asthma congestion sputum
+		Cough at night asthma congestion sputum
 	"""
 	query4 = """
 		H2-receptor antagonists
@@ -537,7 +580,7 @@ if __name__ == "__main__":
 		Diastolic heart failure--abnormalities in active relaxation and passive stiffness of the left ventricle.
 	"""
 	query9 = "Grave's disease"
-	query10 = "exacerbation of COPD"
+	query10 = "exacerbation of chronic obstructive pulmonary disease"
 	query11= "cancer of ovary"
 	query12 = "Letter: What is \"refractory\" cardiac failure?"
 	query13 = "Step-up therapy for children with uncontrolled asthma receiving inhaled corticosteroids."
@@ -573,6 +616,7 @@ if __name__ == "__main__":
 	query40 = "bare metal stent"
 	query41 = "ECG"
 	query42="lung adenocarcinoma"
+	query43="ovary cancer"
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -583,17 +627,42 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	
+	# query 11
 	res = annotate_text_not_parallel(query2, filter_words_df, cursor, False)
 	u.pprint("=============================")
 	if res is None:
 		print("No matches")
 	else:
-		# u.pprint(add_names(res))
-		
-		u.pprint(res)
-		u.pprint(acronym_check(res))
+		c_df = acronym_check(res)
+		u.pprint(c_df)
 	check_timer.stop()
+	
+	# c_res = pd.DataFrame()
+	# sentence_arr = []
+
+	# line = clean_text(query29)
+	# ln_words = line.split()
+	# concept_counter = 0
+	# concept_len = len(c_df)
+	# at_end = False
+	# for ind1, word in enumerate(ln_words):
+	# 	added = False
+	# 	while (concept_counter < concept_len):
+	# 		if ((ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
+	# 			sentence_arr.append((word, c_df.iloc[concept_counter]['conceptid']))
+	# 			added = True
+	# 			if ((ind1 == c_df.iloc[concept_counter]['description_end_index'])):
+	# 				print('test')
+	# 				concept_counter +=1
+	# 			break
+	# 		else:
+	# 			sentence_arr.append((word, 0))
+	# 			added = True
+	# 			break
+
+	# 	if not added:
+	# 		sentence_arr.append((word, 0))
+	# u.pprint(sentence_arr)
 
 
 	# counter = 20
@@ -604,5 +673,6 @@ if __name__ == "__main__":
 	# 	sum_time += a.stop_num()
 	# 	counter -= 1
 	# u.pprint(sum_time/20)
-	u.pprint("*****************************")
+	# u.pprint("*****************************")
+	# unittest.main()
 	
