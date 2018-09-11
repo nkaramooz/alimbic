@@ -23,6 +23,11 @@ def pprint(data_frame):
 		pd.set_option('display.width', 1000)
 		print(data_frame)
 
+def write_sentences(s_df, cursor):
+	engine = pg.return_sql_alchemy_engine()
+	s_df.to_sql('sentences', \
+		engine, schema='annotation', if_exists='append', index=False)
+
 def get_conceptid_name(conceptid, cursor):
 	search_query = """
 		select 
@@ -112,8 +117,12 @@ def add_description(conceptid, description, cursor):
 			insert_description_id_into_key_words_v2(conceptid, description_id, description, \
 				cursor)
 
+			insert_description_id_into_key_words_v3(conceptid, description_id, description, \
+				cursor)
+
 			### augmented_active_selected_concept_key_words_lemmas_2
 			lemmatize_description_id(description_id, cursor)
+			lemmatize_description_id_3(description_id, cursor)
 
 			### update_white_list
 			insert_into_whitelist(conceptid, description_id, description, cursor)
@@ -305,6 +314,11 @@ def insert_description_id_into_key_words_v2(conceptid, description_id, descripti
 	cursor.execute(insert_query, None)
 	cursor.connection.commit()
 
+def insert_description_id_into_key_words_v3(conceptid, description_id, description, cursor):
+	insert_query = get_key_word_query_3(conceptid, description_id, description)
+	cursor.execute(insert_query, None)
+	cursor.connection.commit()
+
 def insert_into_whitelist(conceptid, description_id, description, cursor):
 	insert_query = """
 			set schema 'annotation';
@@ -400,6 +414,73 @@ def get_key_word_query(conceptid, descriptionid, description):
 
 	return query
 
+def get_key_word_query_3(conceptid, descriptionid, description):
+	query = """
+		set schema 'annotation';
+		INSERT INTO augmented_active_key_words_v3 (description_id, conceptid, term, word, word_ord, term_length)
+
+		select 
+  			concept_table.description_id
+  			,concept_table.conceptid
+  			,concept_table.term
+  			,concept_table.word
+  			,concept_table.word_ord
+  			,len_tb.term_length
+		from (
+    		select 
+            	description_id
+            	,conceptid
+            	,term
+            	,case when upper(word) = word then word else lower(word) end as word
+            	,word_ord
+    		from (
+        		select 
+            		description_id
+            		,conceptid
+            		,term
+            		,word
+            		,word_ord
+        		from (
+            		select 
+                    	'%s'::text as description_id
+                    	,'%s'::text as conceptid
+                    	,'%s'::text as term
+               	) tb, unnest(string_to_array(replace(replace(replace(tb.term, ' - ', ' '), '-', ' '), ',', ''), ' '))
+                    with ordinality as f(word, word_ord)
+        	) nm
+  		) concept_table
+		join (
+    		select
+     			description_id
+      			,count(*) as term_length
+    		from (
+    		select 
+          		description_id
+          		,conceptid
+          		,term
+          		,word
+        	from (
+    			select
+    				description_id
+    				,conceptid
+    				,term
+    				,lower(unnest(string_to_array(replace(replace(replace(term, ' - ', ' '), '-', ' '), ',', ''), ' '))) as word
+    			from (
+					select 
+                    	'%s'::text as description_id
+                    	,'%s'::text as conceptid
+                    	,'%s'::text as term
+               		) tb 
+            	) tb2
+       		) tmp
+    		group by tmp.description_id
+   		) len_tb
+ 		on concept_table.description_id = len_tb.description_id
+ 	; 
+	""" % (descriptionid, conceptid, description, descriptionid, conceptid, description)
+
+	return query
+
 def lemma(word):
 	lmtzr = WordNetLemmatizer()
 	return lmtzr.lemmatize(word)
@@ -418,6 +499,19 @@ def lemmatize_description_id(description_id, cursor):
 	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
 		engine, schema='annotation', if_exists='append', index=False)
 
+def lemmatize_description_id_3(description_id, cursor):
+	query = """
+		select * from annotation.augmented_active_key_words_v3
+		where description_id = '%s'
+	""" % description_id
+
+	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
+	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
+
+	engine = pg.return_sql_alchemy_engine()
+	new_candidate_df.to_sql('lemmas_3', \
+		engine, schema='annotation', if_exists='append', index=False)
 
 def lemmatize_table():
 	# query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
