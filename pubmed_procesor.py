@@ -12,11 +12,10 @@ import os
 import datetime
 from multiprocessing import Pool
 import copy
-import boto3
 import re
 
 
-INDEX_NAME = 'pubmedx1'
+INDEX_NAME = 'pubmedx1.1'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -76,7 +75,8 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str['citations_pmid'] = get_article_citations(elem)
 
 
-					title_annotation = get_snomed_annotation(json_str['article_title'], filter_words_df)
+					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df)
+
 					if title_annotation is not None:
 						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
 						json_str['title_dids'] = title_annotation['description_id'].tolist()
@@ -84,8 +84,13 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						json_str['title_conceptids'] = None
 						json_str['title_dids'] = None
 
-					json_str['abstract_conceptids'], json_str['abstract_dids'] = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df)
-	
+					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df)
+					s = title_sentences.append(abstract_sentences)
+					s.columns =['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']
+					cursor = pg.return_postgres_cursor()
+					u.write_sentences(s, cursor)
+					cursor.close()
+
 					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		
 					# json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
@@ -381,7 +386,7 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 			sub_cid_dict = {}
 			sub_did_dict = {}
 			for k2 in abstract_dict[k1]:
-				res = get_snomed_annotation(abstract_dict[k1][k2], filter_words_df)
+				res,sentences = get_snomed_annotation(abstract_dict[k1][k2], 'body', filter_words_df)
 				if res is not None:
 
 					sub_cid_dict[k2] = res['conceptid'].tolist()
@@ -399,10 +404,10 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 def get_abstract_conceptids_2(abstract_dict, filter_words_df):
 	cid_dict = {}
 	did_dict = {}
-
+	sentences = pd.DataFrame()
 	if abstract_dict is not None:
 		for k1 in abstract_dict:
-			res = get_snomed_annotation(abstract_dict[k1], filter_words_df)
+			res,sentences = get_snomed_annotation(abstract_dict[k1], 'body', filter_words_df)
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			if res is not None:
@@ -411,9 +416,9 @@ def get_abstract_conceptids_2(abstract_dict, filter_words_df):
 			else:
 				cid_dict[k1_cid] = None
 				did_dict[k1_did] = None
-		return cid_dict, did_dict
+		return cid_dict, did_dict, sentences
 	else:
-		return None, None
+		return None, None, None
 
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
@@ -664,19 +669,19 @@ def get_article_info_2(elem, json_str):
 
 	return json_str
 
-def get_snomed_annotation(text, filter_words_df):
-	cursor = pg.return_postgres_cursor()
+def get_snomed_annotation(text, section, filter_words_df):
+	
 	if text is None:
-		return None
+		return None, None
 	else:
-		annotation = ann.annotate_text_not_parallel(text, filter_words_df, cursor, True)
+		cursor = pg.return_postgres_cursor()
+		annotation, sentences = ann.annotate_text_not_parallel(text, section, filter_words_df, cursor, True)
 
 		if annotation is not None:
-			annotation = ann.acronym_check(annotation)
-			return annotation
+			return annotation, sentences
 		else:
-			return None
-	cursor.close()
+			return None, None
+		cursor.close()
 
 if __name__ == "__main__":
 
