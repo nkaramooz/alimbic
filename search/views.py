@@ -776,7 +776,7 @@ def concept_search_results(request):
 		
 		filter_words_query = "select words from annotation.filter_words"
 		filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-		query_concepts_df = ann.annotate_text_not_parallel(query, filter_words_df, cursor, True)
+		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', filter_words_df, cursor, True)
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
@@ -859,6 +859,7 @@ def get_show_hide_components(sr_src, hit_dict):
 def get_unmatched_terms(query, query_concepts_df, filter_words_df):
 	unmatched_terms = ""
 	for index,word in enumerate(query.split()):
+
 		if (filter_words_df['words'] == word).any():
 			continue
 		elif len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
