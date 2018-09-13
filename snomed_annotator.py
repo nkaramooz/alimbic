@@ -30,7 +30,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
 			(select description_id from annotation.lemmas_3 where word = %s and \
-				(word_ord = 1 or word_ord = 2))"
+				(word_ord = 1))"
 	else:
 		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
 		# 	case when word ilike %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
@@ -46,7 +46,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
 			(select description_id from annotation.lemmas_3 where word = %s and \
-				(word_ord = 1 or word_ord = 2))"
+				(word_ord = 1))"
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
@@ -92,7 +92,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 						
 
 			candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
-			results_df = results_df.append(new_results_df)
+			results_df = results_df.append(new_results_df, sort=False)
 	# u.pprint(results_df)
 	if len(results_df.index) > 0:
 		order_score = results_df
@@ -145,7 +145,7 @@ def get_results(candidate_df_arr, end_index):
 		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
 		if len(remaining_candidates.index) != 0:
 			new_candidate_df_arr.append(remaining_candidates)
-		results_df = results_df.append(new_results)
+		results_df = results_df.append(new_results, sort=False)
 
 	return new_candidate_df_arr,results_df
 
@@ -160,7 +160,7 @@ def acronym_check(results_df):
 	acronym_df = results_df[results_df['acronym'] == True].copy()
 	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
-	final = non_acronyms_df.append(approved_acronyms)
+	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
 	
 
@@ -245,7 +245,7 @@ def prune_results_v2(scores_df, og_results):
 				exclude_index_arr.append(index)
 				exclude_index_arr.extend(new_exclude.index.values)
 
-			results_df = results_df.append(result)
+			results_df = results_df.append(result, sort=False)
 
 	if not changes_made:
 		final_results = pd.DataFrame()
@@ -255,7 +255,7 @@ def prune_results_v2(scores_df, og_results):
 				(og_results['term_start_index'] == row['term_start_index']) \
 				& (og_results['term_end_index'] == row['term_end_index'])]
 			
-			final_results = final_results.append(expanded_res)
+			final_results = final_results.append(expanded_res, sort=False)
 		return final_results
 	else:
 		return prune_results_v2(results_df, og_results)
@@ -295,7 +295,7 @@ def resolve_conflicts(results_df, cursor):
 
 		for index,row in join_weights.iterrows():
 			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
-				final_results = final_results.append(row)
+				final_results = final_results.append(row, sort=False)
 				last_term_start_index = row['term_start_index']
 				last_ln_number = row['ln_number']
 
@@ -318,7 +318,7 @@ def resolve_conflicts(results_df, cursor):
 
 		for index,row in conflicted_df.iterrows():
 			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
-				final_results = final_results.append(row)
+				final_results = final_results.append(row, sort=False)
 				last_term_start_index = row['term_start_index']
 				last_ln_number = row['ln_number']
 	return final_results
@@ -327,6 +327,7 @@ def resolve_conflicts(results_df, cursor):
 def add_names(results_df):
 	cursor = pg.return_postgres_cursor()
 	if results_df is None:
+		cursor.close()
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
@@ -337,6 +338,7 @@ def add_names(results_df):
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
 
 		results_df = results_df.merge(names_df, on='conceptid')
+		cursor.close()
 		return results_df
 
 
@@ -351,7 +353,7 @@ def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive):
 	return annotation
 
 def get_sentence_annotation(line, c_df):
-
+	c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
 	if len(c_df) >= 1:
 		c_res = pd.DataFrame()
 		sentence_arr = []
@@ -364,7 +366,6 @@ def get_sentence_annotation(line, c_df):
 		for ind1, word in enumerate(ln_words):
 			added = False
 			while (concept_counter < concept_len):
-
 				if ((ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
 					sentence_arr.append((word, c_df.iloc[concept_counter]['conceptid']))
 					added = True
@@ -378,6 +379,7 @@ def get_sentence_annotation(line, c_df):
 
 			if not added:
 				sentence_arr.append((word, 0))
+
 		return sentence_arr
 	else:
 		return None
@@ -483,7 +485,7 @@ def annotate_text(text, filter_words_df):
 		mp.Process(target=ln_worker, args=(task_queue, done_queue)).start()
 
 	for i in range(len(task_list)):
-		results_df = results_df.append(done_queue.get())
+		results_df = results_df.append(done_queue.get(), sort=False)
 
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
@@ -499,12 +501,12 @@ def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sens
 
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
-	sentence_df = pd.DataFrame()
+	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	
 	for ln_number, line in enumerate(tokenized):
 		res_df = annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive)
 		
-		ann_df = ann_df.append(res_df)
+		ann_df = ann_df.append(res_df, sort=False)
 
 	if len(ann_df.index) > 0:
 		ann_df = resolve_conflicts(ann_df, cursor)
@@ -513,10 +515,12 @@ def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sens
 		for ln_number, line in enumerate(tokenized):
 			ln_df =  ann_df[ann_df['ln_number'] == ln_number].copy()
 			concept_arr = list(set(ln_df['conceptid'].tolist()))
-			for cid in concept_arr:
-				u = str(uuid.uuid1())
-				sentence_df = sentence_df.append([[u, cid, concept_arr, section, ln_number, line, get_sentence_annotation(line, ln_df)]])
+			u = str(uuid.uuid1())
+			s_arr = get_sentence_annotation(line, ln_df)
 
+			for cid in concept_arr:
+				sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
+						columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
 		return ann_df, sentence_df
 	else:
 		return None, None
@@ -655,7 +659,7 @@ if __name__ == "__main__":
 	query41 = "ECG"
 	query42="lung adenocarcinoma"
 	query43="ovary cancer"
-	query44="Everolimus, an inhibitor of the mammalian target of rapamycin (mTOR), is effective in treating tumors harboring alterations in the mTOR pathway."
+	query44="Everolimus an inhibitor of the "
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -668,7 +672,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query44, 'title', filter_words_df, cursor, False)
+	res, sentences = annotate_text_not_parallel(query43, 'title', filter_words_df, cursor, False)
 	cursor.close()
 	u.pprint("=============================")
 	u.pprint(res)
