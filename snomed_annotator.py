@@ -53,7 +53,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	
 	return new_candidate_df
 
-def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive):
+def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive, cache):
 	
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
@@ -83,8 +83,13 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 			# if not active_match:
+			new_candidate_df = pd.DataFrame()
+			if word in cache.keys():
+				new_candidate_df = cache[word]
+			else:
+				new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
+				cache[word] = new_candidate_df.copy()
 
-			new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
 			if len(new_candidate_df.index) > 0:
 				new_candidate_df['substring_start_index'] = index
 				new_candidate_df['description_start_index'] = index
@@ -129,9 +134,9 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		if len(final_results.index) > 0:
 			final_results['line'] = line
 
-			return final_results
+			return final_results, cache
 
-	return None
+	return None, cache
 
 def get_results(candidate_df_arr, end_index):
 	## no description here
@@ -325,7 +330,7 @@ def resolve_conflicts(results_df, cursor):
 
 
 def add_names(results_df):
-	cursor = pg.return_postgres_cursor()
+	conn,cursor = pg.return_postgres_cursor()
 	if results_df is None:
 		cursor.close()
 		return None
@@ -339,18 +344,19 @@ def add_names(results_df):
 
 		results_df = results_df.merge(names_df, on='conceptid')
 		cursor.close()
+		conn.close
 		return results_df
 
 
-def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive):
+def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive, cache):
 
 	line = clean_text(line)
-	annotation = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df, case_sensitive)
+	annotation, cache = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df, case_sensitive, cache)
 
 	if annotation is not None:
 		annotation['ln_number'] = ln_number
 		
-	return annotation
+	return annotation, cache
 
 def get_sentence_annotation(line, c_df):
 	c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
@@ -433,7 +439,7 @@ def query_expansion(conceptid_series, cursor):
 		join annotation.concept_counts ct
 		  on tb.subtypeid = ct.conceptid
 		order by ct.cnt desc
-		limit 5
+		limit 1
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
@@ -503,8 +509,10 @@ def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sens
 	ann_df = pd.DataFrame()
 	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	
+	cache = {}
+
 	for ln_number, line in enumerate(tokenized):
-		res_df = annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive)
+		res_df, cache = annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive, cache)
 		
 		ann_df = ann_df.append(res_df, sort=False)
 

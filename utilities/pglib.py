@@ -11,7 +11,12 @@ def return_postgres_cursor():
 	# conn_string = "host='localhost' dbname='laso' user='Nima'"
 	conn = psycopg2.connect(conn_string)
 	cursor = conn.cursor()
-	return cursor
+	return conn,cursor
+	
+def return_postgres_conn():
+	conn_string = "host='localhost' dbname='laso' user='LilNimster'"
+	conn = psycopg2.connect(conn_string)
+	return conn
 
 def return_df_from_query(cursor, sql_query, params, column_names):
 	cursor.execute(sql_query, params)

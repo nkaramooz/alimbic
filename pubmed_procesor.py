@@ -17,7 +17,7 @@ import re
 
 INDEX_NAME = 'pubmedx1.1'
 
-def doc_worker(input, cursor):
+def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
 		doc_calculate(func, args)
 
@@ -67,15 +67,14 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		json_str = get_article_info_2(elem, json_str)
 				
 		if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
-
+			conn,cursor = pg.return_postgres_cursor()
+			
 			json_str = get_pmid(elem, json_str)
-
-			json_str = get_article_ids(elem, json_str)
-					
+			json_str = get_article_ids(elem, json_str)					
 			json_str['citations_pmid'] = get_article_citations(elem)
 
-
-			title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df)
+			title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df, cursor)
+			title_sentences['pmid'] = json_str['pmid']
 
 			if title_annotation is not None:
 				json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
@@ -84,16 +83,16 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 				json_str['title_conceptids'] = None
 				json_str['title_dids'] = None
 
-			json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df)
-			s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
+			json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
+			abstract_sentences['pmid'] = json_str['pmid']
+			s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'pmid'])
 			if title_sentences is not None:
 				s = s.append(title_sentences)
 			if abstract_sentences is not None:
 				s = s.append(abstract_sentences)
 			if len(s) > 0:
-				cursor = pg.return_postgres_cursor()
 				u.write_sentences(s, cursor)
-				cursor.close()
+
 
 			json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		
@@ -120,7 +119,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 			elif query_result['hits']['total'] == 1:
 				article_id = query_result['hits']['hits'][0]['_id']
 				es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
+			cursor.close()
+			conn.close()
 	elem.clear()
+
 
 
 
@@ -131,10 +133,8 @@ def load_pubmed_local_2(start_file, filter_words_df):
 	task_queue = mp.Queue()
 
 	pool = []
-
 	for i in range(number_of_processes):
-		cursor = pg.return_postgres_cursor()
-		p = mp.Process(target=doc_worker, args=(task_queue,cursor))
+		p = mp.Process(target=doc_worker, args=(task_queue,))
 		pool.append(p)
 		p.start()
 
@@ -230,10 +230,10 @@ def load_pubmed_local_2(start_file, filter_words_df):
 						elem.clear()
 
 				file_timer.stop()
-				if file_num >= start_file+5:
+				if file_num >= start_file+10:
 					break
 				
-		if file_num >= start_file+5:
+		if file_num >= start_file+10:
 			break
 				
 				
@@ -243,6 +243,7 @@ def load_pubmed_local_2(start_file, filter_words_df):
 
 	for p in pool:
 		p.join()
+	
 
 	
 
@@ -406,13 +407,13 @@ def get_abstract_conceptids(abstract_dict, filter_words_df):
 	else:
 		return None, None
 
-def get_abstract_conceptids_2(abstract_dict, filter_words_df):
+def get_abstract_conceptids_2(abstract_dict, filter_words_df, cursor):
 	cid_dict = {}
 	did_dict = {}
 	sentences = pd.DataFrame()
 	if abstract_dict is not None:
 		for k1 in abstract_dict:
-			res,sentences = get_snomed_annotation(abstract_dict[k1], 'body', filter_words_df)
+			res,sentences = get_snomed_annotation(abstract_dict[k1], 'body', filter_words_df, cursor)
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			if res is not None:
@@ -674,14 +675,12 @@ def get_article_info_2(elem, json_str):
 
 	return json_str
 
-def get_snomed_annotation(text, section, filter_words_df):
+def get_snomed_annotation(text, section, filter_words_df, cursor):
 	
 	if text is None:
 		return None, None
 	else:
-		cursor = pg.return_postgres_cursor()
 		annotation, sentences = ann.annotate_text_not_parallel(text, section, filter_words_df, cursor, True)
-		cursor.close()
 		if annotation is not None:
 			return annotation, sentences
 		else:
@@ -692,16 +691,16 @@ if __name__ == "__main__":
 
 	cursor = pg.return_postgres_cursor()
 	
-	filter_words_query = "select words from annotation.filter_words"
-	filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	cursor.close()
+	# filter_words_query = "select words from annotation.filter_words"
+	# filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
+	# cursor.close()
 
 	# start_file = 510
-	start_file = 75
+	start_file = 1
 	while (start_file < 929):
 		print(start_file)
-		load_pubmed_local_2(start_file, filter_words_df)
-		start_file += 6
+		load_pubmed_local_2(start_file, None)
+		start_file += 11
 
 
 nlm_cat_dict = {"a case report" :"methods"
