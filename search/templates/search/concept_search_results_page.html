@@ -243,6 +243,39 @@
 						</div>
 					</div>
 					</div> -->
+					{% elif k2 == 'condition' %}
+						<div class="glance_topic">
+							<div class="accordion" id="conditionAccordion">
+ 								 <div class="card">
+    								<div class="card-header" id="headingOne">
+      									<h5 class="mb-0">
+        									<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#condition" aria-expanded="false" aria-controls="condition">
+          									<h5> Conditions ({{v2|length}})</h5>
+        									</button>
+      									</h5>
+   									</div>
+									<div id="condition" class="collapse" aria-labelledby="headingTwo" data-parent="#conditionAccordion">
+										<div class="card-body">
+									    	<ul>
+										      	{% for x in v2 %}
+													<li>
+														<form action=# method="get"> 
+															{% csrf_token %}
+															<input type="hidden" name="conceptid1" value="{{k1}}">
+															<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+															<input type="hidden" name="term1" value="{{v1.term}}">
+															<input type="hidden" name="term2" value="{{x.term}}">
+															<input type="hidden" name="query_type" value="pivot">
+															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
+														</form>
+													</li>
+												{% endfor %}
+											</ul>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
 					{% endif %}
 				
 				{% endfor %}	

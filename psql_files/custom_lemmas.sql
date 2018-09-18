@@ -4,13 +4,22 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 create table custom_lemmas as (
 
 	select 
-		public.uuid_generate_v4() as description_id
+		new_id as description_id
 		,conceptid
 	    ,term
 	    ,case when word='blocker' then 'blockade' else word end
 	    ,word_ord
 	    ,term_length
-	from annotation.lemmas_3
+	from annotation.lemmas_3 l
+	join (
+		select 
+			distinct on (description_id)
+            description_id as old_id
+			,public.uuid_generate_v4() as new_id
+		from annotation.lemmas_3
+		where description_id in (select description_id from annotation.lemmas_3 where word='blocker')
+		) tb 
+	on l.description_id = tb.old_id
 	where description_id in (select description_id from annotation.lemmas_3 where word='blocker')
 );
 
