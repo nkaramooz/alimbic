@@ -759,14 +759,13 @@ def concept_search_results(request):
 		es = u.get_es_client()	
 		query = ann.clean_text(query)
 		
-		filter_words_query = "select words from annotation.filter_words"
-		filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', filter_words_df, cursor, True)
+		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cursor, True)
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
 		if query_concepts_df is not None:
-			unmatched_terms = get_unmatched_terms(query, query_concepts_df, filter_words_df)
+
+			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 			
 			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
@@ -788,7 +787,7 @@ def concept_search_results(request):
 					 "size" : 100, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 			sr = es.search(index=INDEX_NAME, body=es_query)
-			related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
+			related_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 		###UPDATE QUERY BELOW FOR FILTERS
 		else:
 			es_query = get_text_query(query)
@@ -844,13 +843,11 @@ def get_show_hide_components(sr_src, hit_dict):
 
 	# print(second_level_keys)
 
-def get_unmatched_terms(query, query_concepts_df, filter_words_df):
+def get_unmatched_terms(query, query_concepts_df):
 	unmatched_terms = ""
 	for index,word in enumerate(query.split()):
 
-		if (filter_words_df['words'] == word).any():
-			continue
-		elif len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
+		if len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
 			continue
 		else:
 			unmatched_terms += word + " "
@@ -1064,7 +1061,7 @@ def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cur
 	else:
 		return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
-def get_related_conceptids(query_concept_list, unmatched_terms, journals, start_year, end_year, cursor, query_type):
+def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, query_type):
 
 	result_dict = dict()
 	es = u.get_es_client()
@@ -1084,37 +1081,32 @@ def get_related_conceptids(query_concept_list, unmatched_terms, journals, start_
 			root_concept_name = u.get_conceptid_name(query_concept_list[0], cursor)
 			root_cid = query_concept_list[0]
 
-	# if query_type == 'condition':
 
-	# treatments_query = 	{"from" : 0, \
-	# 		 "size" : 400, \
-	# 		 "query": \
-	# 	 		{"bool": { \
-	# 				"must": \
-	# 					[{"query_string": {"fields" : ["title_conceptids"], \
-	# 					 "query" : get_concept_query_string(query_concept_list, cursor), "fuzziness" : 0}}], \
-	# 				"must_not": [get_article_type_filters(), {"query_string" : {"fields" : ["title_conceptids"],\
-	# 					"query" : '30207005'}}]}}}
 	query_concepts_dict = get_query_arr_dict(query_concept_list)
 	es_query = {"from" : 0, \
 					 "size" : 200, \
 					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids"], cursor)}
-	
-	sr = es.search(index=INDEX_NAME, body=es_query)
-	# sr = es.search(index=INDEX_NAME, body=treatments_query)
+	sr_title_match = es.search(index=INDEX_NAME, body=es_query)
+	title_match_cids = get_title_cids(sr_title_match)
+	es_query = {"from" : 0, \
+					 "size" : 200, \
+					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["abstract_conceptids.*"], cursor)}
+	sr_abstract_match = es.search(index=INDEX_NAME, body=es_query)
+	abstract_match_cids = get_abstract_cids(sr_abstract_match)
 
-	title_cids = get_title_cids(sr)
-	
-	if len(title_cids) > 0:
-		sub_dict = dict()
-		sub_dict['term'] = root_concept_name
-		sub_dict['treatment'] = []
-		sub_dict['diagnostic'] = []
-		sub_dict['condition'] = []
-		# title_cids = get_title_cids(sr)
-		abstract_cids = get_abstract_cids(sr)
+	sub_dict = dict()
+	sub_dict['term'] = root_concept_name
+	sub_dict['treatment'] = []
+	sub_dict['diagnostic'] = []
+	sub_dict['condition'] = []
+
+	if len(title_match_cids) > 0:
+		print("DASKJHDSAKLJSDAJKHHKJSADHJKASDHKJ")
 		
-		agg_tx = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'treatment')
+		# title_cids = get_title_cids(sr)
+		title_match_abstract_cids = get_abstract_cids(sr_title_match)
+		
+		agg_tx = get_query_concept_types_df_2(title_match_cids, query_concept_list, cursor, 'treatment')
 		
 		if len(agg_tx) > 0:
 			agg_tx['count'] = 1
@@ -1126,7 +1118,8 @@ def get_related_conceptids(query_concept_list, unmatched_terms, journals, start_
 			for index,row in agg_tx.iterrows():
 				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 				sub_dict['treatment'].append(item_dict)
-		agg_dx = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'diagnostic')
+		agg_dx = get_query_concept_types_df_2(title_match_cids, query_concept_list, cursor, 'diagnostic')
+
 		# agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'diagnostic'))
 		if len(agg_dx) > 0:
 			agg_dx['count'] = 1
@@ -1137,59 +1130,28 @@ def get_related_conceptids(query_concept_list, unmatched_terms, journals, start_
 			for index,row in agg_dx.iterrows():
 				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 				sub_dict['diagnostic'].append(item_dict)
-		agg_condition = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'condition')
-		# agg_condition = agg_condition.append(get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'condition'))
-		if len(agg_condition) > 0:
-			agg_condition['count'] = 1
-			agg_condition = agg_condition.groupby(['conceptid'],  as_index=False)['count'].sum()
-			agg_condition = de_dupe_synonyms_2(agg_condition, cursor)
-			agg_condition = ann.add_names(agg_condition)
-			agg_condition = agg_condition.sort_values(['count'], ascending=False)
-			print(query_concept_list)
-			if type(query_concept_list[0]) == list:
-				agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list[0])]
-			elif type(query_concept_list) == list:
-				agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list)]
-			for index,row in agg_condition.iterrows():
-				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-				sub_dict['condition'].append(item_dict)
 		
-		result_dict[root_cid] = sub_dict
-	# elif query_type == 'symptom':
-
-	# 	condition_query = { "from" : 0, "size" : 400, \
-	# 					"query": {"bool" : {"must": \
-	# 						[{"query_string": {"fields" : ["title_conceptids^5", "abstract_conceptids.*"], \
-	# 						 "query" : get_concept_query_string(query_concept_list, cursor), "fuzziness" : 0}}], "must_not" : get_article_type_filters()}}}
-	# 	sr = es.search(index=INDEX_NAME, body=condition_query)
-
-	# 	sr_conceptids = get_conceptids_from_sr(sr)
-
-	# 	if len(sr_conceptids) > 0:
-	# 		sub_dict = dict()
-	# 		sub_dict['term'] = root_concept_name
-	# 		sub_dict['condition'] = []
-
-	# 		title_cids = get_title_cids(sr)
-	# 		# abstract_cids = get_abstract_cids(sr)
-
-	# 		agg_dx = get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'condition')
-	# 		agg_dx = agg_dx.append(get_query_concept_types_df_2(title_cids, query_concept_list, cursor, 'cause'))
-
-	# 		# u.pprint(get_query_concept_types_df_2(title_cids, cursor, 'cause'))
-	# 		if len(agg_dx) > 0:
-	# 			agg_dx['count'] = 1
-	# 			agg_dx = agg_dx.groupby(['conceptid'], as_index=False)['count'].sum()
-	# 			agg_dx = de_dupe_synonyms_2(agg_dx, cursor)
-	# 			agg_dx = ann.add_names(agg_dx)
-	# 			agg_dx = agg_dx.sort_values(['count'], ascending=False)
-
-
-	# 			for index,row in agg_dx.iterrows():
-	# 				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-	# 				sub_dict['condition'].append(item_dict)
-		
-	# 		result_dict[root_cid] = sub_dict
+	
+	agg_condition = get_query_concept_types_df_2(title_match_cids, query_concept_list, cursor, 'condition')
+	if symptom_count > 1:
+		agg_condition = agg_condition.append(get_query_concept_types_df_2(abstract_match_cids, query_concept_list, cursor, 'condition'))
+	if len(agg_condition) > 0:
+		agg_condition['count'] = 1
+		agg_condition = agg_condition.groupby(['conceptid'],  as_index=False)['count'].sum()
+		agg_condition = de_dupe_synonyms_2(agg_condition, cursor)
+		agg_condition = ann.add_names(agg_condition)
+		agg_condition = agg_condition.sort_values(['count'], ascending=False)
+		print(query_concept_list)
+		if type(query_concept_list[0]) == list:
+			agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list[0])]
+		elif type(query_concept_list) == list:
+			agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list)]
+		for index,row in agg_condition.iterrows():
+			item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
+			sub_dict['condition'].append(item_dict)
+	
+	result_dict[root_cid] = sub_dict
+	
 
 	return result_dict
 
@@ -1225,8 +1187,6 @@ def de_dupe_synonyms_2(df, cursor):
 				new_conceptid = ref.iloc[0]['synonym_conceptid']
 				if len(df[df['conceptid'] == new_conceptid].index):
 					df.loc[ind, 'conceptid'] = new_conceptid
-
-		# df = df.groupby(['conceptid'], as_index=False)['count'].sum()
 
 		return df 
 	else:

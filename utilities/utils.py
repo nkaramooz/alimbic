@@ -25,7 +25,7 @@ def pprint(data_frame):
 
 def write_sentences(s_df, cursor):
 	engine = pg.return_sql_alchemy_engine()
-	s_df.to_sql('sentences', \
+	s_df.to_sql('sentences2', \
 		engine, schema='annotation', if_exists='append', index=False)
 
 def get_conceptid_name(conceptid, cursor):
@@ -114,14 +114,11 @@ def add_description(conceptid, description, cursor):
 
 
 			### augmented_active_selected_concept_key_words_v2
-			insert_description_id_into_key_words_v2(conceptid, description_id, description, \
-				cursor)
 
 			insert_description_id_into_key_words_v3(conceptid, description_id, description, \
 				cursor)
 
 			### augmented_active_selected_concept_key_words_lemmas_2
-			lemmatize_description_id(description_id, cursor)
 			lemmatize_description_id_3(description_id, cursor)
 
 			### update_white_list
@@ -157,12 +154,12 @@ def activate_description_id(description_id, cursor):
 	
 	### key words table
 	try:
-		insert_description_id_into_key_words_v2(conceptid, description_id, description, cursor)
+		insert_description_id_into_key_words_v3(conceptid, description_id, description, cursor)
 	except:
 		raise ValueError("unable to add description_id to key words table")
 
 	### augmented_active_selected_concept_key_words_lemmas_2
-	lemmatize_description_id(description_id, cursor)
+	lemmatize_description_id_3(description_id, cursor)
 
 	if is_duplicate_description_id_for_table(description_id, \
 		"description_blacklist", cursor):
@@ -247,11 +244,10 @@ def add_concept(description, cursor):
 		cursor.connection.commit()
 
 		### augmented_active_selected_concept_key_words_v2
-		insert_description_id_into_key_words_v2(conceptid, description_id, description, \
-			cursor)
+		insert_description_id_into_key_words_v3(conceptid, description_id, description, cursor)
 
 		### augmented_active_selected_concept_key_words_lemmas_2
-		lemmatize_description_id(description_id, cursor)
+		lemmatize_description_id_3(description_id, cursor)
 	else:
 		raise ValueError("possible duplicate")
 
@@ -485,20 +481,6 @@ def lemma(word):
 	lmtzr = WordNetLemmatizer()
 	return lmtzr.lemmatize(word)
 
-def lemmatize_description_id(description_id, cursor):
-	query = """
-		select * from annotation.augmented_active_selected_concept_key_words_v2
-		where description_id = '%s'
-	""" % description_id
-
-	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
-	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
-
-	engine = pg.return_sql_alchemy_engine()
-	new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
-		engine, schema='annotation', if_exists='append', index=False)
-
 def lemmatize_description_id_3(description_id, cursor):
 	query = """
 		select * from annotation.augmented_active_key_words_v3
@@ -514,7 +496,6 @@ def lemmatize_description_id_3(description_id, cursor):
 		engine, schema='annotation', if_exists='append', index=False)
 
 def lemmatize_table():
-	# query = "select * from annotation.augmented_active_selected_concept_key_words_v2"
 	query = "select * from annotation.augmented_active_key_words_v3"
 	cursor = pg.return_postgres_cursor()
 
@@ -522,25 +503,12 @@ def lemmatize_table():
 		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
 
 
-
-	# new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
-
 	new_candidate_df.loc[new_candidate_df.word != 'vs', 'word'] = new_candidate_df.loc[new_candidate_df.word != 'vs']['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()
 
-	# new_candidate_df.to_sql('augmented_active_selected_concept_key_words_lemmas_2', \
-	# 	engine, schema='annotation', if_exists='replace', index=False)
 	new_candidate_df.to_sql('lemmas_3', \
 		engine, schema='annotation', if_exists='replace', index=False)
 
-	# index_query = """
-	# 	set schema 'annotation';
-	# 	create index lemmas_conceptid_ind on augmented_active_selected_concept_key_words_lemmas_2(conceptid);
-	# 	create index lemmas_description_id_ind on augmented_active_selected_concept_key_words_lemmas_2(description_id);
-	# 	create index lemmas_term_ind on augmented_active_selected_concept_key_words_lemmas_2(term);
-	# 	create index lemmas_word_ind on augmented_active_selected_concept_key_words_lemmas_2(word);
-	# 	create index lemmas_word_ord_ind on augmented_active_selected_concept_key_words_lemmas_2(word_ord);
-	# """
 	index_query = """
 		set schema 'annotation';
 		create index lemmas3_conceptid_ind on lemmas_3(conceptid);

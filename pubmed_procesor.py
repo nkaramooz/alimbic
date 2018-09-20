@@ -61,8 +61,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
-		# if json_str['journal_pub_year'] is not None:
-		# 	if (int(json_str['journal_pub_year']) >= 1990):
+
 	
 		json_str = get_article_info_2(elem, json_str)
 				
@@ -85,18 +84,19 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 
 			json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
 			abstract_sentences['pmid'] = json_str['pmid']
-			s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'pmid'])
+			s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
 			if title_sentences is not None:
 				s = s.append(title_sentences)
 			if abstract_sentences is not None:
 				s = s.append(abstract_sentences)
 			if len(s) > 0:
+				s = s[['id', 'pmid', 'conceptid', 'concept_arr', 'section', 'section_index', 'line_num', 'sentence', 'sentence_tuples']]
 				u.write_sentences(s, cursor)
 
 
 			json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		
-					# json_str['index_time'] = datetime.datetime.now().strftime("%H:%M:%S")
+
 	
 			json_str['filename'] = filename
 			pmid = json_str['pmid']
@@ -383,37 +383,14 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 	pool.join()
 
 
-def get_abstract_conceptids(abstract_dict, filter_words_df):
-	cid_dict = {}
-	did_dict = {}
-
-	if abstract_dict is not None:
-		for k1 in abstract_dict:
-			sub_cid_dict = {}
-			sub_did_dict = {}
-			for k2 in abstract_dict[k1]:
-				res,sentences = get_snomed_annotation(abstract_dict[k1][k2], 'body', filter_words_df)
-				if res is not None:
-
-					sub_cid_dict[k2] = res['conceptid'].tolist()
-					sub_did_dict[k2] = res['description_id'].tolist()
-				else:
-					sub_cid_dict[k2] = None
-					sub_did_dict[k2] = None
-			cid_dict[k1] = sub_cid_dict
-			did_dict[k1] = sub_did_dict
-
-		return cid_dict, did_dict
-	else:
-		return None, None
-
 def get_abstract_conceptids_2(abstract_dict, filter_words_df, cursor):
 	cid_dict = {}
 	did_dict = {}
 	sentences = pd.DataFrame()
 	if abstract_dict is not None:
-		for k1 in abstract_dict:
-			res,sentences = get_snomed_annotation(abstract_dict[k1], 'body', filter_words_df, cursor)
+		for index,k1 in enumerate(abstract_dict):
+			res,sentences = get_snomed_annotation(abstract_dict[k1], str(k1), filter_words_df, cursor)
+			sentences['section_index'] = index			
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			if res is not None:
