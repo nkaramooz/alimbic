@@ -21,27 +21,12 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	new_candidate_query = ""
 
 	if case_sensitive:
-		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		# 	case when word = %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
-		# 	description_id in \
-		# 	(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word = %s and \
-		# 		(word_ord = 1 or word_ord = 2))"
 		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
 			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
 			(select description_id from annotation.lemmas_3 where word = %s and \
 				(word_ord = 1))"
 	else:
-		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		# 	case when word ilike %s then 1 else 0 end as l_dist from annotation.augmented_active_selected_concept_key_words_lemmas_2 where \
-		# 	description_id in \
-		# 	(select description_id from annotation.augmented_active_selected_concept_key_words_lemmas_2 where word ilike %s and \
-		# 		(word_ord = 1 or word_ord = 2))"
-		# new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-		# 	case when word ilike %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
-		# 	description_id in \
-		# 	(select description_id from annotation.lemmas_3 where word ilike %s and \
-		# 		(word_ord = 1 or word_ord = 2))"
 		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
 			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
 			description_id in \
@@ -53,7 +38,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	
 	return new_candidate_df
 
-def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_sensitive, cache):
+def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
 	
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
@@ -73,31 +58,24 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, filter_df, case_se
 		if word.upper() != word:
 			word = word.lower()
 
-		# if (filter_df['words'] == word).any():
-		# 	continue
-		# else:
-		if True:
-			if word.lower() != 'vs':
-				word = lmtzr.lemmatize(word)
-
-			candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
-
-			# if not active_match:
-			new_candidate_df = pd.DataFrame()
-			if word in cache.keys():
-				new_candidate_df = cache[word]
-			else:
-				new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
-				cache[word] = new_candidate_df.copy()
-
-			if len(new_candidate_df.index) > 0:
-				new_candidate_df['substring_start_index'] = index
-				new_candidate_df['description_start_index'] = index
-				candidate_df_arr.append(new_candidate_df)
-						
-
-			candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
-			results_df = results_df.append(new_results_df, sort=False)
+		if word.lower() != 'vs':
+			word = lmtzr.lemmatize(word)
+		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
+		
+		# if not active_match:
+		new_candidate_df = pd.DataFrame()
+		if word in cache.keys():
+			new_candidate_df = cache[word]
+		else:
+			new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
+			cache[word] = new_candidate_df.copy()
+		if len(new_candidate_df.index) > 0:
+			new_candidate_df['substring_start_index'] = index
+			new_candidate_df['description_start_index'] = index
+			candidate_df_arr.append(new_candidate_df)
+					
+		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
+		results_df = results_df.append(new_results_df, sort=False)
 	# u.pprint(results_df)
 	if len(results_df.index) > 0:
 		order_score = results_df
@@ -348,10 +326,10 @@ def add_names(results_df):
 		return results_df
 
 
-def annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive, cache):
+def annotate_line_v2(line, ln_number, cursor, case_sensitive, cache):
 
 	line = clean_text(line)
-	annotation, cache = return_line_snomed_annotation_v2(cursor, line, 93, filter_words_df, case_sensitive, cache)
+	annotation, cache = return_line_snomed_annotation_v2(cursor, line, 93, case_sensitive, cache)
 
 	if annotation is not None:
 		annotation['ln_number'] = ln_number
@@ -466,44 +444,8 @@ def query_expansion(conceptid_series, cursor):
 
 	return results_list
 
-### Threading
-def annotate_text(text, filter_words_df):
-	number_of_processes = 8
 
-	tokenized = nltk.sent_tokenize(text)
-
-	funclist = []
-	task_list = []
-	results_df = pd.DataFrame()
-
-	
-	for ln_number, line in enumerate(tokenized):
-		params = (line, filter_words_df, ln_number)
-		task_list.append((annotate_line_v2, params))
-
-	task_queue = mp.Queue()
-	done_queue = mp.Queue()
-
-	for task in task_list:
-		task_queue.put(task)
-
-	for i in range(number_of_processes):
-		mp.Process(target=ln_worker, args=(task_queue, done_queue)).start()
-
-	for i in range(len(task_list)):
-		results_df = results_df.append(done_queue.get(), sort=False)
-
-	for i in range(number_of_processes):
-		task_queue.put('STOP')
-
-	if len(results_df.index) > 0:
-		cursor = pg.return_postgres_cursor()
-		results_df = resolve_conflicts(results_df, cursor)
-		return results_df
-	else:
-		return None
-
-def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sensitive):
+def annotate_text_not_parallel(text, section, cursor, case_sensitive):
 
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
@@ -512,7 +454,7 @@ def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sens
 	cache = {}
 
 	for ln_number, line in enumerate(tokenized):
-		res_df, cache = annotate_line_v2(line, filter_words_df, ln_number, cursor, case_sensitive, cache)
+		res_df, cache = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
 		
 		ann_df = ann_df.append(res_df, sort=False)
 
@@ -532,16 +474,6 @@ def annotate_text_not_parallel(text, section, filter_words_df, cursor, case_sens
 		return ann_df, sentence_df
 	else:
 		return None, None
-
-
-
-def ln_worker(input, output):
-	for func, args in iter(input.get, 'STOP'):
-		result = ln_calculate(func, args)
-		output.put(result)
-
-def ln_calculate(func, args):
-	return func(*args)
 
 
 ### UTILITY FUNCTIONS
@@ -578,10 +510,8 @@ class TestAnnotator(unittest.TestCase):
 		for q in queryArr:
 			check_timer = u.Timer(q[0])
 		
-			filter_words_query = "select words from annotation.filter_words"
-			filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
 
-			res = annotate_text_not_parallel(q[0], 'title', filter_words_df, cursor, False)
+			res = annotate_text_not_parallel(q[0], 'title', cursor, False)
 			u.pprint("=============================")
 			
 			
@@ -672,15 +602,12 @@ if __name__ == "__main__":
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	cursor = pg.return_postgres_cursor()
-	
-	# filter_words_query = "select words from annotation.filter_words"
-	# filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	filter_words_df = pd.DataFrame()
+
 	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query43, 'title', filter_words_df, cursor, False)
+	res, sentences = annotate_text_not_parallel(query43, 'title', cursor, False)
 	cursor.close()
 	u.pprint("=============================")
 	u.pprint(res)
