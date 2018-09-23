@@ -657,7 +657,7 @@ def get_snomed_annotation(text, section, filter_words_df, cursor):
 	if text is None:
 		return None, None
 	else:
-		annotation, sentences = ann.annotate_text_not_parallel(text, section, filter_words_df, cursor, True)
+		annotation, sentences = ann.annotate_text_not_parallel(text, section, filter_words_df, cursor, True, True, True)
 		if annotation is not None:
 			return annotation, sentences
 		else:

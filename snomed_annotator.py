@@ -445,7 +445,7 @@ def query_expansion(conceptid_series, cursor):
 	return results_list
 
 
-def annotate_text_not_parallel(text, section, cursor, case_sensitive):
+def annotate_text_not_parallel(text, section, cursor, case_sensitive, acronym_check, write_sentences):
 
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
@@ -460,20 +460,22 @@ def annotate_text_not_parallel(text, section, cursor, case_sensitive):
 
 	if len(ann_df.index) > 0:
 		ann_df = resolve_conflicts(ann_df, cursor)
-		ann_df = acronym_check(ann_df)
+		if acronym_check:
+			ann_df = acronym_check(ann_df)
 
-		for ln_number, line in enumerate(tokenized):
-			ln_df =  ann_df[ann_df['ln_number'] == ln_number].copy()
-			concept_arr = list(set(ln_df['conceptid'].tolist()))
-			u = str(uuid.uuid1())
-			s_arr = get_sentence_annotation(line, ln_df)
+		if write_sentences:
+			for ln_number, line in enumerate(tokenized):
+				ln_df =  ann_df[ann_df['ln_number'] == ln_number].copy()
+				concept_arr = list(set(ln_df['conceptid'].tolist()))
+				u = str(uuid.uuid1())
+				s_arr = get_sentence_annotation(line, ln_df)
 
-			for cid in concept_arr:
-				sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
-						columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
+				for cid in concept_arr:
+					sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
+							columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
 		return ann_df, sentence_df
 	else:
-		return None, None
+		return ann_df, sentence_df
 
 
 ### UTILITY FUNCTIONS
@@ -597,7 +599,8 @@ if __name__ == "__main__":
 	query41 = "ECG"
 	query42="lung adenocarcinoma"
 	query43="ovary cancer"
-	query44="Everolimus an inhibitor of the "
+	query44="Everolimus an inhibitor of the"
+
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -607,7 +610,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query43, 'title', cursor, False)
+	res, sentences = annotate_text_not_parallel(query43, 'title', cursor, False, False, False)
 	cursor.close()
 	u.pprint("=============================")
 	u.pprint(res)

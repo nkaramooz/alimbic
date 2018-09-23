@@ -759,14 +759,14 @@ def concept_search_results(request):
 		es = u.get_es_client()	
 		query = ann.clean_text(query)
 		
-		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cursor, True)
+		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cursor, True, False, False)
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
-		if query_concepts_df is not None:
+		if not query_concepts_df.empty:
 
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
-			
+
 			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
@@ -775,13 +775,7 @@ def concept_search_results(request):
 			symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
 			condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
 			query_concept_count = len(query_concepts_df.index)
-			# single condition query
-			# if (symptom_count == 0 and condition_count != 0 and query_concept_count == 1):
-			# 	related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'condition')
-			# elif (symptom_count != 0 and condition_count == 0):
-			# 	related_dict = get_related_conceptids(full_query_concepts_list, unmatched_terms, cursor, 'symptom')
-			# else:
-			# 	related_dict = None
+
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 			es_query = {"from" : 0, \
 					 "size" : 100, \
@@ -1099,9 +1093,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	sub_dict['treatment'] = []
 	sub_dict['diagnostic'] = []
 	sub_dict['condition'] = []
+	sub_dict['cause'] = []
 
 	if len(title_match_cids) > 0:
-		print("DASKJHDSAKLJSDAJKHHKJSADHJKASDHKJ")
 		
 		# title_cids = get_title_cids(sr)
 		title_match_abstract_cids = get_abstract_cids(sr_title_match)
@@ -1130,7 +1124,17 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			for index,row in agg_dx.iterrows():
 				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 				sub_dict['diagnostic'].append(item_dict)
-		
+
+		agg_cause = get_query_concept_types_df_2(title_match_cids, query_concept_list, cursor, 'cause')
+		if len(agg_cause) > 0:
+			agg_cause['count'] = 1
+			agg_cause = agg_cause.groupby(['conceptid'],  as_index=False)['count'].sum()
+			agg_cause = de_dupe_synonyms_2(agg_cause, cursor)
+			agg_cause = ann.add_names(agg_cause)
+			agg_cause = agg_cause.sort_values(['count'], ascending=False)
+			for index,row in agg_cause.iterrows():
+				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
+				sub_dict['cause'].append(item_dict)
 	
 	agg_condition = get_query_concept_types_df_2(title_match_cids, query_concept_list, cursor, 'condition')
 	if symptom_count > 1:
