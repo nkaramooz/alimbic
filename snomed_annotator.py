@@ -610,7 +610,7 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query43, 'title', cursor, False, False, False)
+	res, sentences = annotate_text_not_parallel(query1, 'title', cursor, False, False, False)
 	cursor.close()
 	u.pprint("=============================")
 	u.pprint(res)
