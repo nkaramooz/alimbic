@@ -845,7 +845,10 @@ def get_unmatched_terms(query, query_concepts_df):
 			continue
 		else:
 			unmatched_terms += word + " "
-	return unmatched_terms
+	if len(unmatched_terms) > 0:
+		return unmatched_terms
+	else:
+		return None
 
 def get_concept_names_dict_for_sr(sr):
 
@@ -898,14 +901,16 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 								[{"query_string": {"fields" : fields_arr, \
 								 "query" : get_concept_query_string(full_conceptid_list, cursor)}}]}
 	else:
+
 		es_query["bool"] = { \
 						"must_not": get_article_type_filters(), \
 						"must": \
 							[{"query_string": {"fields" : fields_arr, \
-							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}],
-						"should": \
-							[{"query_string": {"fields" : fields_arr, \
+							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}, {"query_string": {"fields" : fields_arr, \
 							"query" : unmatched_terms}}]}
+						# "should": \
+						# 	[{"query_string": {"fields" : fields_arr, \
+						# 	"query" : unmatched_terms}}]}
 
 
 	if (len(journals) > 0) or start_year or end_year:
