@@ -82,19 +82,23 @@ def build_dataset(words, n_words):
     data.append(index)
   count[0][1] = unk_count
   reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
+  with open('reversed_dictionary.pickle', 'wb') as rd:
+  	pickle.dump(reversed_dictionary, rd, protocol=pickle.HIGHEST_PROTOCOL)
+
+  with open('dictionary.pickle', 'wb') as di:
+  	pickle.dump(dictionary, di, protocol=pickle.HIGHEST_PROTOCOL)
+
   return data, count, dictionary, reversed_dictionary
 
-# with open('reversed_dictionary.pickle', 'wb') as rd:
-#   pickle.dump(reversed_dictionary, rd, protocol=pickle.HIGHEST_PROTOCOL)
 
-# with open('dictionary.pickle', 'wb') as di:
-#   pickle.dump(dictionary, di, protocol=pickle.HIGHEST_PROTOCOL)
 
 vocabulary = read_data()
 vocabulary_size = 50000
 
 data, count, dictionary, reverse_dictionary = build_dataset(vocabulary,
                                                             vocabulary_size)
+del vocabulary
+
 print(count)
 
 def load_word_counts_dict():
@@ -102,6 +106,39 @@ def load_word_counts_dict():
 		counts = pickle.load(handle)
 		print(counts[0:50000])
 
+# How does training 
+#[[X (i.e. condition), Y (i.e. treatment), label]]
+# Will need to get all children of X, and all children of Y
+labeled_set = pd.DataFrame([[]], columns=['root', 'rel', 'label'])
+
+def get_data():
+	conn,cursor = pg.return_postgres_cursor()
+	labelled_set = pd.DataFrame()
+	for index,item in labeled_set.iterrows():
+		query = "select subtypeid from snomed.transitive_closure where supertypeid=%s"
+		# Run this twice, once for root and once for rel_type
+
+		# Want to select sentenceIds that contain both
+		next_query = "select sentence_tuples from annotation.sentences where conceptid in %s and \
+			sentence_id in (select sentence_id from annotation.sentences where conceptid in %s) limit 1"
+
+		#this should give a full list for the training row
+		sentence = pg.return_df_from_query(cursor, new_candidate_query, (word, word), [""])
+		# Now you get the sentence, but you need to remove root and replace with word index
+		# Create sentence list
+		# each sentence list contains a list vector for word index
+		for words in s['sentence_tuples']:
+			words = words.strip('(')
+			words = words.strip(')')
+			words = tuple(words.split(","))
+			
+			# word_list.append(words[0])
+			# if words[1] in root then number is vocabulary_size-2
+			# if words[1] in rel then number is vocabulary_size-1
+			# if words[0] in dictionary, then number
+			# else then position for UNK.
+# 1) pull sentences with both concept types
+# 2) figure out how to get word sequences within range that still will include both conceptids
 
 # vector [1-50k, one for UNK, one for key, one for value]
 
