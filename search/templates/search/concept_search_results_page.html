@@ -276,6 +276,84 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- <h5> Conditions ({{v2|length}})</h5>
+							<div id="condition" class="carousel slide" data-interval="false">
+		  						<div class="carousel-inner" role="listbox">
+
+								{% for x in v2 %}
+									{% if forloop.counter0 == 0 %}
+										<div class="carousel-item active">
+									{% else %}
+										<div class="carousel-item">
+									{% endif %}
+									
+									<div class="card">
+			  							<div class="card-block">
+				    						<h4 class="card-title">{{x.term}}</h4>
+				    						<p class="card-text">{{x.count}} papers</p>
+				    						<form action=# method="post">
+		    										{% csrf_token %}
+		    											Error present? <br>
+		    											<input type="radio" name="error_present" value="true"> Yes <br>
+		    											<input type="radio" name="error_present" value="false"> No <br>
+		    											<br>
+		    											Error type: <br>
+		    											<input type="radio" name="error_type" value="annotation_error"> Annotation error <br>
+		    											<input type="radio" name="error_type" value="global_mistype"> Global mistype error <br>
+		    											<input type="radio" name="error_type" value="contextual_mistype"> Contextual mistype error <br>
+		    											<input type="radio" name="error_type" value="too_broad"> Too broad <br>
+		    											<br>
+		    											Select correct concept type: <br>
+		    												<input type="radio" name="concept_type" value="symptom"> Symptom <br>
+		    												<input type="radio" name="concept_type" value="condition"> Condition <br>
+		    												<input type="radio" name="concept_type" value="diagnostic"> Diagnostic <br>
+		    												<input type="radio" name="concept_type" value="cause"> Cause <br>
+		    												<input type="radio" name="concept_type" value="treatment"> Treatment <br>
+		    												<input type="radio" name="concept_type" value="disease"> Associated disease <br>
+		    												<input type="radio" name="concept_type" value="screening"> Screening test <br>
+		    												<input type="radio" name="concept_type" value="risk factor"> Risk factor <br>
+		    												<input type="radio" name="concept_type" value="prevention"> Prevention measure<br>
+		    												<input type="radio" name="concept_type" value="none"> None <br>
+		    												<input type="radio" name="concept_type" value="pathophysiology"> Pathophysiology mechanism </br>
+		    												<input type="radio" name="concept_type" value="associated_treatment"> Associated treatment </br>
+		    												<input type="radio" name="concept_type" value="associated_diagnostic"> Associated diagnostic </br>
+		    												<input type="radio" name="concept_type" value="research_test"> Research test </br>
+		    												<input type="hidden" name="query" value="{{query}}">
+		    												<input type="hidden" name="curr_concept_type" value={{k2}}>
+		    												<input type="hidden" name="associated_cid" value="{{k1}}">
+															<input type="hidden" name="root_cid" value="{{x.conceptid}}">
+		    												{{k1}}
+		    												{{x.conceptid}}
+		    												{{query}}
+		    											<input type="submit" name="concept_type_override" value="Change" class="btn btn-danger">
+
+		    								</form>
+				    						<form action=# method="get"> 
+												{% csrf_token %}
+													<input type="hidden" name="conceptid1" value="{{k1}}">
+													<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+													<input type="hidden" name="term1" value="{{v1.term}}">
+													<input type="hidden" name="term2" value="{{x.term}}">
+													<input type="hidden" name="query_type" value="pivot">
+													<input type="submit" value="View" class="btn btn-primary">
+											</form>
+										</div>
+									</div>
+								</div>
+						{% endfor %}
+
+						<a class="carousel-control-prev" href="#condition" role="button" data-slide="prev">
+    							<span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    							<span class="sr-only">Previous</span>
+  							</a>
+							<a class="carousel-control-next" href="#condition" role="button" data-slide="next">
+								<span class="carousel-control-next-icon" aria-hidden="true"></span>
+						    	<span class="sr-only">Next</span>
+							</a>
+						</div>
+					</div>
+					</div> -->
 					{% endif %}
 				
 				{% endfor %}	
