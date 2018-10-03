@@ -444,6 +444,18 @@ def query_expansion(conceptid_series, cursor):
 
 	return results_list
 
+def get_children(conceptid, cursor):
+	child_query = """
+		select 
+			subtypeid as conceptid
+		from snomed.curr_transitive_closure_f where supertypeid = %s		
+	"""
+	child_df = pg.return_df_from_query(cursor, child_query, (conceptid,), \
+		["conceptid"])
+	
+
+	return child_df['conceptid'].tolist()
+
 
 def annotate_text_not_parallel(text, section, cursor, case_sensitive, acronym_check, write_sentences):
 
@@ -600,6 +612,7 @@ if __name__ == "__main__":
 	query42="lung adenocarcinoma"
 	query43="ovary cancer"
 	query44="Everolimus an inhibitor of the"
+	query45="Aortic dissection"
 
 	check_timer = u.Timer("full")
 
@@ -610,12 +623,20 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query1, 'title', cursor, False, False, False)
-	cursor.close()
-	u.pprint("=============================")
-	u.pprint(res)
-	u.pprint(sentences)
-	check_timer.stop()
+	# res, sentences = annotate_text_not_parallel(query1, 'title', cursor, False, False, False)
+	# cursor.close()
+	# u.pprint("=============================")
+	# u.pprint(res)
+	# u.pprint(sentences)
+	# check_timer.stop()
+	# u.pprint(get_children('387458008', cursor))
+	labeled_set = [['418285008','387458008', '1']]
+	labelled_set = pd.DataFrame()
+	for index,item in enumerate(labeled_set):
+		
+		root_cids = [item[0]]
+		root_cids.extend(get_children(item[0], cursor))
+		print(root_cids)
 
 	# u.pprint("*****************************")
 	# unittest.main()
