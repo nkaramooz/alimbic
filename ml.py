@@ -82,11 +82,12 @@ def build_dataset(words, n_words):
     data.append(index)
   count[0][1] = unk_count
   reversed_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
+
   with open('reversed_dictionary.pickle', 'wb') as rd:
-  	pickle.dump(reversed_dictionary, rd, protocol=pickle.HIGHEST_PROTOCOL)
+  	pk.dump(reversed_dictionary, rd, protocol=pk.HIGHEST_PROTOCOL)
 
   with open('dictionary.pickle', 'wb') as di:
-  	pickle.dump(dictionary, di, protocol=pickle.HIGHEST_PROTOCOL)
+  	pk.dump(dictionary, di, protocol=pk.HIGHEST_PROTOCOL)
 
   return data, count, dictionary, reversed_dictionary
 
@@ -100,7 +101,6 @@ def build():
 	                                                            vocabulary_size)
 	del vocabulary
 
-	print(count)
 
 def load_word_counts_dict():
 	with open('word_count.pickle', 'rb') as handle:
@@ -156,9 +156,23 @@ def get_data():
 
 				# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
 			results = results.append(pd.DataFrame([[sentence, sentence_root_index, sentence_rel_index]], columns=['sentence_tuples', 'root_index', 'rel_index']))
-	u.pprint(len(results))
-	u.pprint(results)
 	results.to_pickle("./sample_train.pkl")
+
+def serialize_data():
+	sample_train = pd.read_pickle("./sample_train.pkl")
+	with open('reversed_dictionary.pickle', 'rb') as rd:
+  		reverse_dictionary = pk.load(rd)
+  		u.pprint(reverse_dictionary)
+		
+	for index, sentence in sample_train.iterrows():
+		root_index = sentence['root_index']
+		rel_index = sentence['rel_index']
+		u.pprint(sentence['sentence_tuples'])
+		root_cid = ""
+		rel_cid = ""
+		sentence_np_array = np.empty(shape=(1,0))
+		for index, tup in sentence.iterrows():
+			u.pprint(tup)
 			
 			# word_list.append(words[0])
 			# if words[1] in root then number is vocabulary_size-2
@@ -172,4 +186,4 @@ def get_data():
 
 # load_word_counts_dict()
 
-get_data()
+build()
