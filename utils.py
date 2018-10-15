@@ -502,7 +502,7 @@ def lemmatize_table():
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
 		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
 
-	print(new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'])
+	# don't want As to lemmatize to "a"
 	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])]['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()
 
