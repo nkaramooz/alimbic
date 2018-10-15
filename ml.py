@@ -110,11 +110,14 @@ def load_word_counts_dict():
 # How does training 
 #[[X (i.e. condition), Y (i.e. treatment), label]]
 # Will need to get all children of X, and all children of Y
-labeled_set = [['22298006','387458008', '1']]
+labeled_set = [['22298006','387458008', '1'], #aspirin
+	['22298006', '33252009'], # beta blocker
+	['22298006', '734579009']] # ace inhibitor
 
 def get_data():
 	conn,cursor = pg.return_postgres_cursor()
 	labelled_set = pd.DataFrame()
+	results = pd.DataFrame()
 	for index,item in enumerate(labeled_set):
 		
 		root_cids = [item[0]]
@@ -132,7 +135,7 @@ def get_data():
 		# Now you get the sentence, but you need to remove root and replace with word index
 		# Create sentence list
 		# each sentence list contains a list vector for word index
-		results = pd.DataFrame()
+		
 	
 		for index,sentence in sentences.iterrows():
 
@@ -153,9 +156,9 @@ def get_data():
 
 				# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
 			results = results.append(pd.DataFrame([[sentence, sentence_root_index, sentence_rel_index]], columns=['sentence_tuples', 'root_index', 'rel_index']))
-		
-		u.pprint(results)
-		break
+	u.pprint(len(results))
+	u.pprint(results)
+	results.to_pickle("./sample_train.pkl")
 			
 			# word_list.append(words[0])
 			# if words[1] in root then number is vocabulary_size-2
