@@ -457,7 +457,7 @@ def get_children(conceptid, cursor):
 	return child_df['conceptid'].tolist()
 
 
-def annotate_text_not_parallel(text, section, cursor, case_sensitive, acronym_check, write_sentences):
+def annotate_text_not_parallel(text, section, cursor, case_sensitive, bool_acr_check, write_sentences):
 
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
@@ -472,7 +472,7 @@ def annotate_text_not_parallel(text, section, cursor, case_sensitive, acronym_ch
 
 	if len(ann_df.index) > 0:
 		ann_df = resolve_conflicts(ann_df, cursor)
-		if acronym_check:
+		if bool_acr_check:
 			ann_df = acronym_check(ann_df)
 
 		if write_sentences:
