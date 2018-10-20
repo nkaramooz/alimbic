@@ -15,7 +15,7 @@ import copy
 import re
 
 
-INDEX_NAME = 'pubmedx1.1'
+INDEX_NAME = 'pubmedx1.2'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -60,67 +60,69 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
 
 		json_str = {}
-		json_str = get_journal_info(elem, json_str)
+		# json_str = get_journal_info(elem, json_str)
 
 	
 		json_str = get_article_info_2(elem, json_str)
+
+		if json_str['journal_pub_year'] is not None:
+			if (int(json_str['journal_pub_year']) >= 1980):
+				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
+					conn,cursor = pg.return_postgres_cursor()
+					
+					json_str = get_pmid(elem, json_str)
+					json_str = get_article_ids(elem, json_str)					
+					json_str['citations_pmid'] = get_article_citations(elem)
+
+					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df, cursor)
+					title_sentences['pmid'] = json_str['pmid']
+
+					if title_annotation is not None:
+						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+						json_str['title_dids'] = title_annotation['description_id'].tolist()
+					else:
+						json_str['title_conceptids'] = None
+						json_str['title_dids'] = None
+
+					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
+					abstract_sentences['pmid'] = json_str['pmid']
+					s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
+					if title_sentences is not None:
+						s = s.append(title_sentences)
+					if abstract_sentences is not None:
+						s = s.append(abstract_sentences)
+					if len(s) > 0:
+						s = s[['id', 'pmid', 'conceptid', 'concept_arr', 'section', 'section_index', 'line_num', 'sentence', 'sentence_tuples']]
+						u.write_sentences(s, cursor)
+
+
+					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 				
-		if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
-			conn,cursor = pg.return_postgres_cursor()
+
 			
-			json_str = get_pmid(elem, json_str)
-			json_str = get_article_ids(elem, json_str)					
-			json_str['citations_pmid'] = get_article_citations(elem)
+					json_str['filename'] = filename
+					pmid = json_str['pmid']
+					json_str =json.dumps(json_str)
+					json_obj = json.loads(json_str)
 
-			title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df, cursor)
-			title_sentences['pmid'] = json_str['pmid']
-
-			if title_annotation is not None:
-				json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
-				json_str['title_dids'] = title_annotation['description_id'].tolist()
-			else:
-				json_str['title_conceptids'] = None
-				json_str['title_dids'] = None
-
-			json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
-			abstract_sentences['pmid'] = json_str['pmid']
-			s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
-			if title_sentences is not None:
-				s = s.append(title_sentences)
-			if abstract_sentences is not None:
-				s = s.append(abstract_sentences)
-			if len(s) > 0:
-				s = s[['id', 'pmid', 'conceptid', 'concept_arr', 'section', 'section_index', 'line_num', 'sentence', 'sentence_tuples']]
-				u.write_sentences(s, cursor)
-
-
-			json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-		
-
-	
-			json_str['filename'] = filename
-			pmid = json_str['pmid']
-			json_str =json.dumps(json_str)
-			json_obj = json.loads(json_str)
-
-			es = u.get_es_client()
-			get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-			query_result = es.search(index=INDEX_NAME, body=get_article_query)
-				
-			if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
-				try:
-					es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
-				except:
-					u.pprint(json_obj)
-					u.pprint(json_str)
-					raise ValueError('incompatible json obj')
-				
-				
-			elif query_result['hits']['total'] == 1:
-				article_id = query_result['hits']['hits'][0]['_id']
-				es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
-			cursor.close()
-			conn.close()
+					es = u.get_es_client()
+					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+					query_result = es.search(index=INDEX_NAME, body=get_article_query)
+						
+					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
+						try:
+							es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+						except:
+							u.pprint(json_obj)
+							u.pprint(json_str)
+							raise ValueError('incompatible json obj')
+						
+						
+					elif query_result['hits']['total'] == 1:
+						article_id = query_result['hits']['hits'][0]['_id']
+						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
+					cursor.close()
+					conn.close()
 	elem.clear()
 
 
@@ -526,62 +528,62 @@ def get_journal_info(elem, json_str):
 
 	return json_str
 
-def get_article_info(elem, json_str):
+# def get_article_info(elem, json_str):
 
-	try:
-		article_elem = elem.find('./MedlineCitation/Article')
-	except:
-		json_str['article_title'] = None
-		json_str['article_abstract'] = None
-		json_str['article_type'] = None
-		json_str['article_type_id'] = None
+# 	try:
+# 		article_elem = elem.find('./MedlineCitation/Article')
+# 	except:
+# 		json_str['article_title'] = None
+# 		json_str['article_abstract'] = None
+# 		json_str['article_type'] = None
+# 		json_str['article_type_id'] = None
 
-	try:
-		title_elem = article_elem.find('./ArticleTitle')
-		json_str['article_title'] = title_elem.text
-	except:
-		json_str['article_title'] = None
+# 	try:
+# 		title_elem = article_elem.find('./ArticleTitle')
+# 		json_str['article_title'] = title_elem.text
+# 	except:
+# 		json_str['article_title'] = None
 
-	try:
-		abstract_elem = article_elem.find('./Abstract')
-		abstract_dict = {}
+# 	try:
+# 		abstract_elem = article_elem.find('./Abstract')
+# 		abstract_dict = {}
 
-		for abstract_sub_elem in abstract_elem:
+# 		for abstract_sub_elem in abstract_elem:
 
-			sub_elem_dict = {}
+# 			sub_elem_dict = {}
 			
-			if not abstract_sub_elem.attrib:
-				sub_elem_dict['text'] = abstract_sub_elem.text
-				abstract_dict['text'] =  sub_elem_dict
-			else:
-				if abstract_sub_elem.attrib['Label'] == "":
-					sub_elem_dict["unlabelled"] == abstract_sub_elem.text
-				else:
-					sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
+# 			if not abstract_sub_elem.attrib:
+# 				sub_elem_dict['text'] = abstract_sub_elem.text
+# 				abstract_dict['text'] =  sub_elem_dict
+# 			else:
+# 				if abstract_sub_elem.attrib['Label'] == "":
+# 					sub_elem_dict["unlabelled"] == abstract_sub_elem.text
+# 				else:
+# 					sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
 
-				try:
-					abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = sub_elem_dict
-				except:
-					abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = sub_elem_dict
+# 				try:
+# 					abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = sub_elem_dict
+# 				except:
+# 					abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = sub_elem_dict
 
-		json_str['article_abstract'] = abstract_dict
+# 		json_str['article_abstract'] = abstract_dict
 
-	except:
-		json_str['article_abstract'] = None
+# 	except:
+# 		json_str['article_abstract'] = None
 
-	try:
-		article_type_elem = article_elem.findall('./PublicationTypeList/PublicationType')
-		json_str['article_type'] = []
-		json_str['article_type_id'] = []
+# 	try:
+# 		article_type_elem = article_elem.findall('./PublicationTypeList/PublicationType')
+# 		json_str['article_type'] = []
+# 		json_str['article_type_id'] = []
 
-		for node in article_type_elem:
-			json_str['article_type'].append(node.text)
-			json_str['article_type_id'].append(node.attrib['UI'])
-	except:
-		json_str['article_type'] = None
-		json_str['article_type_id'] = None
+# 		for node in article_type_elem:
+# 			json_str['article_type'].append(node.text)
+# 			json_str['article_type_id'].append(node.attrib['UI'])
+# 	except:
+# 		json_str['article_type'] = None
+# 		json_str['article_type_id'] = None
 
-	return json_str
+# 	return json_str
 
 def get_article_info_2(elem, json_str):
 
