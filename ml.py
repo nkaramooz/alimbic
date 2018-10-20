@@ -162,17 +162,45 @@ def serialize_data():
 	sample_train = pd.read_pickle("./sample_train.pkl")
 	with open('reversed_dictionary.pickle', 'rb') as rd:
   		reverse_dictionary = pk.load(rd)
-  		u.pprint(reverse_dictionary)
-		
+
+	  	with open('dictionary.pickle', 'rb') as d:
+	  		dictionary = pk.load(d)
+	
+	x_train = np.empty([0,1])
+	y_train = np.empty([0,1])
 	for index, sentence in sample_train.iterrows():
 		root_index = sentence['root_index']
 		rel_index = sentence['rel_index']
-		u.pprint(sentence['sentence_tuples'])
-		root_cid = ""
-		rel_cid = ""
+		root_cid = None
+		rel_cid = None
 		sentence_np_array = np.empty(shape=(1,0))
-		for index, tup in sentence.iterrows():
-			u.pprint(tup)
+
+		for index, tup in sentence['sentence_tuples'].iteritems():
+			for ind, t in enumerate(tup):
+				print(ind)
+
+				t = t.lower()
+	
+				t = t.strip('(')
+				t = t.strip(')')
+				t = tuple(t.split(","))	
+
+				if ind == root_index and root_cid == None:
+					root_cid = t[1]
+					# append index for root
+				elif ind == rel_index and rel_cid == None:
+					rel_cid = t[1]
+					# append index for rel
+				elif t[1] == root_cid:
+					continue
+				elif t[1] == rel_index:
+					continue
+				# if t[0] in dictionary.keys():
+				# 	print(dictionary[t[0]])
+				# else:
+				# 	print(dictionary['UNK'])
+				
+			
 			
 			# word_list.append(words[0])
 			# if words[1] in root then number is vocabulary_size-2
@@ -186,4 +214,5 @@ def serialize_data():
 
 # load_word_counts_dict()
 
-build()
+# build()
+serialize_data()
