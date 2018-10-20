@@ -60,14 +60,15 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
 
 		json_str = {}
-		# json_str = get_journal_info(elem, json_str)
-
-	
-		json_str = get_article_info_2(elem, json_str)
+		json_str = get_journal_info(elem, json_str)
+		
 
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) >= 1980):
+				json_str = get_article_info_2(elem, json_str)
+
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
+					
 					conn,cursor = pg.return_postgres_cursor()
 					
 					json_str = get_pmid(elem, json_str)
@@ -659,7 +660,7 @@ def get_snomed_annotation(text, section, filter_words_df, cursor):
 	if text is None:
 		return None, None
 	else:
-		annotation, sentences = ann.annotate_text_not_parallel(text, section, filter_words_df, cursor, True, True, True)
+		annotation, sentences = ann.annotate_text_not_parallel(text, section, cursor, True, True, True)
 		if annotation is not None:
 			return annotation, sentences
 		else:
