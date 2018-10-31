@@ -408,16 +408,29 @@ def query_expansion(conceptid_series, cursor):
 
 	child_query = """
 		select 
-			subtypeid as conceptid
+			conceptid
 			,supertypeid
 		from (
-			select subtypeid, supertypeid
-			from snomed.curr_transitive_closure_f where supertypeid in %s
-		) tb
-		join annotation.concept_counts ct
-		  on tb.subtypeid = ct.conceptid
-		order by ct.cnt desc
-		limit 1
+			select
+				supertypeid,
+    			conceptid,
+    			cnt,
+    			row_number() over (partition by supertypeid order by cnt desc) as rn
+			from
+			(
+				select 
+					supertypeid
+            		,subtypeid as conceptid
+            		,ct.cnt
+				from (
+					select subtypeid, supertypeid
+					from snomed.curr_transitive_closure_f where supertypeid in %s
+				) tb1
+				join annotation.concept_counts ct
+		  			on tb1.subtypeid = ct.conceptid
+    		) tb2
+		) tb3
+		where rn <= 1
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
@@ -485,9 +498,8 @@ def annotate_text_not_parallel(text, section, cursor, case_sensitive, bool_acr_c
 				for cid in concept_arr:
 					sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
 							columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
-		return ann_df, sentence_df
-	else:
-		return ann_df, sentence_df
+	return ann_df, sentence_df
+
 
 
 ### UTILITY FUNCTIONS

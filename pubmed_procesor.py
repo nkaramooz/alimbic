@@ -76,7 +76,9 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str['citations_pmid'] = get_article_citations(elem)
 
 					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df, cursor)
-					title_sentences['pmid'] = json_str['pmid']
+					
+					if title_sentences is not None:
+						title_sentences['pmid'] = json_str['pmid']
 
 					if title_annotation is not None:
 						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
@@ -86,12 +88,14 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						json_str['title_dids'] = None
 
 					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
-					abstract_sentences['pmid'] = json_str['pmid']
+
+					
 					s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
 					if title_sentences is not None:
-						s = s.append(title_sentences)
+						s = s.append(title_sentences, sort=False)
 					if abstract_sentences is not None:
-						s = s.append(abstract_sentences)
+						abstract_sentences['pmid'] = json_str['pmid']
+						s = s.append(abstract_sentences, sort=False)
 					if len(s) > 0:
 						s = s[['id', 'pmid', 'conceptid', 'concept_arr', 'section', 'section_index', 'line_num', 'sentence', 'sentence_tuples']]
 						u.write_sentences(s, cursor)
@@ -190,10 +194,14 @@ def load_pubmed_local_2(start_file, filter_words_df):
 	for folder_path in folder_arr:
 		file_counter = 0
 
-		for filename in os.listdir(folder_path):
+		file_lst = os.listdir(folder_path)
+		file_lst.sort()
+
+		for filename in file_lst:
+
 			abstract_counter = 0
 			file_path = folder_path + '/' + filename
-			
+
 			file_num = int(re.findall('pubmed18n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
@@ -389,14 +397,20 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 def get_abstract_conceptids_2(abstract_dict, filter_words_df, cursor):
 	cid_dict = {}
 	did_dict = {}
-	sentences = pd.DataFrame()
+	sentences = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	if abstract_dict is not None:
 		for index,k1 in enumerate(abstract_dict):
-			res,sentences = get_snomed_annotation(abstract_dict[k1], str(k1), filter_words_df, cursor)
-			sentences['section_index'] = index			
+			res,new_sentences = get_snomed_annotation(abstract_dict[k1], str(k1), filter_words_df, cursor)
+			
+			if new_sentences is not None:
+				new_sentences['section_index'] = index	
+				sentences = sentences.append(new_sentences)
+				
+
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			if res is not None:
+
 				cid_dict[k1_cid] = res['conceptid'].tolist()
 				did_dict[k1_did] = res['description_id'].tolist()
 			else:
@@ -661,7 +675,7 @@ def get_snomed_annotation(text, section, filter_words_df, cursor):
 		return None, None
 	else:
 		annotation, sentences = ann.annotate_text_not_parallel(text, section, cursor, True, True, True)
-		if annotation is not None:
+		if not annotation.empty:
 			return annotation, sentences
 		else:
 			return None, None
@@ -669,11 +683,7 @@ def get_snomed_annotation(text, section, filter_words_df, cursor):
 
 if __name__ == "__main__":
 
-	cursor = pg.return_postgres_cursor()
-	
-	# filter_words_query = "select words from annotation.filter_words"
-	# filter_words_df = pg.return_df_from_query(cursor, filter_words_query, None, ["words"])
-	# cursor.close()
+
 
 	# start_file = 510
 	start_file = 1

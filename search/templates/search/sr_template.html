@@ -25,7 +25,7 @@
 						<div class="col-sm-2">
 						</div>
 						<div class="col-sm-2">
-							<h5><a target="_blank" href="http://localhost:9200/pubmedx1.1/abstract/{{a.id}}?pretty"> source </a> </h5>
+							<h5><a target="_blank" href="http://localhost:9200/pubmedx1.2/abstract/{{a.id}}?pretty"> source </a> </h5>
 						</div>
 						<div class="col-sm-3">
 							<div class="journal-title">
@@ -36,7 +36,11 @@
 				</div>
 				{% if a.abstract_show is not None %}
 					<div class="preview-ellipsis">
-						<h4><b>{{a.abstract_show.0}}</b></h4>
+						{% if a.abstract_show.0 == 'unlabelled' %}
+							<h4><b>abstract</b></h4>
+						{% else %}
+							<h4><b>{{a.abstract_show.0}}</b></h4>
+						{% endif %}
 						<h4>{{a.abstract_show.1}}</h4><br>
 					</div>
 				{% endif %}

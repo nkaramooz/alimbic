@@ -43,11 +43,18 @@
 													<li>
 														<form action=# method="get"> 
 															{% csrf_token %}
-															<input type="hidden" name="conceptid1" value="{{k1}}">
-															<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+
+															<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 															<input type="hidden" name="term1" value="{{v1.term}}">
 															<input type="hidden" name="term2" value="{{x.term}}">
 															<input type="hidden" name="query_type" value="pivot">
+															<input type="hidden" name="pivot_type" value="treatment">
+															{% for c in primary_cids %}
+																<input type="hidden" name="primary_cids[]" value="{{c}}">
+															{% endfor %}
+															{% for j in journals %}
+																<input type="hidden" name="journals[]" value="{{j}}">
+															{% endfor %}
 															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
 														</form>
 													</li>
@@ -111,11 +118,17 @@
 		    									</form>
 		    									<form action=# method="get"> 
 													{% csrf_token %}
-														<input type="hidden" name="conceptid1" value="{{k1}}">
-														<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+														<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 														<input type="hidden" name="term1" value="{{v1.term}}">
 														<input type="hidden" name="term2" value="{{x.term}}">
 														<input type="hidden" name="query_type" value="pivot">
+														<input type="hidden" name="pivot_type" value="treatment">
+														{% for c in primary_cids %}
+															<input type="hidden" name="primary_cids[]" value="{{c}}">
+														{% endfor %}
+														{% for j in journals %}
+															<input type="hidden" name="journals[]" value="{{j}}">
+														{% endfor %}
 														<input type="submit" value="View" class="btn btn-primary">
 												</form>
 		  									</div>
@@ -150,11 +163,17 @@
 													<li>
 														<form action=# method="get"> 
 															{% csrf_token %}
-															<input type="hidden" name="conceptid1" value="{{k1}}">
-															<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+															<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 															<input type="hidden" name="term1" value="{{v1.term}}">
 															<input type="hidden" name="term2" value="{{x.term}}">
 															<input type="hidden" name="query_type" value="pivot">
+															<input type="hidden" name="pivot_type" value="diagnostic">
+															{% for c in primary_cids %}
+																<input type="hidden" name="primary_cids[]" value="{{c}}">
+															{% endfor %}
+															{% for j in journals %}
+																<input type="hidden" name="journals[]" value="{{j}}">
+															{% endfor %}
 															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
 														</form>
 													</li>
@@ -165,6 +184,7 @@
 								</div>
 							</div>
 						</div>
+		
 <!-- 
 							<h5> Diagnostic ({{v2|length}})</h5>
 							<div id="diagnostic" class="carousel slide" data-interval="false">
@@ -220,11 +240,17 @@
 		    								</form>
 				    						<form action=# method="get"> 
 												{% csrf_token %}
-													<input type="hidden" name="conceptid1" value="{{k1}}">
-													<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+													<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 													<input type="hidden" name="term1" value="{{v1.term}}">
 													<input type="hidden" name="term2" value="{{x.term}}">
 													<input type="hidden" name="query_type" value="pivot">
+													<input type="hidden" name="pivot_type" value="diagnostic">
+													{% for c in primary_cids %}
+														<input type="hidden" name="primary_cids[]" value="{{c}}">
+													{% endfor %}
+													{% for j in journals %}
+														<input type="hidden" name="journals[]" value="{{j}}">
+													{% endfor %}
 													<input type="submit" value="View" class="btn btn-primary">
 											</form>
 										</div>
@@ -261,11 +287,17 @@
 													<li>
 														<form action=# method="get"> 
 															{% csrf_token %}
-															<input type="hidden" name="conceptid1" value="{{k1}}">
-															<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+															<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 															<input type="hidden" name="term1" value="{{v1.term}}">
 															<input type="hidden" name="term2" value="{{x.term}}">
 															<input type="hidden" name="query_type" value="pivot">
+															<input type="hidden" name="pivot_type" value="condition">
+															{% for c in primary_cids %}
+																<input type="hidden" name="primary_cids[]" value="{{c}}">
+															{% endfor %}
+															{% for j in journals %}
+																<input type="hidden" name="journals[]" value="{{j}}">
+															{% endfor %}
 															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
 														</form>
 													</li>
@@ -331,11 +363,17 @@
 		    								</form>
 				    						<form action=# method="get"> 
 												{% csrf_token %}
-													<input type="hidden" name="conceptid1" value="{{k1}}">
-													<input type="hidden" name="conceptid2" value="{{x.conceptid}}">
+													<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
 													<input type="hidden" name="term1" value="{{v1.term}}">
 													<input type="hidden" name="term2" value="{{x.term}}">
 													<input type="hidden" name="query_type" value="pivot">
+													<input type="hidden" name="pivot_type" value="condition">
+													{% for c in primary_cids %}
+														<input type="hidden" name="primary_cids[]" value="{{c}}">
+													{% endfor %}
+													{% for j in journals %}
+														<input type="hidden" name="journals[]" value="{{j}}">
+													{% endfor %}
 													<input type="submit" value="View" class="btn btn-primary">
 											</form>
 										</div>
