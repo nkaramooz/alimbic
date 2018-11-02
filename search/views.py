@@ -1203,10 +1203,14 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 		agg_condition = agg_condition.sort_values(['count'], ascending=False)
 
 		# Try to exclude symptoms included
-		if type(query_concept_list[0]) == list:
-			agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list[0])]
-		elif type(query_concept_list) == list:
-			agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list)]
+		# print(query_concept_list)
+		# print(type(query_concept_list))
+		# if type(query_concept_list[0]) == list:
+		# 	u.pprint(agg_condition)
+		# 	u.pprint(query_concept_list[0])
+		# 	agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list[0])]
+		# elif type(query_concept_list) == list:
+		# 	agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list)]
 		for index,row in agg_condition.iterrows():
 			item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 			sub_dict['condition'].append(item_dict)
