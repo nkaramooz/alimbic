@@ -3,13 +3,11 @@ import re
 import psycopg2
 from sqlalchemy import create_engine
 from nltk.stem.wordnet import WordNetLemmatizer
-
 from operator import itemgetter
 import nltk.data
 import numpy as np
 import time
 import utilities.utils as u, utilities.pglib as pg
-
 import collections
 import math
 import os
@@ -21,8 +19,15 @@ from six.moves import urllib
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import snomed_annotator as ann
 import pickle as pk
+from keras.datasets import imdb
+import sys
+from keras.preprocessing import sequence
+from keras import Sequential
+from keras.layers import Embedding, LSTM, Dense, Dropout
+from keras.models import load_model
 
 
+vocabulary_size = 50001
 
 
 def get_word_counts():
@@ -95,7 +100,6 @@ def build_dataset(words, n_words):
 def build():
 
 	vocabulary = read_data()
-	vocabulary_size = 50000
 
 	data, count, dictionary, reverse_dictionary = build_dataset(vocabulary,
 	                                                            vocabulary_size)
@@ -111,15 +115,15 @@ def load_word_counts_dict():
 #[[X (i.e. condition), Y (i.e. treatment), label]]
 # Will need to get all children of X, and all children of Y
 labeled_set = [['22298006','387458008', '1'], #aspirin
-	['22298006', '33252009'], # beta blocker
-	['22298006', '734579009']] # ace inhibitor
+	['22298006', '33252009', '1'], # beta blocker
+	['22298006', '734579009', '1']] # ace inhibitor
 
 def get_data():
 	conn,cursor = pg.return_postgres_cursor()
 	labelled_set = pd.DataFrame()
 	results = pd.DataFrame()
 	for index,item in enumerate(labeled_set):
-		
+		print(item[2])
 		root_cids = [item[0]]
 		root_cids.extend(ann.get_children(item[0], cursor))
 
@@ -128,14 +132,14 @@ def get_data():
 
 
 		# Want to select sentenceIds that contain both
-		sentence_query = "select sentence_tuples from annotation.sentences where conceptid in %s and id in (select id from annotation.sentences where conceptid in %s) limit 10"
+		sentence_query = "select sentence_tuples from annotation.sentences where conceptid in %s and id in (select id from annotation.sentences where conceptid in %s) limit 1000"
 
 		#this should give a full list for the training row
 		sentences = pg.return_df_from_query(cursor, sentence_query, (tuple(root_cids), tuple(rel_cids)), ["sentence_tuples"])
 		# Now you get the sentence, but you need to remove root and replace with word index
 		# Create sentence list
 		# each sentence list contains a list vector for word index
-		
+		label = item[2]
 	
 		for index,sentence in sentences.iterrows():
 
@@ -155,7 +159,7 @@ def get_data():
 
 
 				# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
-			results = results.append(pd.DataFrame([[sentence, sentence_root_index, sentence_rel_index]], columns=['sentence_tuples', 'root_index', 'rel_index']))
+			results = results.append(pd.DataFrame([[sentence, sentence_root_index, sentence_rel_index, label]], columns=['sentence_tuples', 'root_index', 'rel_index', 'label']))
 	results.to_pickle("./sample_train.pkl")
 
 def serialize_data():
@@ -166,41 +170,89 @@ def serialize_data():
 	  	with open('dictionary.pickle', 'rb') as d:
 	  		dictionary = pk.load(d)
 	
-	x_train = np.empty([0,1])
-	y_train = np.empty([0,1])
+
+	max_ln_arr = []
+	for index, sentence in sample_train.iterrows():
+		for index, tup in sentence['sentence_tuples'].iteritems():
+			max_ln_arr.append(len(tup))
+	
+	## this is how much should be padded
+	max_words = max(max_ln_arr)
+	print("max_ln: " + str(max_words))
+	x_train = []
+	y_train = []
+
 	for index, sentence in sample_train.iterrows():
 		root_index = sentence['root_index']
 		rel_index = sentence['rel_index']
 		root_cid = None
 		rel_cid = None
-		sentence_np_array = np.empty(shape=(1,0))
+		# unknowns will have integer of 50000
+		sample = [(vocabulary_size-1)]*max_words
 
+		label = sentence['label']
 		for index, tup in sentence['sentence_tuples'].iteritems():
 			for ind, t in enumerate(tup):
-				print(ind)
-
 				t = t.lower()
 	
 				t = t.strip('(')
 				t = t.strip(')')
 				t = tuple(t.split(","))	
 
+
 				if ind == root_index and root_cid == None:
 					root_cid = t[1]
+					sample[ind] = vocabulary_size-3
 					# append index for root
 				elif ind == rel_index and rel_cid == None:
 					rel_cid = t[1]
+					sample[ind] = vocabulary_size-2
 					# append index for rel
 				elif t[1] == root_cid:
-					continue
+					sample[ind] = vocabulary_size-2
 				elif t[1] == rel_index:
-					continue
-				# if t[0] in dictionary.keys():
-				# 	print(dictionary[t[0]])
-				# else:
-				# 	print(dictionary['UNK'])
-				
-			
+					sample[ind] = vocabulary_size-2
+				elif t[0] in dictionary.keys():
+					sample[ind] = dictionary[t[0]]
+				else:
+					sample[ind] = dictionary['UNK']
+		x_train.append(sample)
+		y_train.append(label)
+
+	print(x_train)
+	print(y_train)
+	print(dictionary['UNK'])
+	return x_train, y_train, max_words
+
+
+def build_model():
+	x_train, y_train, max_words = serialize_data()
+	# x_train = sequence(x_train)
+	x_train = np.array(x_train)
+	y_train = np.array(y_train)
+
+	# y_train = sequence(y_train)
+	# print(x_train.shape)
+	embedding_size=32
+	model=Sequential()
+	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words))
+	model.add(LSTM(100))
+	model.add(Dense(1, activation='sigmoid'))
+
+	print(model.summary())
+	model.compile(loss='binary_crossentropy', 
+             optimizer='adam', 
+             metrics=['accuracy'])
+	batch_size = 5
+	num_epochs = 1
+	x_valid, y_valid = x_train[:batch_size], y_train[:batch_size]
+	x_train2, y_train2 = x_train[batch_size:], y_train[batch_size:]
+
+	print(x_train2.shape)
+	print(y_train2.shape)
+	
+	model.fit(x_train2, y_train2, validation_data=(x_valid, y_valid), batch_size=batch_size, epochs=num_epochs)
+	# scores = model.evaluate(steps=1)
 			
 			# word_list.append(words[0])
 			# if words[1] in root then number is vocabulary_size-2
@@ -215,4 +267,4 @@ def serialize_data():
 # load_word_counts_dict()
 
 # build()
-serialize_data()
+build_model()
