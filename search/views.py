@@ -759,6 +759,7 @@ def concept_search_results(request):
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
+		primary_cids = None
 		if not query_concepts_df.empty:
 
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
@@ -777,15 +778,15 @@ def concept_search_results(request):
 			es_query = {"from" : 0, \
 					 "size" : 100, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
-			print(es_query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 			related_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
+			primary_cids = query_concepts_df['conceptid'].tolist()
 		###UPDATE QUERY BELOW FOR FILTERS
 		else:
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 		sr_payload = get_sr_payload(sr['hits']['hits'])
-		primary_cids = query_concepts_df['conceptid'].tolist()
+		
 		return render(request, 'search/concept_search_results_page.html', \
 			{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
 			'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}})

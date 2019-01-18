@@ -284,7 +284,7 @@ def resolve_conflicts(results_df, cursor):
 
 	# Really should only want below for query annotation. Not document annotation
 	else: #first try and choose most common concept. If not choose randomly
-		conc_count_query = "select conceptid, cnt from annotation.concept_counts where conceptid in %s"
+		conc_count_query = "select conceptid, count from annotation.concept_counts where conceptid in %s"
 		params = (tuple(conflicted_df['conceptid']),)
 		cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['conceptid', 'cnt'])
 
@@ -414,14 +414,14 @@ def query_expansion(conceptid_series, cursor):
 			select
 				supertypeid,
     			conceptid,
-    			cnt,
-    			row_number() over (partition by supertypeid order by cnt desc) as rn
+    			count,
+    			row_number() over (partition by supertypeid order by count desc) as rn
 			from
 			(
 				select 
 					supertypeid
             		,subtypeid as conceptid
-            		,ct.cnt
+            		,ct.count
 				from (
 					select subtypeid, supertypeid
 					from snomed.curr_transitive_closure_f where supertypeid in %s
@@ -430,7 +430,7 @@ def query_expansion(conceptid_series, cursor):
 		  			on tb1.subtypeid = ct.conceptid
     		) tb2
 		) tb3
-		where rn <= 1
+		where rn <= 4
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
