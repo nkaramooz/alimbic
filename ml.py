@@ -27,8 +27,12 @@ from keras.layers import Embedding, LSTM, Dense, Dropout
 from keras.models import load_model
 
 
-vocabulary_size = 50001
+vocabulary_size = 50000
 
+# need one for root (condition), need one for rel treatment
+# need one for none (spacer)
+vocabulary_spacer = 3
+# [root, rel, spacer]
 
 def get_word_counts():
 	query = "select sentence_tuples from annotation.sentences"
@@ -102,21 +106,63 @@ def build():
 	vocabulary = read_data()
 
 	data, count, dictionary, reverse_dictionary = build_dataset(vocabulary,
-	                                                            vocabulary_size)
+	                                                            vocabulary_size-vocabulary_spacer)
 	del vocabulary
 
 
 def load_word_counts_dict():
 	with open('word_count.pickle', 'rb') as handle:
 		counts = pickle.load(handle)
-		print(counts[0:50000])
+		print(counts[0:(vocabulary_size-vocabular_spacer)])
 
 # How does training 
 #[[X (i.e. condition), Y (i.e. treatment), label]]
 # Will need to get all children of X, and all children of Y
 labeled_set = [['22298006','387458008', '1'], #aspirin
 	['22298006', '33252009', '1'], # beta blocker
-	['22298006', '734579009', '1']] # ace inhibitor
+	['22298006', '734579009', '1'], # ace inhibitor
+	['44054006', '7947003', '0'],
+	['44054006', '400556009', '1'],
+	['44054006', '418285008', '0'],
+	['44054006', '48698004', '0'],
+	['44054006', '7092007', '0'],
+	['44054006', '386879008', '1'],
+	['44054006', '63718003', '0'],
+	['44054006', '391858005', '0'],
+	['44054006', '387419003', '1'],
+	['44054006', '387124009', '0'],
+	['44054006', '308111008', '0'],
+	['44054006', '1182007', '0'],
+	['44054006', '308113006', '0'],
+	['44054006', '96302009', '0'],
+	['44054006', '102747008', '0'],
+	['44054006', '308111008', '0'],
+	['44054006', '44054006', '0'],
+	['44054006', '38341003', '0'],
+	['44054006', '230690007','0'],
+	['34000006', '68887009', '1'],
+	['34000006', '395726003', '1'],
+	['34000006', '386835005', '1'],
+	['34000006', '414805007', '1'],
+	['34000006', '372574004', '1'],
+	['34000006', '387248006', '1'],
+	['34000006', '79440004', '1'],
+	['34000006', '363779003', '0'],
+	['34000006', '271737000', '0'],
+	['34000006', '14189004', '0'],
+	['34000006', '24526004', '0'],
+	['25374005', '346712003', '0'],
+	['25374005', '398866008', '1'],
+	['25374005', '108418007 ', '1'],
+	['93880001', '119746007', '1'],
+	['93880001', '367336001', '1'],
+	['93880001', '261479009', '0'],
+	['363418001', '367336001', '1'],
+	['363418001', '386920008', '1'],
+	['363418001', '450556004', '0'],
+	['13645005', '79440004', '1'],
+	['13645005', '428311008', '1'],
+	['13645005', '59187003', '0']] 
 
 def get_data():
 	conn,cursor = pg.return_postgres_cursor()
@@ -267,4 +313,4 @@ def build_model():
 # load_word_counts_dict()
 
 # build()
-build_model()
+serialize_data()
