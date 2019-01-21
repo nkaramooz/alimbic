@@ -25,7 +25,7 @@ def pprint(data_frame):
 
 def write_sentences(s_df, cursor):
 	engine = pg.return_sql_alchemy_engine()
-	s_df.to_sql('sentences2', \
+	s_df.to_sql('sentences3', \
 		engine, schema='annotation', if_exists='append', index=False)
 
 def get_conceptid_name(conceptid, cursor):
