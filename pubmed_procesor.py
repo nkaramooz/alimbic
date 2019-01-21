@@ -15,7 +15,7 @@ import copy
 import re
 
 
-INDEX_NAME = 'pubmedx1.2'
+INDEX_NAME = 'pubmedx1.3'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -30,37 +30,36 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
-	# 	# american journal of hypertension
-	# if (is_issn(elem, '0895-7061') or is_issn(elem, '1941-7225') \
-	# 	# hypertension
-	# 	or is_issn(elem, '0194-911X') or is_issn(elem, '1524-4563')\
-	# 	# cochrane database of systematic reviews
-	# 	or is_issn(elem, '1469-493X') or is_issn(elem, '1465-1858')\
-	# 	# british medial journal
-	# 	or is_issn(elem, '0959-8138') or is_issn(elem, '1756-1833')\
-	# 	# Lung
-	# 	or is_issn(elem, '0341-2040') or is_issn(elem, '1432-1750')\
-	# 	# Circulation. Heart failure
-	# 	or is_issn(elem, '1941-3289') or is_issn(elem, '1941-3297')\
-	# 	# NEJM
-	# 	or is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')\
-	# 	# American family physician
-	# 	or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-	# 	# Annals of internal medicine
-	# 	or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-	# 	# JAMA
-	# 	or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')\
-	# 	# Annals of american thoracic society
-	# 	or is_issn(elem, '2325-6621') or is_issn(elem, '1943-5665')\
-	# 	# Lancet
-	# 	or is_issn(elem, '0140-6736') or is_issn(elem, '1474-547X')\
-	# 	# Neurlogy
-	# 	or is_issn(elem, '0028-3878') or is_issn(elem, '1526-632X')\
-	# 	# Circulation
-	# 	or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')):
-
+		# american journal of hypertension
+	if (is_issn(elem, '0895-7061') or is_issn(elem, '1941-7225') \
+		# hypertension
+		or is_issn(elem, '0194-911X') or is_issn(elem, '1524-4563')\
+		# cochrane database of systematic reviews
+		or is_issn(elem, '1469-493X') or is_issn(elem, '1465-1858')\
+		# british medial journal
+		or is_issn(elem, '0959-8138') or is_issn(elem, '1756-1833')\
+		# Lung
+		or is_issn(elem, '0341-2040') or is_issn(elem, '1432-1750')\
+		# Circulation. Heart failure
+		or is_issn(elem, '1941-3289') or is_issn(elem, '1941-3297')\
+		# NEJM
+		or is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')\
+		# American family physician
+		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
+		# Annals of internal medicine
+		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
+		# JAMA
+		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')\
+		# Annals of american thoracic society
+		or is_issn(elem, '2325-6621') or is_issn(elem, '1943-5665')\
+		# Lancet
+		or is_issn(elem, '0140-6736') or is_issn(elem, '1474-547X')\
+		# Neurlogy
+		or is_issn(elem, '0028-3878') or is_issn(elem, '1526-632X')\
+		# Circulation
+		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')\
 		# Pulmonology
-	if (is_issn(elem, '2090-5769') or is_issn(elem, '2090-5777') \
+		or is_issn(elem, '2090-5769') or is_issn(elem, '2090-5777')\
 		# Gastroenterology
 		or is_issn(elem, '0016-5085') or is_issn(elem, '1524-4563')\
 		# Annals of Emergency Medicine

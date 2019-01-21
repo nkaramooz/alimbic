@@ -5,6 +5,10 @@ vocabulary_size = 5000
 (X_train, y_train), (X_test, y_test) = imdb.load_data(num_words = vocabulary_size)
 print('Loaded dataset with {} training samples, {} test samples'.format(len(X_train), len(X_test)))
 
+print(y_test[0])
+print(type(y_test[0]))
+print(X_test[0])
+sys.exit(0)
 print('---review---')
 print(X_train[6])
 print('---label---')
