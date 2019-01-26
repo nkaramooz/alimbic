@@ -35,7 +35,7 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
-	
+
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
@@ -517,9 +517,10 @@ def clean_text(line):
 	line = line.replace('\'', '')
 	line = line.replace('"', '')
 	line = line.replace(':', '')
-	# line = line.replace('(', '')
-	# line = line.replace(')', '')
-	line = re.sub("\(.*?\)","",line)
+	line = line.replace('(', '')
+	line = line.replace(')', '')
+	# This makes you lose the likelihood ratios
+	# line = re.sub("\(.*?\)","",line)
 	return line
 
 def timeLimit(t, ref):
@@ -625,30 +626,32 @@ if __name__ == "__main__":
 	query43="ovary cancer"
 	query44="Everolimus an inhibitor of the"
 	query45="Aortic dissection"
+	query46="Likelihood ratio"
 
 	check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	conn, cursor = pg.return_postgres_cursor()
 
-	# u.pprint(return_line_snomed_annotation(cursor, query1, 87))
+	# u.pprint(return_line_snomed_annotation_v2(cursor, query46, 87, False, {}))
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	# res, sentences = annotate_text_not_parallel(query1, 'title', cursor, False, False, False)
+	res, sentences = annotate_text_not_parallel(query46, 'title', cursor, False, False, False)
+	print(res)
 	# cursor.close()
 	# u.pprint("=============================")
 	# u.pprint(res)
 	# u.pprint(sentences)
 	# check_timer.stop()
 	# u.pprint(get_children('387458008', cursor))
-	labeled_set = [['418285008','387458008', '1']]
-	labelled_set = pd.DataFrame()
-	for index,item in enumerate(labeled_set):
+	# labeled_set = [['418285008','387458008', '1']]
+	# labelled_set = pd.DataFrame()
+	# for index,item in enumerate(labeled_set):
 		
-		root_cids = [item[0]]
-		root_cids.extend(get_children(item[0], cursor))
-		print(root_cids)
+	# 	root_cids = [item[0]]
+	# 	root_cids.extend(get_children(item[0], cursor))
+	# 	print(root_cids)
 
 	# u.pprint("*****************************")
 	# unittest.main()
