@@ -800,14 +800,50 @@ def rollups(cids, cursor):
 	cids = ['372787008', '372586001', '395954002']
 	query = "select subtypeid, supertypeid from snomed.curr_transitive_closure_f where subtypeid in %s and supertypeid in %s"
 	parents_df = pg.return_df_from_query(cursor, query, (tuple(cids), tuple(cids)), ["subtypeid", "supertypeid"])
-	parents_df['count'] = 1
-	parents_df = parents_df.groupby(['subtypeid'], as_index=False)['count'].sum()
+	parents_df['parent_count'] = 1
+	parents_df = parents_df.groupby(['subtypeid'], as_index=False)['parent_count'].sum()
 	u.pprint(parents_df)
 	#now make np array of cids
 	cids_df = pd.DataFrame(cids, columns=['conceptid'])
-	u.pprint(cids_df)
 	cids_df = cids_df.merge(parents_df, how='left', left_on=['conceptid'], right_on=['subtypeid'])
-	u.pprint(cids_df)
+
+	root_df = cids_df[cids_df['parent_count'].isna()]
+	child_df = cids_df[cids_df['parent_count'].notna()]
+	child_df = child_df.sort_values(by=['parent_count'], ascending=True)
+
+	json_resp = []
+	for i,r in root_df.iterrows():
+		json_resp.append({r['conceptid'] : {'name' : None, 'count': None, 'children' : []}})
+
+	for i,r in child_df.iterrows():
+		new_json = {r['conceptid'] : {'name' : None, 'count' : None, 'childern' : []}}
+
+		for i2,r2 in 
+
+
+# Takes sorted inputs, which is not ideal
+def get_json(item_df, prev_json):
+
+	if item_df['supertypeid'].isna():
+		prev_json.append(item_df['conceptid'] : \
+					{'name' : None, 'count' : None, 'children' : []})
+		return prev_json
+		# return new json
+	else:
+		for i,r in enumerate(prev_json):
+			if item_df['supertypeid'] in r.keys():
+				r[item_df['supertypeid']]['children'].append(item_df['conceptid'] : \
+					{'name' : None, 'count' : None, 'children' : []})
+				return prev_json
+		for i,r in enumerate(prev_json):
+			return get_json(item_df, r)
+
+
+	# json = [{cid1 : {name: name, count: count, children: [{cid1 : }, cid2 {}]}}]
+	#
+	#
+
+
 
 
 ### Utility functions
