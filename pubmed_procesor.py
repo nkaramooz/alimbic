@@ -695,7 +695,7 @@ if __name__ == "__main__":
 
 
 	# start_file = 510
-	start_file = 1
+	start_file = 364
 	while (start_file < 929):
 		print(start_file)
 		load_pubmed_local_2(start_file, None)
@@ -3733,7 +3733,9 @@ nlm_cat_dict = {"a case report" :"methods"
 ,"wider implications of the findings" :"conclusions"
 ,"work method" :"methods"
 ,"work results" :"methods"
-,"working hypothesis" :"objective" }
+,"working hypothesis" :"objective"
+,"setting" : "methods"
+,"participants" : "methods" }
 
 
 

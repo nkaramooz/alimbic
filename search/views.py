@@ -756,6 +756,7 @@ def concept_search_results(request):
 		query = ann.clean_text(query)
 		
 		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cursor, True, False, False)
+		rollups(None, cursor)
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
@@ -781,8 +782,10 @@ def concept_search_results(request):
 			sr = es.search(index=INDEX_NAME, body=es_query)
 			related_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 			primary_cids = query_concepts_df['conceptid'].tolist()
+
 		###UPDATE QUERY BELOW FOR FILTERS
 		else:
+
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 		sr_payload = get_sr_payload(sr['hits']['hits'])
@@ -792,6 +795,19 @@ def concept_search_results(request):
 			'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}})
 
 
+def rollups(cids, cursor):
+	# CIDs should be an array
+	cids = ['372787008', '372586001', '395954002']
+	query = "select subtypeid, supertypeid from snomed.curr_transitive_closure_f where subtypeid in %s and supertypeid in %s"
+	parents_df = pg.return_df_from_query(cursor, query, (tuple(cids), tuple(cids)), ["subtypeid", "supertypeid"])
+	parents_df['count'] = 1
+	parents_df = parents_df.groupby(['subtypeid'], as_index=False)['count'].sum()
+	u.pprint(parents_df)
+	#now make np array of cids
+	cids_df = pd.DataFrame(cids, columns=['conceptid'])
+	u.pprint(cids_df)
+	cids_df = cids_df.merge(parents_df, how='left', left_on=['conceptid'], right_on=['subtypeid'])
+	u.pprint(cids_df)
 
 
 ### Utility functions
