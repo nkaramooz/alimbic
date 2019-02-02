@@ -7,8 +7,10 @@ import pandas as pd
 
 # Create your views here.
 
-INDEX_NAME='pubmedx1.2'
+INDEX_NAME='pubmedx1.3'
 
+
+# You can update this to use sentences3
 def update_postgres_document_concept_count():
 	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
 	

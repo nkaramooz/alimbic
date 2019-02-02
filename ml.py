@@ -23,13 +23,14 @@ from keras.datasets import imdb
 import sys
 from keras.preprocessing import sequence
 from keras import Sequential
-from keras.layers import Embedding, LSTM, Dense, Dropout
+from keras.layers import Embedding, LSTM, Dense, Dropout, Flatten
 from keras.models import load_model
 import re
 from keras.layers.convolutional import Conv1D
 from keras.layers.convolutional import MaxPooling1D
+from collections import Counter
 
-vocabulary_size = 10000
+vocabulary_size = 50000
 
 # need one for root (condition), need one for rel treatment
 # need one for none (spacer)
@@ -37,7 +38,7 @@ vocabulary_spacer = 3
 # [root, rel, spacer]
 
 def get_word_counts():
-	query = "select sentence_tuples from annotation.sentences2"
+	query = "select sentence_tuples from annotation.sentences3"
 	conn,cursor = pg.return_postgres_cursor()
 	sentence_df = pg.return_df_from_query(cursor, query, None, ['sentence_tuples'])
 	sentences = sentence_df['sentence_tuples'].tolist()
@@ -51,7 +52,7 @@ def get_word_counts():
 			words = words.strip('(')
 			words = words.strip(')')
 			words = tuple(words.split(","))
-
+			words[0] = words[0].lower()
 
 			if words[0] in counts.keys():
 				counts[words[0]] = counts[words[0]] + 1
@@ -145,7 +146,6 @@ def load_word_counts_dict():
 # Will need to get all children of X, and all children of Y
 train_set = [['22298006','387458008', 1], #aspirin
 	['22298006', '33252009', 1], # beta blocker
-	['22298006', '734579009', 1], # ace inhibitor
 	['22298006', '29857009', 0],
 	['22298006', '267036007', 0],
 	['44054006', '7947003', 0],
@@ -184,8 +184,6 @@ train_set = [['22298006','387458008', 1], #aspirin
 	['93880001', '119746007', 1],
 	['93880001', '367336001', 1],
 	['93880001', '261479009', 0],
-	['363418001', '367336001', 1],
-	['363418001', '386920008', 1],
 	['363418001', '450556004', 0],
 	['13645005', '79440004', 1],
 	['13645005', '428311008', 1],
@@ -391,6 +389,9 @@ train_set = [['22298006','387458008', 1], #aspirin
 	['49049000', '372498008', 1],
 	['49049000', '395770007', 1],
 	['49049000', '26929004', 0],
+	['49049000', '82918005', 0],
+	['49049000', '77465005', 0],
+	['49049000', '45555007', 0],
 	['202855006', '79440004', 1],
 	['202855006', '229559001', 1],
 	['202855006', '372588000', 1],
@@ -403,11 +404,49 @@ train_set = [['22298006','387458008', 1], #aspirin
 	['49436004', '80313002', 0],
 	['49436004', '230690007', 0],
 	['233604007', '49727002', 0],
-	['44054006', '308111008', 0]]
+	['44054006', '308111008', 0],
+	['44785005', '68852009', 0],
+	['44785005', '387420009', 1],
+	['28637003', '373541007', 0],
+	['373541007', '108665006', 0],
+	['22298006', '81286007', 0],
+	['22298006', '30820000', 0],
+	['22298006', '241671007', 0],
+	['52448006', '414601001', 0],
+	['52448006', '363779003', 0],
+	['44054006', '111138002', 0],
+	['44054006', '40701008', 0],
+	['44054006', '363679005', 0],
+	['13645005', '25607008', 0],
+	['59282003', '25607008', 0],
+	['59282003', '267036007', 0],
+	['190905008', '37237003', 0],
+	['190905008', '126189002', 0],
+	['190905008', '13132007', 1],
+	['190905008', '225419007', 0],
+	['190905008', '243787009', 0],
+	['190905008', '255631004', 1],
+	['190905008', '57752001', 1],
+	['190905008', '89695009', 1],
+	['190905008', '330151006', 1],
+	['190905008', '30326004', 0],
+	['190905008', '122463005', 0],
+	['190905008', '386722005', 0],
+	['190905008', '108616001', 0],
+	['190905008', '431067008', 0],
+	['190905008', '714587003', 1],
+	['190905008', '88480006', 0],
+	['190905008', '373265006', 1],
+	['190905008', '397394009', 0],
+	['190905008', '2492009', 0],
+	['190905008', '50417007', 0],
+	['190905008', '13645005', 0],
+	['81669005', '409073007', 0],
+	['81669005', '86553008', 0],
+	['38341003', '230690007', 0]]
 
 test_set = [
 	['38341003', '270954007', 0],
-	['38341003', '230690007', 0],
 	['709044004', '30326004', 0],
 	['709044004', '15222008', 1],
 	['709044004', '53304009', 0],
@@ -415,42 +454,55 @@ test_set = [
 	['709044004', '266700009', 0],
 	['709044004', '398887003', 1],
 	['709044004', '709044004', 0],
-	['709044004', '302497006', 1]]
+	['709044004', '302497006', 1],
+	['22298006', '734579009', 1],
+	['363418001', '367336001', 1],
+	['363418001', '386920008', 1]]
 
 def get_data(labeled_set, filename):
 
 	conn,cursor = pg.return_postgres_cursor()
 	labelled_set = pd.DataFrame()
 	results = pd.DataFrame()
+	print(len(labeled_set))
 	for index,item in enumerate(labeled_set):
-
+		u.pprint(index)
 		root_cids = [item[0]]
 		root_cids.extend(ann.get_children(item[0], cursor))
 
 		rel_cids = [item[1]]
 		rel_cids.extend(ann.get_children(item[1], cursor))
 
-
 		# Want to select sentenceIds that contain both
-		sentence_query = "select sentence_tuples from annotation.sentences where conceptid in %s and id in (select id from annotation.sentences where conceptid in %s)"
+		sentence_query = "select sentence_tuples::text[], sentence from annotation.sentences3 where conceptid in %s and id in (select id from annotation.sentences3 where conceptid in %s)"
 
 		#this should give a full list for the training row
-		sentences = pg.return_df_from_query(cursor, sentence_query, (tuple(root_cids), tuple(rel_cids)), ["sentence_tuples"])
+		sentence_tuples = pg.return_df_from_query(cursor, sentence_query, (tuple(root_cids), tuple(rel_cids)), ["sentence_tuples", "sentence"])
 		# Now you get the sentence, but you need to remove root and replace with word index
 		# Create sentence list
 		# each sentence list contains a list vector for word index
 		label = item[2]
-	
-		for index,sentence in sentences.iterrows():
 
+
+		for index,sentence in sentence_tuples.iterrows():
+			
+			# sentence = sentence.values
+			# sentence = sentence[0]
+
+			# print(type(sentence))
+
+			# sentence = re.findall('\(.*?\)', sentence)
+			
 			sentence_root_index = None
 			sentence_rel_index = None
 			for index,words in enumerate(sentence['sentence_tuples']):
 
+				# words = words.strip('{')
+				# words = words.strip('}')
 				words = words.strip('(')
 				words = words.strip(')')
 				words = tuple(words.split(","))	
-				
+
 				# Will only handle one occurrence of each conceptid for simplification
 				if words[1] in root_cids:
 					sentence_root_index = index
@@ -459,7 +511,7 @@ def get_data(labeled_set, filename):
 
 
 				# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
-			results = results.append(pd.DataFrame([[sentence, sentence_root_index, sentence_rel_index, label]], columns=['sentence_tuples', 'root_index', 'rel_index', 'label']))
+			results = results.append(pd.DataFrame([[sentence['sentence'],sentence['sentence_tuples'], sentence_root_index, sentence_rel_index, label]], columns=['sentence', 'sentence_tuples', 'root_index', 'rel_index', 'label']))
 	print(len(results))
 	results.to_pickle(filename)
 
@@ -479,10 +531,11 @@ def serialize_data(filename):
 	
 	## this is how much should be padded
 	max_words = max(max_ln_arr)
-	max_words = 20
+	max_words = 120
 	print("max_ln: " + str(max_words))
 	x_train = []
 	y_train = []
+	train_sentences = []
 
 	for index, sentence in sample_train.iterrows():
 		root_index = sentence['root_index']
@@ -491,7 +544,8 @@ def serialize_data(filename):
 		rel_cid = None
 		# unknowns will have integer of 50000
 		sample = [(vocabulary_size-1)]*max_words
-
+		if filename == './test_set.pkl':
+			train_sentences.append(sentence['sentence'])
 		label = sentence['label']
 		for index, tup in sentence['sentence_tuples'].iteritems():
 			for ind, t in enumerate(tup):
@@ -526,54 +580,138 @@ def serialize_data(filename):
 
 	# print(len(x_train))
 	# print(len(y_train))
-	return x_train, y_train, max_words
+	return x_train, y_train, train_sentences, max_words
 
+def serialize_data_test(filename):
+	sample_train = pd.read_pickle(filename)
+	with open('reversed_dictionary.pickle', 'rb') as rd:
+  		reverse_dictionary = pk.load(rd)
+
+	  	with open('dictionary.pickle', 'rb') as d:
+	  		dictionary = pk.load(d)
+	
+
+	max_ln_arr = []
+	for index, sentence in sample_train.iterrows():
+		max_ln_arr.append(len(sentence['sentence_tuples']))
+	
+	## this is how much should be padded
+	max_words = max(max_ln_arr)
+	max_words = 120
+	print("max_ln: " + str(max_words))
+	x_train = []
+	y_train = []
+	train_sentences = []
+
+	for index, sentence in sample_train.iterrows():
+		root_index = sentence['root_index']
+		rel_index = sentence['rel_index']
+		root_cid = None
+		rel_cid = None
+		# unknowns will have integer of 50000
+		sample = [(vocabulary_size-1)]*max_words
+		if filename == './test_set.pkl':
+			train_sentences.append(sentence['sentence'])
+		label = sentence['label']
+		for index, tup in enumerate(sentence['sentence_tuples']):
+
+			tup = tup.lower()
+
+			tup = tup.strip('(')
+			tup = tup.strip(')')
+			tup = tuple(tup.split(","))	
+			if index == root_index and root_cid == None:
+				root_cid = tup[1]
+				sample[index] = vocabulary_size-3
+				# append index for root
+			elif index == rel_index and rel_cid == None:
+				rel_cid = tup[1]
+				sample[index] = vocabulary_size-2
+				# append index for rel
+			elif tup[1] == root_cid:
+				sample[index] = vocabulary_size-2
+			elif tup[1] == rel_index:
+				sample[index] = vocabulary_size-2
+			elif tup[0] in dictionary.keys():
+				sample[index] = dictionary[tup[0]]
+			else:
+				sample[index] = dictionary['UNK']
+			if index >= max_words-1:
+				break
+		x_train.append(sample)
+		y_train.append(label)
+
+	# print(len(x_train))
+	# print(len(y_train))
+	return x_train, y_train, train_sentences, sample_train, max_words
 
 def build_model():
-	x_train, y_train, max_words = serialize_data("./sample_train.pkl")
+	x_train, y_train, train_sentences, max_words = serialize_data("./sample_train.pkl")
+	pd.set_option('display.max_colwidth', -1)
+	x_test, y_test, test_sentences, raw_test, max_words = serialize_data_test("./test_set.pkl")
 
-	x_test, y_test, max_words = serialize_data("./test_set.pkl")
-	# x_train = sequence(x_train)
-	x_train = np.array(x_train)
-	y_train = np.array(y_train)
+	# x_train = np.array(x_train)
+	# y_train = np.array(y_train)
 
-	x_test = np.array(x_test)
-	y_test = np.array(y_test)
+	# x_test = np.array(x_test)
+	# y_test = np.array(y_test)
 	
-	# y_train = sequence(y_train)
-	# print(x_train.shape)
-	embedding_size=32
-	model=Sequential()
-	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words))
+
+	
+	# embedding_size=64
+	# batch_size = 32
+	# num_epochs = 3
+	# model=Sequential()
+	# model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words))
 	# model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
 	# model.add(MaxPooling1D(pool_size=2))
-	model.add(LSTM(100))
-	model.add(Dense(1, activation='sigmoid'))
+	# model.add(LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	# model.add(LSTM(100, return_sequences=True))
+	# model.add(Flatten())
+	# model.add(Dense(1, activation='sigmoid'))
 
-	print(model.summary())
-	model.compile(loss='binary_crossentropy', 
-             optimizer='adam', 
-             metrics=['accuracy'])
-	batch_size = 32
-	num_epochs = 5
-	x_valid, y_valid = x_train[:batch_size], y_train[:batch_size]
-	x_train2, y_train2 = x_train[batch_size:], y_train[batch_size:]
-
-	print(x_train2.shape)
-	print(y_train2.shape)
+	# print(model.summary())
+	# model.compile(loss='binary_crossentropy', 
+ #             optimizer='adam', 
+ #             metrics=['accuracy'])
 	
-	model.fit(x_train2, y_train2, validation_data=(x_valid, y_valid), batch_size=batch_size, epochs=num_epochs)
+	# x_valid, y_valid = x_train[:batch_size], y_train[:batch_size]
+	# x_train2, y_train2 = x_train[batch_size:], y_train[batch_size:]
 
-	print(x_test)
-	scores = model.evaluate(x_test, y_test, verbose=1)
-	print(scores)
-	print('Test accuracy:', scores[1])
+	# print(x_train2.shape)
+	# print(y_train2.shape)
+	
+	# model.fit(x_train2, y_train2, validation_data=(x_valid, y_valid), batch_size=batch_size, epochs=num_epochs)
 
+	# print(x_test)
+	# scores = model.evaluate(x_test, y_test, verbose=1)
+	# model.save('txp.h5')
+	# print(scores)
+	# print('Test accuracy:', scores[1])
+
+	
+	model = load_model('txp.h5')
+	correct_counter = 0
+	for i,d in enumerate(y_test):
+		if d == 1:
+			print(model.predict(np.array([x_test[i]])))
+			if model.predict(np.array([x_test[i]])) > 0.50:
+				correct_counter += 1
+			print(d)
+			print(raw_test.iloc[i].to_string())
+			print(x_test[i])
+			print(test_sentences[i])
+			print("=========" + str(i))
+		
+	print(correct_counter)
+	print(Counter(y_test))
 	# for i,d in enumerate(x_test):
 	# 	print(model.predict(np.array([d])))
-	# 	print(y_train[i])
+	# 	print(y_test[i])
+	# 	print(raw_test.iloc[i].to_string())
+	# 	print(test_sentences[i])
 	# 	print("=========" + str(i))
-	# 	if i == 1000:
+	# 	if i == 100:
 	# 		break
 	# cd = np.array([x_test[1301]])
 	# print(model.predict(cd))
@@ -590,6 +728,7 @@ def build_model():
 
 # vector [1-50k, one for UNK, one for key, one for value]
 
+# get_word_counts()
 # get_data(train_set, './sample_train.pkl')
 # get_data(test_set, './test_set.pkl')
 # load_word_counts_dict()
