@@ -442,8 +442,9 @@ def query_expansion(conceptid_series, cursor):
 		temp_res = [item]
 		added_other = False
 		# JUST CHANGED PARENTHESES location
+
 		if len(syn_df[syn_df['reference_conceptid'] == item].index) > 0:
-			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['reference_conceptid'].tolist())
+			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['synonym_conceptid'].tolist())
 			added_other = True
 
 		if len(child_df[child_df['supertypeid'] == item].index) > 0:

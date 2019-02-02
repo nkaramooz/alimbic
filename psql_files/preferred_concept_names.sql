@@ -11,7 +11,8 @@ create table preferred_concept_names as (
     		,term
     		,conceptid
     		,row_number () over (partition by conceptid order by length(term) desc) as row_num
-		from annotation.augmented_selected_concept_descriptions) tb
+		from annotation.augmented_selected_concept_descriptions
+		where term not ilike '%(%' and term not ilike '%-%' and term not ilike '%product%') tb
 	where row_num=1
 );
 

@@ -19,53 +19,84 @@
 
 
 	<div class="glance">
-
-		<div class="list-group">
-			{% for k1,v1 in at_a_glance.related.items %}
-
-				{% for k2,v2 in v1.items %}
-
-					{% if k2 == 'treatment' %}
-						<div class="glance_topic">
-							<div class="accordion" id="treatmentAccordion">
- 								 <div class="card">
-    								<div class="card-header" id="headingOne">
-      									<h5 class="mb-0">
-        									<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
-          									<h5> Procedures / Treatments ({{v2|length}})</h5>
-        									</button>
-      									</h5>
-   									</div>
-									<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
-										<div class="card-body">
-									    	<ul>
-										      	{% for x in v2 %}
-													<li>
-														<form action=# method="get"> 
-															{% csrf_token %}
-
-															<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
-															<input type="hidden" name="term1" value="{{v1.term}}">
-															<input type="hidden" name="term2" value="{{x.term}}">
-															<input type="hidden" name="query_type" value="pivot">
-															<input type="hidden" name="pivot_type" value="treatment">
-															{% for c in primary_cids %}
-																<input type="hidden" name="primary_cids[]" value="{{c}}">
-															{% endfor %}
-															{% for j in journals %}
-																<input type="hidden" name="journals[]" value="{{j}}">
-															{% endfor %}
-															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
-														</form>
-													</li>
-												{% endfor %}
-											</ul>
-										</div>
-									</div>
+		
+		<ul class="list-group">
+			<div class="glance_topic">
+				<div class="accordion" id="treatmentAccordion">
+ 					 <div class="card">
+    					<div class="card-header" id="headingOne">
+      						<h5 class="mb-0">
+       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
+        							<h5> Interventions / Drugs </h5>
+        						</button>
+      						</h5>
+      						<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
+								<div class="card-body">
+									<ul>
+										{% for node in treatment %}
+											{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
+										{% endfor %}
+									</ul>
 								</div>
 							</div>
 						</div>
-			
+					</div>
+				</div>
+
+
+
+
+				<div class="accordion" id="diagnosticAccordion">
+ 					 <div class="card">
+    					<div class="card-header" id="headingOne">
+      						<h5 class="mb-0">
+       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#diagnostic" aria-expanded="false" aria-controls="diagnostic">
+        							<h5> Diagnostics </h5>
+        						</button>
+      						</h5>
+      						<div id="diagnostic" class="collapse" aria-labelledby="headingOne" data-parent="#diagnosticAccordion">
+								<div class="card-body">
+									<ul>
+										{% for node in diagnostic %}
+											{% include 'search/nested_view_template.html' with pivot_type='diagnostic' %}
+										{% endfor %}
+									</ul>
+								</div>
+							</div>
+						</div>
+					</div>
+
+
+
+
+				<div class="accordion" id="conditionAccordion">
+ 					 <div class="card">
+    					<div class="card-header" id="headingOne">
+      						<h5 class="mb-0">
+       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#condition" aria-expanded="false" aria-controls="condition">
+        							<h5> Conditions </h5>
+        						</button>
+      						</h5>
+      						<div id="condition" class="collapse" aria-labelledby="headingOne" data-parent="#conditionAccordion">
+								<div class="card-body">
+									<ul>
+										{% for node in condition %}
+											{% include 'search/nested_view_template.html' with pivot_type='condition' %}
+										{% endfor %}
+									</ul>
+								</div>
+							</div>
+						</div>
+					</div>
+
+			</div>
+		</ul>
+	</div>
+<!-- 			{% for k1,v1 in at_a_glance.related.items %}
+
+				{% for k2,v2 in v1.items %} -->
+
+	
 							<!-- <div id="treatment" class="carousel slide" data-interval="false">
 	  						<div class="carousel-inner" role="listbox">
 
@@ -145,45 +176,7 @@
 							    	<span class="sr-only">Next</span>
 								</a> -->
 					
-					{% elif k2 == 'diagnostic' %}
-						<div class="glance_topic">
-							<div class="accordion" id="diagnosticAccordion">
- 								 <div class="card">
-    								<div class="card-header" id="headingOne">
-      									<h5 class="mb-0">
-        									<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#diagnostic" aria-expanded="false" aria-controls="diagnostic">
-          									<h5> Diagnostic ({{v2|length}})</h5>
-        									</button>
-      									</h5>
-   									</div>
-									<div id="diagnostic" class="collapse" aria-labelledby="headingTwo" data-parent="#diagnosticAccordion">
-										<div class="card-body">
-									    	<ul>
-										      	{% for x in v2 %}
-													<li>
-														<form action=# method="get"> 
-															{% csrf_token %}
-															<input type="hidden" name="pivot_cid" value="{{x.conceptid}}">
-															<input type="hidden" name="term1" value="{{v1.term}}">
-															<input type="hidden" name="term2" value="{{x.term}}">
-															<input type="hidden" name="query_type" value="pivot">
-															<input type="hidden" name="pivot_type" value="diagnostic">
-															{% for c in primary_cids %}
-																<input type="hidden" name="primary_cids[]" value="{{c}}">
-															{% endfor %}
-															{% for j in journals %}
-																<input type="hidden" name="journals[]" value="{{j}}">
-															{% endfor %}
-															<input type="submit" value="{{x.term}} ({{x.count}} papers)" class="btn btn-link btn-sm">
-														</form>
-													</li>
-												{% endfor %}
-											</ul>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
+					
 		
 <!-- 
 							<h5> Diagnostic ({{v2|length}})</h5>
@@ -269,7 +262,7 @@
 						</div>
 					</div>
 					</div> -->
-					{% elif k2 == 'condition' %}
+				<!-- 	{% if k2 == 'condition' %}
 						<div class="glance_topic">
 							<div class="accordion" id="conditionAccordion">
  								 <div class="card">
@@ -308,7 +301,7 @@
 								</div>
 							</div>
 						</div>
-
+ -->
 						<!-- <h5> Conditions ({{v2|length}})</h5>
 							<div id="condition" class="carousel slide" data-interval="false">
 		  						<div class="carousel-inner" role="listbox">
@@ -392,11 +385,11 @@
 						</div>
 					</div>
 					</div> -->
-					{% endif %}
+					<!-- {% endif %} -->
 				
-				{% endfor %}	
-			{% endfor %}
-		</div>
+				<!-- {% endfor %}	 -->
+			<!-- {% endfor %} -->
+		<!-- </div> -->
 
 	
 	{% include 'search/sr_template.html' with sr_payload=sr_payload %}
