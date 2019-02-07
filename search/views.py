@@ -767,7 +767,7 @@ def concept_search_results(request):
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 
 			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
-			
+
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 
 			query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
@@ -780,6 +780,7 @@ def concept_search_results(request):
 			es_query = {"from" : 0, \
 					 "size" : 100, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
+			u.pprint(es_query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
