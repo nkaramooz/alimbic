@@ -99,18 +99,56 @@ def gen_datasets():
 	labelled_ids = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
 	labelled_ids['rand'] = np.random.uniform(0, 1, len(labelled_ids))
 
-	training_set = labelled_ids[labelled_ids['rand'] <= 0.70].copy()
-	testing_set = labelled_ids[labelled_ids['rand'] > 0.70].copy()
+	training_set = labelled_ids[labelled_ids['rand'] <= 0.85].copy()
+	testing_set = labelled_ids[labelled_ids['rand'] > 0.85].copy()
 	print("training_set length: " + str(len(training_set)))
 	print("testing_set length: " + str(len(testing_set)))
 
 	training_set.to_pickle("./training_ids_02_08_19")
 	testing_set.to_pickle("./testing_ids_02_08_19")
 
+def gen_datasets_2(filname):
+	conn,cursor = pg.return_postgres_cursor()
+	labelled_query = "select condition_id, treatment_id, label from annotation.labelled_treatments"
+	labelled_ids = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
+	dictionary, reverse_dictionary = get_dictionaries()
+
+	all_sentences_df = pd.DataFrame()
+	for index,item in labelled_ids.iterrows():
+		u.pprint(index)
+		condition_id_arr = [item['condition_id']]
+		condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
+
+		tx_id_arr = [item['treatment_id']]
+		tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
+
+		#this should give a full list for the training row
+		sentences_df = get_sentences_df(condition_id_arr, tx_id_arr, cursor)
+
+		# Now you get the sentence, but you need to remove root and replace with word index
+		# Create sentence list
+		# each sentence list contains a list vector for word index
+		label = item['label']
+
+		all_sentences_df = all_sentences_df.append(get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary), sort=False)
+
+	all_sentences.to_pickle("all_sentences.pk")
+	all_sentences_df['rand'] = np.random.uniform(0,1, len(all_sentences_df))
+	training_set = all_sentences_df[all_sentences_df['rand'] <= 0.85].copy()
+	testing_set = all_sentences_df[all_sentences_df['rand'] > 0.85].copy()
+
+	training_filename = "./training_" + str(filename)
+	testing_filename = "./testing_" + str(filename)
+
+	training_set.to_pickle(training_filename)
+	testing_set.to_pickle(testing_filename)
+
+	return training_filename, testing_filename
+	
+
 def get_sentences_df(condition_id_arr, tx_id_arr, cursor):
 	sentence_query = "select sentence_tuples::text[], sentence from annotation.sentences3 where conceptid in %s \
-		and id in (select id from annotation.sentences3 where conceptid in %s) \
-		and section in ('objective', 'title', 'conclusions', 'background', 'unlabelled', 'unassigned')"
+		and id in (select id from annotation.sentences3 where conceptid in %s)"
 	sentence_tuples = pg.return_df_from_query(cursor, sentence_query, (tuple(condition_id_arr), tuple(tx_id_arr)), ["sentence_tuples", "sentence"])
 	return sentence_tuples
 
@@ -287,7 +325,7 @@ def confirmation():
 
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
-	model = load_model('txp_60.h5')
+	model = load_model('txp_60_02_07.h5')
 
 	correct_counter = 0
 
@@ -367,13 +405,13 @@ def treatment_recategorization_recs(model_name):
 	raw_results.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False)
 	cursor.close()
 
-
+# confirmation()
 # treatment_recategorization_recs('txp_60_02_07.h5')
 
-gen_datasets()
-get_labelled_data_from_files("./testing_ids_02_08_19", "./test_set_60_02_08_19.pkl")
-get_labelled_data_from_files("./training_ids_02_08_19", "./training_set_60_02_08_19.pkl")
-build_model()
+# gen_datasets()
+gen_datasets_2("_02_09_19")
+# get_labelled_data_from_files("./testing_ids_02_08_19", "./test_set_60_02_08_19.pkl")
+# get_labelled_data_from_files("./training_ids_02_08_19", "./training_set_60_02_08_19.pkl")
+# build_model()
 
 
-# confirmation()
