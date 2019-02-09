@@ -104,11 +104,13 @@ def gen_datasets():
 	print("training_set length: " + str(len(training_set)))
 	print("testing_set length: " + str(len(testing_set)))
 
-	training_set.to_pickle("./training_ids_02_05_19")
-	testing_set.to_pickle("./testing_ids_02_05_19")
+	training_set.to_pickle("./training_ids_02_08_19")
+	testing_set.to_pickle("./testing_ids_02_08_19")
 
 def get_sentences_df(condition_id_arr, tx_id_arr, cursor):
-	sentence_query = "select sentence_tuples::text[], sentence from annotation.sentences3 where conceptid in %s and id in (select id from annotation.sentences3 where conceptid in %s)"
+	sentence_query = "select sentence_tuples::text[], sentence from annotation.sentences3 where conceptid in %s \
+		and id in (select id from annotation.sentences3 where conceptid in %s) \
+		and section in ('objective', 'title', 'conclusions', 'background', 'unlabelled', 'unassigned')"
 	sentence_tuples = pg.return_df_from_query(cursor, sentence_query, (tuple(condition_id_arr), tuple(tx_id_arr)), ["sentence_tuples", "sentence"])
 	return sentence_tuples
 
@@ -187,8 +189,8 @@ def get_labelled_data(is_test, sentences_df, condition_id_arr, tx_id_arr, item, 
 
 def build_model():
 	# pd.set_option('display.max_colwidth', -1)
-	training_set = pd.read_pickle("./training_set_60_02_05_19.pkl")
-	test_set = pd.read_pickle("./test_set_60_02_05_19.pkl")
+	training_set = pd.read_pickle("./training_set_60_02_07_19.pkl")
+	test_set = pd.read_pickle("./test_set_60_02_07_19.pkl")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -223,12 +225,12 @@ def build_model():
 
 	print(x_test)
 	scores = model.evaluate(x_test, y_test, verbose=1)
-	model.save('txp_60.h5')
+	model.save('txp_60_02_07.h5')
 	print(scores)
 	print('Test accuracy:', scores[1])
 	
 	
-	model = load_model('txp_60.h5')
+	model = load_model('txp_60_02_07.h5')
 
 	correct_counter = 0
 	counter = 0
@@ -327,7 +329,7 @@ def treatment_recategorization_recs(model_name):
 		   						from annotation.concept_types) tb1 where row_num=1) tb2
 						on tb1.conceptid=tb2.root_cid
 						where tb2.rel_type = 'condition'
-						order by tb1.count desc limit 1"""
+						order by tb1.count desc limit 2"""
 	conditions_df = pg.return_df_from_query(cursor, conditions_query, None, ["conceptid", "count"])
 	conditions_df.columns = ['condition_cid', 'count']
 
@@ -338,6 +340,7 @@ def treatment_recategorization_recs(model_name):
 							select distinct(conceptid)
 							from annotation.sentences3
 							where id in (select id from annotation.sentences3 where conceptid=%s)
+							and section in ('objective', 'title', 'conclusions', 'background', 'unlabelled', 'unassigned')
 					"""
 		treatments_df = pg.return_df_from_query(cursor, treatments_query, (c['condition_cid'],), ['conceptid'])
 		treatments_df.columns = ['treatment_cid']
@@ -365,12 +368,12 @@ def treatment_recategorization_recs(model_name):
 	cursor.close()
 
 
-treatment_recategorization_recs('txp_60.h5')
+# treatment_recategorization_recs('txp_60_02_07.h5')
 
-# gen_datasets()
-# get_labelled_data_from_files("./testing_ids_02_05_19", "./test_set_60_02_05_19.pkl")
-# get_labelled_data_from_files("./training_ids_02_05_19", "./training_set_60_02_05_19.pkl")
-# build_model()
+gen_datasets()
+get_labelled_data_from_files("./testing_ids_02_08_19", "./test_set_60_02_08_19.pkl")
+get_labelled_data_from_files("./training_ids_02_08_19", "./training_set_60_02_08_19.pkl")
+build_model()
 
 
 # confirmation()
