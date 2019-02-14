@@ -31,6 +31,8 @@ from keras.layers.convolutional import MaxPooling1D
 from collections import Counter
 import string
 import snomed_annotator as ann
+from numpy import array
+from numpy import asarray
 
 vocabulary_size = 50000
 
@@ -107,7 +109,7 @@ def gen_datasets():
 	training_set.to_pickle("./training_ids_02_08_19")
 	testing_set.to_pickle("./testing_ids_02_08_19")
 
-def gen_datasets_2(filname):
+def gen_datasets_2(filename):
 	conn,cursor = pg.return_postgres_cursor()
 	labelled_query = "select condition_id, treatment_id, label from annotation.labelled_treatments"
 	labelled_ids = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
@@ -132,7 +134,7 @@ def gen_datasets_2(filname):
 
 		all_sentences_df = all_sentences_df.append(get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary), sort=False)
 
-	all_sentences.to_pickle("all_sentences.pk")
+	all_sentences_df.to_pickle("all_sentences.pk")
 	all_sentences_df['rand'] = np.random.uniform(0,1, len(all_sentences_df))
 	training_set = all_sentences_df[all_sentences_df['rand'] <= 0.85].copy()
 	testing_set = all_sentences_df[all_sentences_df['rand'] > 0.85].copy()
@@ -227,8 +229,9 @@ def get_labelled_data(is_test, sentences_df, condition_id_arr, tx_id_arr, item, 
 
 def build_model():
 	# pd.set_option('display.max_colwidth', -1)
-	training_set = pd.read_pickle("./training_set_60_02_07_19.pkl")
-	test_set = pd.read_pickle("./test_set_60_02_07_19.pkl")
+	training_set = pd.read_pickle("./training__02_10_19")
+	training_set = training_set.sample(frac=1).reset_index(drop=True)
+	test_set = pd.read_pickle("./testing__02_10_19")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -236,16 +239,17 @@ def build_model():
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
 	
-	embedding_size=64
+	embedding_size=32
 	batch_size = 64
 	num_epochs = 3
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words))
-	model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
+	model.add(Conv1D(filters=32, kernel_size=10, padding='same', activation='relu'))
 	model.add(MaxPooling1D(pool_size=2))
-	model.add(LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size)))
-	model.add(LSTM(100, return_sequences=True))
-	model.add(Flatten())
+	model.add(LSTM(100))
+	# model.add(LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	# model.add(LSTM(100, return_sequences=True))
+	# model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
 
 	print(model.summary())
@@ -263,12 +267,12 @@ def build_model():
 
 	print(x_test)
 	scores = model.evaluate(x_test, y_test, verbose=1)
-	model.save('txp_60_02_07.h5')
+	model.save('txp_60_02_011.2.h5')
 	print(scores)
 	print('Test accuracy:', scores[1])
 	
 	
-	model = load_model('txp_60_02_07.h5')
+	model = load_model('txp_60_02_011.2.h5')
 
 	correct_counter = 0
 	counter = 0
@@ -282,10 +286,12 @@ def build_model():
 			print(prediction)
 			print(d['sentence'])
 			print(d['x_train'])
-			print("condition_id : " + str(d['condition_id']) + "treatment_id : " + str(d['treatment_id']))
+			print("condition_id : " + str(d['condition_id']) + " treatment_id : " + str(d['treatment_id']))
 
 			counter+=1
 			print("=========" + str(i))
+		else:
+			correct_counter += 1
 		if counter >= 100:
 			break
 		
@@ -325,7 +331,7 @@ def confirmation():
 
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
-	model = load_model('txp_60_02_07.h5')
+	model = load_model('txp_60_02_11_glove.h5')
 
 	correct_counter = 0
 
@@ -367,7 +373,7 @@ def treatment_recategorization_recs(model_name):
 		   						from annotation.concept_types) tb1 where row_num=1) tb2
 						on tb1.conceptid=tb2.root_cid
 						where tb2.rel_type = 'condition'
-						order by tb1.count desc limit 2"""
+						order by tb1.count desc limit 10"""
 	conditions_df = pg.return_df_from_query(cursor, conditions_query, None, ["conceptid", "count"])
 	conditions_df.columns = ['condition_cid', 'count']
 
@@ -405,13 +411,109 @@ def treatment_recategorization_recs(model_name):
 	raw_results.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False)
 	cursor.close()
 
+def glove_embeddings():
+	embeddings_index = dict()
+	f = open('glove.6B.100d.txt')
+	for line in f:
+		values = line.split()
+		word = values[0]
+		coefs = asarray(values[1:], dtype='float32')
+		embeddings_index[word] = coefs
+	f.close()
+	print("======= loaded glove ======")
+	u.pprint(embeddings_index)
+
+	embedding_matrix = np.zeros((vocabulary_size, 100))
+	dictionary, reverse_dictionary = get_dictionaries()
+
+	counter = 0
+	for key in dictionary:
+		embedding_vector = embeddings_index.get(key)
+		if embedding_vector is not None:
+			embedding_matrix[dictionary[key]] = embedding_vector
+		counter += 1
+		if counter >= (vocabulary_size-vocabulary_spacer):
+			break
+
+	print("======= completed embedding_matrix ======")
+	u.pprint(len(embedding_matrix))
+	u.pprint(embedding_matrix)
+	training_set = pd.read_pickle("./training__02_10_19")
+	training_set = training_set.sample(frac=1).reset_index(drop=True)
+	test_set = pd.read_pickle("./testing__02_10_19")
+
+	x_train = np.array(training_set['x_train'].tolist())
+	y_train = np.array(training_set['label'].tolist())
+
+	x_test = np.array(test_set['x_train'].tolist())
+	y_test = np.array(test_set['label'].tolist())
+	
+	embedding_size=100
+	batch_size = 64
+	num_epochs = 3
+	model=Sequential()
+	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words))
+	model.add(Conv1D(filters=32, kernel_size=10, padding='same', activation='relu'))
+	model.add(MaxPooling1D(pool_size=2))
+	# model.add(LSTM(100))
+	model.add(LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	model.add(LSTM(100, return_sequences=True))
+	model.add(Flatten())
+	model.add(Dense(1, activation='sigmoid'))
+
+	print(model.summary())
+	model.compile(loss='binary_crossentropy', 
+             optimizer='adam', 
+             metrics=['accuracy'])
+	
+	x_valid, y_valid = x_train[:batch_size], y_train[:batch_size]
+	x_train2, y_train2 = x_train[batch_size:], y_train[batch_size:]
+
+	print(x_train2.shape)
+	print(y_train2.shape)
+	
+	model.fit(x_train2, y_train2, validation_data=(x_valid, y_valid), batch_size=batch_size, epochs=num_epochs)
+
+	scores = model.evaluate(x_test, y_test, verbose=1)
+	model.save('txp_60_02_11_glove.2.h5')
+	print(scores)
+	print('Test accuracy:', scores[1])
+	
+	
+	model = load_model('txp_60_02_11_glove.2.h5')
+
+	correct_counter = 0
+	counter = 0
+	for i,d in test_set.iterrows():
+		
+		prediction = model.predict(np.array([d['x_train']]))
+		
+
+		if ((prediction > 0.50) and (d['label'] == 0)) or ((prediction <= 0.50) and (d['label'] == 1)):
+			print(d['label'])
+			print(prediction)
+			print(d['sentence'])
+			print(d['x_train'])
+			print("condition_id : " + str(d['condition_id']) + " treatment_id : " + str(d['treatment_id']))
+
+			counter+=1
+			print("=========" + str(i))
+		else:
+			correct_counter += 1
+		if counter >= 100:
+			break
+		
+	print(correct_counter)
+	print(len(test_set[test_set['label'] == 1]))
+	print(Counter(test_set['label'].tolist()))
+
+# glove_embeddings()
+
 # confirmation()
-# treatment_recategorization_recs('txp_60_02_07.h5')
+treatment_recategorization_recs('txp_60_02_011.2.h5')
 
 # gen_datasets()
-gen_datasets_2("_02_09_19")
+# gen_datasets_2("_02_10_19")
 # get_labelled_data_from_files("./testing_ids_02_08_19", "./test_set_60_02_08_19.pkl")
 # get_labelled_data_from_files("./training_ids_02_08_19", "./training_set_60_02_08_19.pkl")
 # build_model()
-
-
