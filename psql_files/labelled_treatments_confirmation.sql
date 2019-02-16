@@ -14,6 +14,7 @@ INSERT INTO annotation.labelled_treatments_confirmation (condition_id, treatment
 	('450886002', '108809004', 0),
 	('2429008', '77465005', 0),
 	('236407003', '7246002', 0)
+
 	;
 
 

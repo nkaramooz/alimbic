@@ -520,6 +520,8 @@ def clean_text(line):
 	line = line.replace(':', '')
 	line = line.replace('(', '')
 	line = line.replace(')', '')
+	line = line.replace('\\', ' ')
+	line = line.replace('/', ' ')
 	# This makes you lose the likelihood ratios
 	# line = re.sub("\(.*?\)","",line)
 	return line

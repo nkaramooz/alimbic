@@ -116,10 +116,14 @@ def gen_datasets_2(filename):
 	dictionary, reverse_dictionary = get_dictionaries()
 
 	all_sentences_df = pd.DataFrame()
+	condition_id_arr = []
+	last_condition_id = ""
 	for index,item in labelled_ids.iterrows():
 		u.pprint(index)
-		condition_id_arr = [item['condition_id']]
-		condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
+		if item['condition_id'] != last_condition_id:
+			condition_id_arr = [item['condition_id']]
+			condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
+			last_condition_id = item['condition_id']
 
 		tx_id_arr = [item['treatment_id']]
 		tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
@@ -331,7 +335,7 @@ def confirmation():
 
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
-	model = load_model('txp_60_02_11_glove.h5')
+	model = load_model('txp_60_02_11_glove.2.h5')
 
 	correct_counter = 0
 
@@ -509,8 +513,8 @@ def glove_embeddings():
 
 # glove_embeddings()
 
-# confirmation()
-treatment_recategorization_recs('txp_60_02_011.2.h5')
+confirmation()
+# treatment_recategorization_recs('txp_60_02_11_glove.2.h5')
 
 # gen_datasets()
 # gen_datasets_2("_02_10_19")
