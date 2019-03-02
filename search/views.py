@@ -762,6 +762,10 @@ def concept_search_results(request):
 		related_dict = dict()
 		query_concepts_dict = dict()
 		primary_cids = None
+		related_dict = {}
+		treatment_dict = {}
+		condition_dict = {}
+		diagnostic_dict = {}
 		if not query_concepts_df.empty:
 
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)

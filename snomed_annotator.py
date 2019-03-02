@@ -462,7 +462,12 @@ def get_children(conceptid, cursor):
 	child_query = """
 		select 
 			subtypeid as conceptid
-		from snomed.curr_transitive_closure_f where supertypeid = %s		
+		from snomed.curr_transitive_closure_f tb1
+		left join annotation.concept_counts tb2
+		on tb1.subtypeid = tb2.conceptid
+		where supertypeid = %s and tb2.count is not null
+		order by tb2.count desc
+		limit 15
 	"""
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid,), \
 		["conceptid"])
