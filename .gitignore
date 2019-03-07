@@ -9,4 +9,12 @@ db.sqlite3
 psql_files/pg_upgrade_internal.log
 psql_files/pg_upgrade_server.log
 psql_files/pg_upgrade_utility.log
-
+all_sentences_03_04_19
+cid_and_word_count.pickle
+concept_word_embedding.200.bin
+dictionary.pickle
+reversed_dictionary.pickle
+testing_*
+training_*
+txp_*
+word_count.pickle
