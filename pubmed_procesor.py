@@ -68,6 +68,14 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
 		# American journal of respiratory and critical care medicine
 		or is_issn(elem, '1073-449X') or is_issn(elem, '1535-4970')):
+
+		# Blood
+		# Journal of urology
+		# Gold journal
+		# Add Blue
+		# Journal of hepatology
+		# JACC
+		# JACC Heart failure
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 		

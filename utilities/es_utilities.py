@@ -14,9 +14,7 @@ INDEX_NAME='pubmedx1.3'
 def update_postgres_document_concept_count():
 	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
 	
-	conceptid_df = pd.DataFrame()
-	# while (scroller.has_next):
-	
+	conceptid_df = pd.DataFrame()	
 
 	while scroller.has_next:
 		article_list = scroller.next()
@@ -37,6 +35,31 @@ def update_postgres_document_concept_count():
 
 	engine = pg.return_sql_alchemy_engine()
 	conceptid_df.to_sql('concept_counts', engine, schema='annotation', if_exists='replace')
+
+def update_postgres_document_description_count():
+	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
+	
+	did_df = pd.DataFrame()
+
+	while scroller.has_next:
+		article_list = scroller.next()
+
+		for hit in article_list:
+			abstract_arr = get_flattened_abstract_concepts(hit)
+			if abstract_arr is not None:
+				did_df = did_df.append(pd.DataFrame(abstract_arr, columns=['did']), \
+					ignore_index=True)
+
+			if hit['_source']['title_dids'] is not None:
+
+				did_df = did_df.append(pd.DataFrame(hit['_source']['title_dids'], \
+					columns=['did']), ignore_index=True)
+
+	did_df['count'] = 1
+	did_df = did_df.groupby(['did'], as_index=False)['count'].sum()
+
+	engine = pg.return_sql_alchemy_engine()
+	did_df.to_sql('description_counts', engine, schema='annotation', if_exists='replace', index=False)
 
 
 class ElasticScroll():
@@ -80,6 +103,19 @@ def get_flattened_abstract_concepts(hit):
 		return None
 	else:
 		return abstract_concept_arr
+
+def get_flattened_dids(hit):
+	did_arr = []
+	try:
+		for key1 in hit['_source']['abstract_dids']:
+			for key2 in hit['_source']['abstract_dids'][key1]:
+				abstract_concept_arr.extend(hit['_source']['abstract_dids'][key1][key2])
+	except:
+		return None
+	if len(did_arr) == 0:
+		return None
+	else:
+		return did_arr
 
 def is_child_of(child_id, parent_id, cursor):
 	query = "select subtypeid from snomed.curr_transitive_closure_f where supertypeid=%s and subtypeid=%s"
@@ -168,4 +204,5 @@ class NodeTree():
 
 
 if __name__ == "__main__":
-	update_postgres_document_concept_count()
+	# update_postgres_document_concept_count()
+	update_postgres_document_description_count()
