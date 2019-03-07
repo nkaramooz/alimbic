@@ -9,12 +9,3 @@ db.sqlite3
 psql_files/pg_upgrade_internal.log
 psql_files/pg_upgrade_server.log
 psql_files/pg_upgrade_utility.log
-# Elastic Beanstalk Files
-cid_and_word_count.pickle
-word_count.pickle
-txp_60_03_02_w2v.4.h5
-dictionary.pickle
-testing_*
-training_*
-all_sentences_*
-concept_word_embedding.*

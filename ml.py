@@ -650,7 +650,7 @@ def treatment_recategorization_recs(model_name):
 	# 					order by tb1.count desc limit 10"""
 	conditions_query = """select conceptid, tb1.count
 						from annotation.concept_counts tb1
-						where conceptid  = '197834003'  """
+						where conceptid  = '56717001'  """
 	conditions_df = pg.return_df_from_query(cursor, conditions_query, None, ["conceptid", "count"])
 	conditions_df.columns = ['condition_cid', 'count']
 
