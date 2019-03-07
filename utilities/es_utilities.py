@@ -14,7 +14,8 @@ INDEX_NAME='pubmedx1.3'
 def update_postgres_document_concept_count():
 	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
 	
-	conceptid_df = pd.DataFrame()	
+	conceptid_df = pd.DataFrame()
+	# while (scroller.has_next):
 
 	while scroller.has_next:
 		article_list = scroller.next()
@@ -204,5 +205,7 @@ class NodeTree():
 
 
 if __name__ == "__main__":
+
 	# update_postgres_document_concept_count()
 	update_postgres_document_description_count()
+

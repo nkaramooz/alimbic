@@ -19,7 +19,6 @@ create table preferred_concept_names as (
 		) tb4
 	) tb5
 	where rn_num = 1
-
 );
 
 create index if not exists concept_names_cid on preferred_concept_names(conceptid);

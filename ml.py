@@ -154,6 +154,7 @@ def gen_datasets():
 
 	training_set = labelled_ids[labelled_ids['rand'] <= 0.90].copy()
 	testing_set = labelled_ids[labelled_ids['rand'] > 0.90].copy()
+
 	print("training_set length: " + str(len(training_set)))
 	print("testing_set length: " + str(len(testing_set)))
 
@@ -504,11 +505,9 @@ def build_model():
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
-	
 
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
-	
 	
 
 	# param_grid = dict(num_filters=[32, 64, 128],
@@ -547,6 +546,7 @@ def build_model():
 	embedding_size=200
 	batch_size = 100
 	num_epochs = 4
+
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words))
 	model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
@@ -561,7 +561,6 @@ def build_model():
              optimizer='adam', 
              metrics=['accuracy'])
 
-	
 	history = model.fit(x_train, y_train, validation_split=0.2, batch_size=batch_size, epochs=num_epochs, verbose=True, shuffle='batch')
 
 
@@ -651,12 +650,15 @@ def treatment_recategorization_recs(model_name):
 	conditions_query = """select conceptid, tb1.count
 						from annotation.concept_counts tb1
 						where conceptid  = '56717001'  """
+
 	conditions_df = pg.return_df_from_query(cursor, conditions_query, None, ["conceptid", "count"])
 	conditions_df.columns = ['condition_cid', 'count']
 
 	raw_results = pd.DataFrame()
 	for i,c in conditions_df.iterrows():
+
 		u.pprint(c['condition_cid'])
+
 		treatments_query = """
 							select distinct(conceptid)
 							from annotation.sentences3
@@ -697,9 +699,11 @@ def treatment_recategorization_recs(model_name):
 	
 	u.pprint(raw_results)
 	u.pprint(raw_results['score'].mean())
+
 	engine = pg.return_sql_alchemy_engine()
 	raw_results.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False)
 	cursor.close()
+
 
 def train_with_word2vec():
 	model = Word2Vec.load('concept_word_embedding.200.bin')
@@ -882,10 +886,6 @@ def plot_history(history):
 
 
 
-
-
-
-
 # build_embedding()
 # get_cid_and_word_counts()
 # load_word_counts_dict("cid_and_word_count.pickle")
@@ -897,3 +897,4 @@ treatment_recategorization_recs('txp_60_03_02_w2v.4.h5')
 
 # model = Word2Vec.load('concept_word_embedding.bin')
 # print(model.wv.most_similar(positive=['29857009', '267036007']))
+

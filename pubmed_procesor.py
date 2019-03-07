@@ -76,6 +76,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 		# Journal of hepatology
 		# JACC
 		# JACC Heart failure
+
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 		
