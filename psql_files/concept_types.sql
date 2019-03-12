@@ -25,4 +25,4 @@ create table concept_types as(
 
 
 create index ct_conceptid on concept_types(root_cid);
-create index ct_concept_type on concept_types(rel_type)
+create index ct_concept_type on concept_types(rel_type);
