@@ -1771,5 +1771,6 @@ INSERT INTO annotation.labelled_treatments (condition_id, treatment_id, label)
 	('414916001', '57813001', 0),
 	('414916001', '373541007', 1),
 	('414916001', '387451002', 1),
+	('191736004', '604e5bce-9f4f-45b4-a80e-197dd083314f', 0)
 	;
 
