@@ -15,7 +15,8 @@ import copy
 import re
 
 
-INDEX_NAME = 'pubmedx1.3'
+
+INDEX_NAME = 'pubmedx1.4'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -26,7 +27,7 @@ def doc_calculate(func, args):
 	func(*args)
 
 
-def index_doc_from_elem(elem, filter_words_df, filename):
+def index_doc_from_elem(elem, filename):
 	if elem.tag != 'PubmedArticle':
 		raise ValueError('lost element')
 
@@ -93,7 +94,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 					json_str = get_article_ids(elem, json_str)					
 					json_str['citations_pmid'] = get_article_citations(elem)
 
-					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', filter_words_df, cursor)
+					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', cursor)
 					
 					if title_sentences is not None:
 						title_sentences['pmid'] = json_str['pmid']
@@ -105,7 +106,7 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 						json_str['title_conceptids'] = None
 						json_str['title_dids'] = None
 
-					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], filter_words_df, cursor)
+					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], cursor)
 
 					
 					s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
@@ -149,9 +150,10 @@ def index_doc_from_elem(elem, filter_words_df, filename):
 	elem.clear()
 
 
+def load_pubmed_local_3(start_file):
 
 
-def load_pubmed_local_2(start_file, filter_words_df):
+def load_pubmed_local_2(start_file):
 	es = u.get_es_client()
 	number_of_processes = 8
 	
@@ -234,7 +236,7 @@ def load_pubmed_local_2(start_file, filter_words_df):
 
 				for elem in root:
 					if elem.tag == 'PubmedArticle':
-						params = (elem, filter_words_df, filename)
+						params = (elem, filename)
 						task_queue.put((index_doc_from_elem, params))
 						file_abstract_counter += 1
 						abstract_counter += 1
@@ -257,7 +259,7 @@ def load_pubmed_local_2(start_file, filter_words_df):
 						elem.clear()
 					else:
 						elem.clear()
-
+					root.clear()
 				file_timer.stop()
 				if file_num >= start_file+10:
 					break
@@ -412,13 +414,13 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 	pool.join()
 
 
-def get_abstract_conceptids_2(abstract_dict, filter_words_df, cursor):
+def get_abstract_conceptids_2(abstract_dict, cursor):
 	cid_dict = {}
 	did_dict = {}
 	sentences = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	if abstract_dict is not None:
 		for index,k1 in enumerate(abstract_dict):
-			res,new_sentences = get_snomed_annotation(abstract_dict[k1], str(k1), filter_words_df, cursor)
+			res,new_sentences = get_snomed_annotation(abstract_dict[k1], str(k1), cursor)
 			
 			if new_sentences is not None:
 				new_sentences['section_index'] = index	
@@ -687,7 +689,7 @@ def get_article_info_2(elem, json_str):
 
 	return json_str
 
-def get_snomed_annotation(text, section, filter_words_df, cursor):
+def get_snomed_annotation(text, section, cursor):
 	
 	if text is None:
 		return None, None
@@ -707,7 +709,7 @@ if __name__ == "__main__":
 	start_file = 364
 	while (start_file < 929):
 		print(start_file)
-		load_pubmed_local_2(start_file, None)
+		load_pubmed_local_2(start_file)
 		start_file += 11
 
 
