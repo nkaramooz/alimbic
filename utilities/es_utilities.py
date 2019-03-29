@@ -7,7 +7,7 @@ import pandas as pd
 
 # Create your views here.
 
-INDEX_NAME='pubmedx1.3'
+INDEX_NAME='pubmedx1.4'
 
 
 # You can update this to use sentences3

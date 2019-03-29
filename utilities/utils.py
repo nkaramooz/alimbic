@@ -1,6 +1,7 @@
 import time
 import pandas as pd
 import utilities.pglib as pg
+import sqlalchemy as sqla
 from nltk.stem.wordnet import WordNetLemmatizer
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 
@@ -25,8 +26,8 @@ def pprint(data_frame):
 
 def write_sentences(s_df, cursor):
 	engine = pg.return_sql_alchemy_engine()
-	s_df.to_sql('sentences3', \
-		engine, schema='annotation', if_exists='append', index=False)
+	s_df.to_sql('sentences4', \
+		engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
 def get_conceptid_name(conceptid, cursor):
 	search_query = """

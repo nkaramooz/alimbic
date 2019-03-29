@@ -11,7 +11,8 @@ import numpy as np
 import time
 import multiprocessing as mp
 import copy
-import utilities.utils as u, utilities.pglib as pg
+import utilities.utils as u
+import utilities.pglib as pg
 import unittest
 import uuid
 
@@ -21,20 +22,20 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 	new_candidate_query = ""
 
 	if case_sensitive:
-		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
+		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length \
+			from annotation.lemmas_3 where \
 			description_id in \
-			(select description_id from annotation.lemmas_3 where word = %s and \
+			(select description_id from annotation.lemmas_3 where word in %s and \
 				(word_ord = 1))"
 	else:
-		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, \
-			case when word = %s then 1 else 0 end as l_dist from annotation.lemmas_3 where \
+		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length \
+			from annotation.lemmas_3 where \
 			description_id in \
-			(select description_id from annotation.lemmas_3 where word = %s and \
+			(select description_id from annotation.lemmas_3 where word in %s and \
 				(word_ord = 1))"
 
-	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (word, word), \
-	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "l_dist"])
+	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
+	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length"])
 
 	return new_candidate_df
 
@@ -44,7 +45,6 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
 
-	line = line
 	ln_words = line.split()
 
 	candidate_df_arr = []
@@ -52,6 +52,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 	lmtzr = WordNetLemmatizer()
 
+	# c = u.Timer('get_candidates')
 	for index,word in enumerate(ln_words):
 
 		# identify acronyms
@@ -60,15 +61,21 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 		if word.lower() != 'vs':
 			word = lmtzr.lemmatize(word)
+
 		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
-		
+
 		# if not active_match:
 		new_candidate_df = pd.DataFrame()
-		if word in cache.keys():
-			new_candidate_df = cache[word]
-		else:
-			new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
-			cache[word] = new_candidate_df.copy()
+		if (cache.word == word).any():
+			new_candidate_ids = cache[(cache.word == word) & (cache.word_ord == 1)]['description_id']
+			# print(cache[(cache.word == word) & (cache.word_ord == 1)])
+			new_candidate_df = cache[cache.description_id.isin(new_candidate_ids)].copy()
+			new_candidate_df['l_dist'] = 0
+			new_candidate_df.loc[new_candidate_df.word == word, 'l_dist'] = 1
+
+		# else:
+		# 	new_candidate_df = get_new_candidate_df(word, cursor, case_sensitive)
+		# 	cache[word] = new_candidate_df.copy()
 		if len(new_candidate_df.index) > 0:
 			new_candidate_df['substring_start_index'] = index
 			new_candidate_df['description_start_index'] = index
@@ -76,15 +83,19 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 					
 		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 		results_df = results_df.append(new_results_df, sort=False)
-	# u.pprint(results_df)
-	if len(results_df.index) > 0:
-		order_score = results_df
 
+
+	if len(results_df.index) > 0:
+
+		order_score = results_df
+		
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
 		
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
+
+		
 
 
 		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
@@ -101,14 +112,15 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
 		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
 		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id', 'description_start_index'])
-
+		
 		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
 		joined_results['final_score'] = joined_results['final_score'] + 0.5*joined_results['term_length']
 
 		# u.pprint(joined_results)
+
 		final_results = prune_results_v2(joined_results, joined_results)
-		
+
 		if len(final_results.index) > 0:
 			final_results['line'] = line
 
@@ -155,19 +167,28 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	for index,df in enumerate(candidate_df_arr):
 
 		df_copy = df.copy()
-		for index,row in df_copy.iterrows():
 
-			l_dist = float()
-			if case_sensitive:
-				l_dist = fuzz.ratio(word, row['word'])
-			else:
-				l_dist = fuzz.ratio(word.lower(), row['word'].lower())
+		if case_sensitive:
+			df_copy['l_dist'] = df_copy['word'].apply(lambda x: fuzz.ratio(word, x))
+		else:
+			df_copy['l_dist'] = df_copy['word'].apply(lambda x: fuzz.ratio(word.lower(), x.lower()))
+		# u.pprint(df_copy)
+		df_copy['l_dist'] = df_copy['l_dist']/100.00
+		df_copy.loc[df_copy.l_dist >= threshold, 'substring_start_index'] = substring_start_index
 
+		# for index,row in df_copy.iterrows():
+
+		# 	l_dist = float()
+
+		# 	if case_sensitive:
+		# 		l_dist = fuzz.ratio(word, row['word'])
+		# 	else:
+		# 		l_dist = fuzz.ratio(word.lower(), row['word'].lower())
 			
-			# assign l_dist to only those that pass threshold
-			if l_dist >= threshold: ### TUNE ME
-				df_copy.loc[index, 'l_dist'] = l_dist/100.00
-				df_copy.loc[index, 'substring_start_index'] = substring_start_index
+		# 	# assign l_dist to only those that pass threshold
+		# 	if l_dist >= threshold: ### TUNE ME
+		# 		df_copy.loc[index, 'l_dist'] = l_dist/100.00
+		# 		df_copy.loc[index, 'substring_start_index'] = substring_start_index
 
 
 		new_candidate_df_arr.append(df_copy)
@@ -177,6 +198,7 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 
 	final_candidate_df_arr = []
 	active_match = False
+
 	for index, new_df in enumerate(new_candidate_df_arr):
 		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
 		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
@@ -482,13 +504,28 @@ def annotate_text_not_parallel(text, section, cursor, case_sensitive, bool_acr_c
 	ann_df = pd.DataFrame()
 	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	
-	cache = {}
+
+	all_words = []
+	lmtzr = WordNetLemmatizer()
+	for ln_number, line in enumerate(tokenized):
+		words = line.split()
+		for index,w in enumerate(words):
+			if w.upper() != w:
+				w = w.lower()
+
+			if w.lower() != 'vs':
+				w = lmtzr.lemmatize(w)
+			all_words.append(w)
+
+	all_words = list(set(all_words))
+	cache = get_new_candidate_df(all_words, cursor, case_sensitive)
 
 	for ln_number, line in enumerate(tokenized):
 		res_df, cache = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
 		
 		ann_df = ann_df.append(res_df, sort=False)
-
+	
+	
 	if len(ann_df.index) > 0:
 		ann_df = resolve_conflicts(ann_df, cursor)
 		if bool_acr_check:
@@ -637,7 +674,7 @@ if __name__ == "__main__":
 	query45="Aortic dissection"
 	query46="Likelihood ratio"
 
-	check_timer = u.Timer("full")
+	# check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	conn, cursor = pg.return_postgres_cursor()
@@ -646,8 +683,14 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
-	res, sentences = annotate_text_not_parallel(query46, 'title', cursor, False, False, False)
-	print(res)
+	counter = 0
+	while (counter < 10):
+		d = u.Timer('t')
+		res, sentences = annotate_text_not_parallel(query2, 'title', cursor, False, False, False)
+		# u.pprint(res)
+		d.stop()
+		counter += 1
+	
 	# cursor.close()
 	# u.pprint("=============================")
 	# u.pprint(res)

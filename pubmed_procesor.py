@@ -1,10 +1,7 @@
-import xml.etree.ElementTree as ET 
+from lxml import etree as ET
 import json
-from nltk.stem.wordnet import WordNetLemmatizer
-import sys 
 import codecs
 import snomed_annotator as ann
-import nltk.data
 import pandas as pd
 import multiprocessing as mp
 import utilities.utils as u, utilities.pglib as pg
@@ -13,7 +10,7 @@ import datetime
 from multiprocessing import Pool
 import copy
 import re
-
+import io
 
 
 INDEX_NAME = 'pubmedx1.4'
@@ -28,59 +25,49 @@ def doc_calculate(func, args):
 
 
 def index_doc_from_elem(elem, filename):
-	if elem.tag != 'PubmedArticle':
-		raise ValueError('lost element')
+	elem = ET.parse(io.BytesIO(elem))
+	# if elem.tag != 'PubmedArticle':
+	# 	raise ValueError('lost element')
 
-		# american journal of hypertension
-	if (is_issn(elem, '0895-7061') or is_issn(elem, '1941-7225') \
-		# hypertension
-		or is_issn(elem, '0194-911X') or is_issn(elem, '1524-4563')\
-		# cochrane database of systematic reviews
-		or is_issn(elem, '1469-493X') or is_issn(elem, '1465-1858')\
-		# british medial journal
-		or is_issn(elem, '0959-8138') or is_issn(elem, '1756-1833')\
-		# Lung
-		or is_issn(elem, '0341-2040') or is_issn(elem, '1432-1750')\
-		# Circulation. Heart failure
-		or is_issn(elem, '1941-3289') or is_issn(elem, '1941-3297')\
-		# NEJM
-		or is_issn(elem, '1533-4406') or is_issn(elem, '0028-4793')\
-		# American family physician
-		or is_issn(elem, '0002-838X') or is_issn(elem, '1532-0650')\
-		# Annals of internal medicine
-		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-		# JAMA
-		or is_issn(elem, '0098-7484') or is_issn(elem, '1538-3598')\
-		# Annals of american thoracic society
-		or is_issn(elem, '2325-6621') or is_issn(elem, '1943-5665')\
-		# Lancet
-		or is_issn(elem, '0140-6736') or is_issn(elem, '1474-547X')\
-		# Neurlogy
-		or is_issn(elem, '0028-3878') or is_issn(elem, '1526-632X')\
-		# Circulation
-		or is_issn(elem, '0009-7322') or is_issn(elem, '1524-4539')\
-		# Pulmonology
-		or is_issn(elem, '2090-5769') or is_issn(elem, '2090-5777')\
-		# Gastroenterology
-		or is_issn(elem, '0016-5085') or is_issn(elem, '1524-4563')\
-		# Annals of Emergency Medicine
-		or is_issn(elem, '0196-0644') or is_issn(elem, '1097-6760')\
-		# Annals of internal medicine
-		or is_issn(elem, '0003-4819') or is_issn(elem, '1539-3704')\
-		# American journal of respiratory and critical care medicine
-		or is_issn(elem, '1073-449X') or is_issn(elem, '1535-4970')):
-
-		# Blood
-		# Journal of urology
-		# Gold journal
-		# Add Blue
-		# Journal of hepatology
-		# JACC
-		# JACC Heart failure
-
+		
+	issn = return_issn(elem)
+	# american journal of hypertension
+	# hypertension
+	# cochrane database of systematic reviews
+	# british medial journal
+	# Lung
+	# Circulation. Heart failure
+	# NEJM
+	# American family physician
+	# Annals of internal medicine
+	# JAMA
+	# Annals of american thoracic society
+	# Lancet
+	# Neurlogy
+	# Circulation
+	# Pulmonology
+	# Gastroenterology
+	# Annals of Emergency Medicine
+	# Annals of internal medicine
+	# American journal of respiratory and critical care medicine
+	# Journal of urology
+	# Gold journal
+	# Add Blue
+	# Journal of hepatology
+	# JACC
+	# JACC Heart failure
+	# if issn in ['0895-7061', '1941-7225', '0194-911X', '1524-4563', '1469-493X', '1465-1858', \
+	# 	'0959-8138', '1756-1833', '0341-2040', '1432-1750', '1941-3289', '1941-3297', \
+	# 	'1533-4406', '0028-4793', '0002-838X', '1532-0650', '0003-4819', '1539-3704', \
+	# 	'0098-7484', '1538-3598', '2325-6621', '1943-5665', '0140-6736', '1474-547X', \
+	# 	'0028-3878', '1526-632X', '0009-7322', '1524-4539', '2090-5769', '2090-5777', \
+	# 	'0016-5085', '1524-4563', '0196-0644', '1097-6760', '0003-4819', '1539-3704', \
+	# 	'1073-449X', '1535-4970', '0006-4971', '1528-0020', '0022-5347', '0090-4295', \
+	# 	'1073-449X', '1535-4970', '0270-9139', '1527-3350', '0735-1097', '1558-3597', \
+	# 	'2213-1779', '2213-1787', '0039-2499', '1524-4628']:
+	if issn in ['1533-4406', '0028-4793']:
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
-		
 
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) >= 1980):
@@ -96,6 +83,7 @@ def index_doc_from_elem(elem, filename):
 
 					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', cursor)
 					
+
 					if title_sentences is not None:
 						title_sentences['pmid'] = json_str['pmid']
 
@@ -106,8 +94,9 @@ def index_doc_from_elem(elem, filename):
 						json_str['title_conceptids'] = None
 						json_str['title_dids'] = None
 
+					
 					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], cursor)
-
+					
 					
 					s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
 					if title_sentences is not None:
@@ -123,22 +112,23 @@ def index_doc_from_elem(elem, filename):
 					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 				
 
-			
 					json_str['filename'] = filename
 					pmid = json_str['pmid']
+					
+					
 					json_str =json.dumps(json_str)
 					json_obj = json.loads(json_str)
+				
 
 					es = u.get_es_client()
 					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
-						
+
 					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
 						try:
 							es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
 						except:
-							u.pprint(json_obj)
-							u.pprint(json_str)
 							raise ValueError('incompatible json obj')
 						
 						
@@ -147,10 +137,7 @@ def index_doc_from_elem(elem, filename):
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 					cursor.close()
 					conn.close()
-	elem.clear()
 
-
-def load_pubmed_local_3(start_file):
 
 
 def load_pubmed_local_2(start_file):
@@ -229,37 +216,43 @@ def load_pubmed_local_2(start_file):
 			
 				file_timer = u.Timer('file')
 
-				tree = ET.parse(file_path)		
-				root = tree.getroot()
-
+				# tree = ET.parse(file_path)		
+				# root = tree.getroot()
 				file_abstract_counter = 0
+				for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
+					json_str = {}
+					params = (ET.tostring(elem), filename)
+					task_queue.put((index_doc_from_elem, params))
+					file_abstract_counter += 1
+					elem.clear()
 
-				for elem in root:
-					if elem.tag == 'PubmedArticle':
-						params = (elem, filename)
-						task_queue.put((index_doc_from_elem, params))
-						file_abstract_counter += 1
-						abstract_counter += 1
 
-					elif elem.tag == 'DeleteCitation':
-						delete_pmid_arr = get_deleted_pmid(elem)
+				# for elem in root:
+				# 	if elem.tag == 'PubmedArticle':
+				# 		params = (elem, filename)
+				# 		task_queue.put((index_doc_from_elem, params))
+				# 		file_abstract_counter += 1
+				# 		abstract_counter += 1
 
-						for pmid in delete_pmid_arr:
-							get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-							query_result = es.search(index=INDEX_NAME, body=get_article_query)
+				# 	elif elem.tag == 'DeleteCitation':
+				# 		delete_pmid_arr = get_deleted_pmid(elem)
 
-							if query_result['hits']['total'] == 0:
-								continue
-							elif query_result['hits']['total'] == 1:
-								article_id = query_result['hits']['hits'][0]['_id']
-								es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-							else:
-								print("delete: more than one document found")
-								print(pmid)
-						elem.clear()
-					else:
-						elem.clear()
-					root.clear()
+				# 		for pmid in delete_pmid_arr:
+				# 			get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+				# 			query_result = es.search(index=INDEX_NAME, body=get_article_query)
+
+				# 			if query_result['hits']['total'] == 0:
+				# 				continue
+				# 			elif query_result['hits']['total'] == 1:
+				# 				article_id = query_result['hits']['hits'][0]['_id']
+				# 				es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
+				# 			else:
+				# 				print("delete: more than one document found")
+				# 				print(pmid)
+				# 		elem.clear()
+				# 	else:
+				# 		elem.clear()
+				# 	root.clear()
 				file_timer.stop()
 				if file_num >= start_file+10:
 					break
@@ -276,6 +269,98 @@ def load_pubmed_local_2(start_file):
 		p.join()
 	
 
+def load_pubmed_local_test(start_file):
+	es = u.get_es_client()
+	number_of_processes = 8
+	
+	task_queue = mp.Queue()
+
+	pool = []
+	for i in range(number_of_processes):
+		p = mp.Process(target=doc_worker, args=(task_queue,))
+		pool.append(p)
+		p.start()
+
+
+	index_exists = es.indices.exists(index=INDEX_NAME)
+	if not index_exists:
+		settings = {"mappings" : {"abstract" : {"properties" : {
+			"journal_issn" : {"type" : "keyword"}
+			,"journal_issn_type" : {
+				"properties" : {"IssnType" : {"type" : "keyword"}}
+				}
+			,"journal_title" : {"type" : "text"}
+			,"journal_iso_abbrev" : {"type" : "keyword"}
+			,"journal_volume" : {"type" : "text"}
+			,"journal_issue" : {"type" : "text"}
+			,"journal_pub_year" : {"type" : "integer"}
+			,"journal_pub_month" : {"type" : "keyword"}
+			,"journal_pub_day" : {"type" : "keyword"}
+			,"journal_issue" : {"type" : "keyword"}
+			,"article_title" : {"type" : "text"}
+			,"article_abstract" : {"properties" : {}}
+			,"pmid" : {"type" : "integer"}
+			,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
+				"doi" : {"type" : "keyword"},
+				"pii" : {"type" : "keyword"}}}
+			,"citations_pmid" : {"type" : "keyword"}
+			,"title_conceptids" : {"type" : "keyword"}
+			,"title_dids" : {"type" : "keyword"}
+			,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
+				"background_cid" : {"type" : "keyword"},
+				"conclusions_cid" : {"type" : "keyword"},
+				"objective_cid" : {"type" : "keyword"},
+				"results_cid" : {"type" : "keyword"},
+				"unlabelled_cid" : {"type" : "keyword"}}}
+			,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
+				"background_did" : {"type" : "keyword"},
+				"conclusions_did" : {"type" : "keyword"},
+				"objective_did" : {"type" : "keyword"},
+				"results_did" : {"type" : "keyword"}}}
+			,"article_type_id" : {"type" : "keyword"}
+			,"article_type" : {"type" : "keyword"}
+			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
+			,"filename" : {"type" : "keyword"}
+		}}}}
+		es.indices.create(index=INDEX_NAME, body=settings)
+		
+
+	folder_path = 'resources/baseline'
+
+
+	file_counter = 0
+
+	file_lst = os.listdir(folder_path)
+	file_lst.sort()
+	for filename in file_lst:
+		abstract_counter = 0
+		file_path = folder_path + '/' + filename
+		file_num = int(re.findall('pubmed18n(.*).xml', filename)[0])
+		if file_num == start_file:
+			print(filename)
+		
+			file_timer = u.Timer('file')
+			# tree = ET.parse(file_path)		
+			# root = tree.getroot()
+			file_abstract_counter = 0
+			for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
+				json_str = {}
+				params = (ET.tostring(elem), filename)
+				task_queue.put((index_doc_from_elem, params))
+				file_abstract_counter += 1
+				elem.clear()
+			file_timer.stop()
+			break
+			
+				
+				
+
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	for p in pool:
+		p.join()
+	
 	
 
 def aws_load_pubmed():
@@ -424,7 +509,7 @@ def get_abstract_conceptids_2(abstract_dict, cursor):
 			
 			if new_sentences is not None:
 				new_sentences['section_index'] = index	
-				sentences = sentences.append(new_sentences)
+				sentences = sentences.append(new_sentences, sort=False)
 				
 
 			k1_cid = str(k1) + "_cid"
@@ -443,7 +528,7 @@ def get_abstract_conceptids_2(abstract_dict, cursor):
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
 	for item in elem:
-		delete_pmid_arr.append(item.text)
+		delete_pmid_arr.append(str(item.text))
 
 	return delete_pmid_arr
 
@@ -456,7 +541,7 @@ def get_article_citations(elem):
 				if citation.attrib['RefType'] == 'Cites':
 					for item in citation:
 						if item.tag == 'PMID':
-							citation_pmid_list.append(item.text)
+							citation_pmid_list.append(str(item.text))
 		return citation_pmid_list
 	else:
 		return None
@@ -466,9 +551,9 @@ def get_article_ids(elem, json_str):
 	article_id_dict = {}
 	for elem_id in id_list_elem:
 		if elem_id.attrib['IdType'] == 'pubmed':
-			article_id_dict['pmid'] = elem_id.text
+			article_id_dict['pmid'] = str(elem_id.text)
 		else:
-			article_id_dict[elem_id.attrib['IdType']] = elem_id.text
+			article_id_dict[elem_id.attrib['IdType']] = str(elem_id.text)
 	json_str['article_ids'] = article_id_dict
 
 	return json_str
@@ -478,7 +563,7 @@ def is_issn(elem, issn):
 		j_list = elem.findall('./MedlineCitation/Article/Journal')
 		journal_elem = j_list[0]
 		issn_elem = journal_elem.findall('./ISSN')[0]
-		issn_text = issn_elem.text
+		issn_text = str(issn_elem.text)
 
 		if issn_text == issn:
 			return True
@@ -487,10 +572,21 @@ def is_issn(elem, issn):
 	except:
 		return False
 
+def return_issn(elem):
+	try:
+		j_list = elem.findall('./MedlineCitation/Article/Journal')
+		journal_elem = j_list[0]
+		issn_elem = journal_elem.findall('./ISSN')[0]
+		issn_text = str(issn_elem.text)
+		return issn_text
+		
+	except:
+		return '0'
+
 def get_pmid(elem, json_str):
 	pmid = elem.findall('*/PMID')
 	try:
-		json_str['pmid'] = pmid[0].text
+		json_str['pmid'] = str(pmid[0].text)
 	except:
 		json_str['pmid'] = None
 	return json_str
@@ -512,52 +608,52 @@ def get_journal_info(elem, json_str):
 		return json_str
 	
 	try:
-		issn_elem = journal_elem.findall('./ISSN')[0]
-		json_str['journal_issn'] = issn_elem.text
-		json_str['journal_issn_type'] = issn_elem.attrib
+		issn_elem = str(journal_elem.findall('./ISSN')[0])
+		json_str['journal_issn'] = str(issn_elem.text)
+		json_str['journal_issn_type'] = str(issn_elem.attrib)
 	except:
 		json_str['journal_issn'] = None
 		json_str['journal_issn_type'] = None
 
 	try:
 		title_elem = journal_elem.findall('./Title')[0]
-		json_str['journal_title'] = title_elem.text
+		json_str['journal_title'] = str(title_elem.text)
 	except:
 		json_str['journal_title'] = None
 
 	try:
 		iso_elem = journal_elem.find('./ISOAbbreviation')
-		json_str['journal_iso_abbrev'] = iso_elem.text 
+		json_str['journal_iso_abbrev'] = str(iso_elem.text)
 	except:
 		json_str['journal_iso_abbrev'] = None
 
 	try:
 		journal_volume_elem = journal_elem.find('./JournalIssue/Volume')
-		json_str['journal_volume'] = journal_volume_elem.text
+		json_str['journal_volume'] = str(journal_volume_elem.text)
 	except:
 		json_str['journal_volume'] = None
 
 	try:
 		journal_issue_elem = journal_elem.find('./JournalIssue/Issue')
-		json_str['journal_issue'] = journal_issue_elem.text
+		json_str['journal_issue'] = str(journal_issue_elem.text)
 	except:
 		json_str['journal_issue'] = None
 
 	try:
 		year_elem = journal_elem.findall('./JournalIssue/PubDate/Year')[0]
-		json_str['journal_pub_year'] = year_elem.text
+		json_str['journal_pub_year'] = str(year_elem.text)
 	except:
 		json_str['journal_pub_year'] = None
 
 	try:
 		month_elem = journal_elem.findall('./JournalIssue/PubDate/Month')[0]
-		json_str['journal_pub_month'] = month_elem.text
+		json_str['journal_pub_month'] = str(month_elem.text)
 	except:
 		json_str['journal_pub_month'] = None
 
 	try:
 		day_elem = journal_elem.findall('./JournalIssue/PubDate/Day')[0]
-		day_str['journal_pub_month'] = day_elem.text
+		day_str['journal_pub_month'] = str(day_elem.text)
 	except:
 		json_str['journal_pub_day'] = None
 
@@ -632,7 +728,7 @@ def get_article_info_2(elem, json_str):
 
 	try:
 		title_elem = article_elem.find('./ArticleTitle')
-		json_str['article_title'] = title_elem.text
+		json_str['article_title'] = str(title_elem.text)
 	except:
 		json_str['article_title'] = None
 
@@ -645,30 +741,30 @@ def get_article_info_2(elem, json_str):
 			if not abstract_sub_elem.attrib:
 
 				if 'unlabelled' not in abstract_dict.keys():
-					abstract_dict['unlabelled'] = abstract_sub_elem.text 
+					abstract_dict['unlabelled'] = str(abstract_sub_elem.text)
 				else:
-					abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + abstract_sub_elem.text
+					abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + str(abstract_sub_elem.text)
 
 			else:			
 				try:
 					if abstract_sub_elem.attrib['NlmCategory'].lower() in abstract_dict.keys():
 						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = \
-							abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] + "\r" + abstract_sub_elem.text 
+							abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] + "\r" + str(abstract_sub_elem.text)
 					else:
-						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = abstract_sub_elem.text
+						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = str(abstract_sub_elem.text)
 				except:
 					
 					try: 
 						if nlm_cat_dict[abstract_sub_elem.attrib['Label'].lower()] in abstract_dict.keys():
 							abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label']].lower()] = \
-								abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label']].lower()] + "\r" + abstract_sub_elem.text 
+								abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label']].lower()] + "\r" + str(abstract_sub_elem.text)
 						else:
-							abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label'].lower()]] = abstract_sub_elem.text
+							abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label'].lower()]] = str(abstract_sub_elem.text)
 					except:
 						if 'unlabelled' not in abstract_dict.keys():
-							abstract_dict['unlabelled'] = abstract_sub_elem.text 
+							abstract_dict['unlabelled'] = str(abstract_sub_elem.text)
 						else:
-							abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + abstract_sub_elem.text
+							abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + str(abstract_sub_elem.text)
 
 		json_str['article_abstract'] = abstract_dict
 
@@ -681,8 +777,8 @@ def get_article_info_2(elem, json_str):
 		json_str['article_type_id'] = []
 
 		for node in article_type_elem:
-			json_str['article_type'].append(node.text)
-			json_str['article_type_id'].append(node.attrib['UI'])
+			json_str['article_type'].append(str(node.text))
+			json_str['article_type_id'].append(str(node.attrib['UI']))
 	except:
 		json_str['article_type'] = None
 		json_str['article_type_id'] = None
@@ -705,12 +801,15 @@ if __name__ == "__main__":
 
 
 
-	# start_file = 510
-	start_file = 364
-	while (start_file < 929):
-		print(start_file)
-		load_pubmed_local_2(start_file)
-		start_file += 11
+	# start_file = 700
+	c = u.Timer("full timer")
+	load_pubmed_local_test(364)
+	c.stop()
+	# start_file = 364
+	# while (start_file < 929):
+	# 	print(start_file)
+	# 	load_pubmed_local_2(start_file)
+	# 	start_file += 11
 
 
 nlm_cat_dict = {"a case report" :"methods"

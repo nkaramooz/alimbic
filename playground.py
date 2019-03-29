@@ -13,7 +13,6 @@ import datetime
 import copy
 import re
 import io
-import json
 import sqlalchemy as sqla
 
 
@@ -55,7 +54,7 @@ def load_pubmed_local_2():
 					params = (ET.tostring(element),json_str)
 					task_queue.put((get_journal_info, params))
 				
-					# element.clear()
+					element.clear()
 					
 
 				file_abstract_counter = 0
@@ -166,19 +165,20 @@ def get_journal_info(elem, json_str):
 
 def write_jsonb():	
 	conn,cursor = pg.return_postgres_cursor()
-	# engine = pg.return_sql_alchemy_engine()
-	# json_str = {"root" : "test", "child" : ["ace", "beta", "kappa"], "parents" : {"car1" : "null", "car2" : "bambie"}}
+	engine = pg.return_sql_alchemy_engine()
+	json_str = {"root" : "test", "child" : ["ace", "beta", "kappa"], "parents" : {"car1" : "null", "car2" : "bambie"}, "tup" : (1, '4')}
 
-	# json_str =json.dumps(json_str)
-	# json_obj = json.loads(json_str)
-	# cdf = pd.DataFrame([[json_obj]], columns=["field"])
-	# cdf.to_sql('tmp', engine, schema='annotation', if_exists='replace', index=False, dtype={'field' : sqla.types.JSON})
+	json_str =json.dumps(json_str)
+	json_obj = json.loads(json_str)
+	cdf = pd.DataFrame([[json_obj]], columns=["field"])
+	cdf['pd'] = 7778
+	cdf.to_sql('tmp', engine, schema='annotation', if_exists='replace', index=False, dtype={'field' : sqla.types.JSON, 'pd' : sqla.types.String})
 
-	## select field->> 'root' from annotation.tmp
-	q = "select * from annotation.tmp"
+	# select field->> 'root' from annotation.tmp
+	q = "select field from annotation.tmp"
 	ts_df = pg.return_df_from_query(cursor, q, None, ['field'])
-	u.pprint(ts_df['field'][0]['child'][0])
+	u.pprint(type(ts_df['field'][0]['tup'][0]))
 
-# load_pubmed_local_2()
+load_pubmed_local_2()
 
-write_jsonb()
+# write_jsonb()
