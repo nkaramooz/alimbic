@@ -11,7 +11,9 @@ from multiprocessing import Pool
 import copy
 import re
 import io
-
+from nltk.stem.wordnet import WordNetLemmatizer
+import nltk.data
+import sys
 
 INDEX_NAME = 'pubmedx1.4'
 
@@ -71,32 +73,60 @@ def index_doc_from_elem(elem, filename):
 
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) >= 1980):
-				json_str = get_article_info_2(elem, json_str)
-
+				json_str, article_text = get_article_info_2(elem, json_str)
+				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
-					
-					conn,cursor = pg.return_postgres_cursor()
+					conn, cursor = pg.return_postgres_cursor()
 					
 					json_str = get_pmid(elem, json_str)
 					json_str = get_article_ids(elem, json_str)					
 					json_str['citations_pmid'] = get_article_citations(elem)
 
-					title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', cursor)
+
+					# title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', cursor)
+
+
+					# if title_sentences is not None:
+					# 	title_sentences['pmid'] = json_str['pmid']
+
+					# if title_annotation is not None:
+					# 	json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
+					# 	json_str['title_dids'] = title_annotation['description_id'].tolist()
+					# else:
+					# 	json_str['title_conceptids'] = None
+					# 	json_str['title_dids'] = None
+
+
+					annotation_dict = get_abstract_conceptids_2(json_str, article_text, cursor)
+					abstract_sentences = None
+					if annotation_dict['abstract'] is not None:
+						json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
+						json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
+						abstract_sentences = annotation_dict['abstract']['sentences']
+					else:
+						json_str['abstract_conceptids'] = None
+						json_str['abstract_dids'] = None
 					
+					if annotation_dict['title'] is not None:
+						title_sentences = annotation_dict['title']['sentences']
+						title_cids = annotation_dict['title']['cids']
+						title_dids = annotation_dict['title']['dids']
+					else:
+						title_sentences = None
+						title_cids = None
+						title_dids = None
 
 					if title_sentences is not None:
 						title_sentences['pmid'] = json_str['pmid']
 
-					if title_annotation is not None:
-						json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
-						json_str['title_dids'] = title_annotation['description_id'].tolist()
+					if title_cids is not None:
+						json_str['title_conceptids'] = title_cids
+						json_str['title_dids'] = title_dids
 					else:
 						json_str['title_conceptids'] = None
 						json_str['title_dids'] = None
 
-					
-					json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str['article_abstract'], cursor)
-					
+					# json_str['abstract_conceptids'], json_str['abstract_dids'], abstract_sentences = get_abstract_conceptids_2(json_str, article_text, cursor)
 					
 					s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
 					if title_sentences is not None:
@@ -143,12 +173,17 @@ def index_doc_from_elem(elem, filename):
 def load_pubmed_local_2(start_file):
 	es = u.get_es_client()
 	number_of_processes = 8
-	
+
+	cursors = []
+	for i in range(number_of_processes):
+		conn, cursor = pg.return_postgres_cursor()
+		cursors.append((conn,cursor))
+
 	task_queue = mp.Queue()
 
 	pool = []
 	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,))
+		p = mp.Process(target=doc_worker, args=(task_queue,cursors[i][0], cursors[i][1]))
 		pool.append(p)
 		p.start()
 
@@ -211,7 +246,7 @@ def load_pubmed_local_2(start_file):
 
 			file_num = int(re.findall('pubmed18n(.*).xml', filename)[0])
 
-			if file_num >= start_file:
+			if file_num == start_file:
 				print(filename)
 			
 				file_timer = u.Timer('file')
@@ -254,10 +289,10 @@ def load_pubmed_local_2(start_file):
 				# 		elem.clear()
 				# 	root.clear()
 				file_timer.stop()
-				if file_num >= start_file+10:
+				if file_num == start_file+1:
 					break
-				
-		if file_num >= start_file+10:
+				break
+		if file_num == start_file:
 			break
 				
 				
@@ -273,14 +308,27 @@ def load_pubmed_local_test(start_file):
 	es = u.get_es_client()
 	number_of_processes = 8
 	
-	task_queue = mp.Queue()
+	
 
+	# cursors = []
+	# for i in range(number_of_processes):
+	# 	conn, cursor = pg.return_postgres_cursor()
+	# 	cursors.append((conn,cursor))
+
+	# task_queue = mp.Queue()
+
+	# pool = []
+	# for i in range(number_of_processes):
+	# 	p = mp.Process(target=doc_worker, args=(task_queue,cursors[i][0], cursors[i][1]))
+	# 	pool.append(p)
+	# 	p.start()
+
+	task_queue = mp.Queue()
 	pool = []
 	for i in range(number_of_processes):
 		p = mp.Process(target=doc_worker, args=(task_queue,))
 		pool.append(p)
 		p.start()
-
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -499,13 +547,38 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 	pool.join()
 
 
-def get_abstract_conceptids_2(abstract_dict, cursor):
+def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	cid_dict = {}
 	did_dict = {}
+	result_dict = {}
+	tokenized = nltk.sent_tokenize(article_text)
+	all_words = []
+	lmtzr = WordNetLemmatizer()
+	for ln_number, line in enumerate(tokenized):
+		words = line.split()
+		for index,w in enumerate(words):
+			if w.upper() != w:
+				w = w.lower()
+
+			if w.lower() != 'vs':
+				w = lmtzr.lemmatize(w)
+			all_words.append(w)
+
+	all_words = list(set(all_words))
+	
+	# True = case_sensitive
+	cache = ann.get_new_candidate_df(all_words, cursor, True)
+
+	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
+	if res is not None:
+		result_dict['title'] = {'cids' : res['conceptid'].tolist(), 'dids' : res['description_id'].tolist(), 'sentences' : new_sentences}
+	else:
+		result_dict['title'] = None
+
 	sentences = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
-	if abstract_dict is not None:
-		for index,k1 in enumerate(abstract_dict):
-			res,new_sentences = get_snomed_annotation(abstract_dict[k1], str(k1), cursor)
+	if abstract_dict['article_abstract'] is not None:
+		for index,k1 in enumerate(abstract_dict['article_abstract']):
+			res,new_sentences = get_snomed_annotation(abstract_dict['article_abstract'][k1], str(k1), cache, cursor)
 			
 			if new_sentences is not None:
 				new_sentences['section_index'] = index	
@@ -521,9 +594,11 @@ def get_abstract_conceptids_2(abstract_dict, cursor):
 			else:
 				cid_dict[k1_cid] = None
 				did_dict[k1_did] = None
-		return cid_dict, did_dict, sentences
+		result_dict['abstract'] = {'cid_dict' : cid_dict, 'did_dict' : did_dict, 'sentences' : sentences}
+		return result_dict
 	else:
-		return None, None, None
+		result_dict['abstract'] = None
+		return result_dict
 
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
@@ -717,7 +792,7 @@ def get_journal_info(elem, json_str):
 # 	return json_str
 
 def get_article_info_2(elem, json_str):
-
+	article_text = ""
 	try:
 		article_elem = elem.find('./MedlineCitation/Article')
 	except:
@@ -729,6 +804,7 @@ def get_article_info_2(elem, json_str):
 	try:
 		title_elem = article_elem.find('./ArticleTitle')
 		json_str['article_title'] = str(title_elem.text)
+		article_text += str(title_elem.text)
 	except:
 		json_str['article_title'] = None
 
@@ -744,7 +820,7 @@ def get_article_info_2(elem, json_str):
 					abstract_dict['unlabelled'] = str(abstract_sub_elem.text)
 				else:
 					abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + str(abstract_sub_elem.text)
-
+				article_text += ' ' + str(abstract_sub_elem.text)
 			else:			
 				try:
 					if abstract_sub_elem.attrib['NlmCategory'].lower() in abstract_dict.keys():
@@ -752,6 +828,7 @@ def get_article_info_2(elem, json_str):
 							abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] + "\r" + str(abstract_sub_elem.text)
 					else:
 						abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = str(abstract_sub_elem.text)
+					article_text += ' ' + str(abstract_sub_elem.text)
 				except:
 					
 					try: 
@@ -760,11 +837,13 @@ def get_article_info_2(elem, json_str):
 								abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label']].lower()] + "\r" + str(abstract_sub_elem.text)
 						else:
 							abstract_dict[nlm_cat_dict[abstract_sub_elem.attrib['Label'].lower()]] = str(abstract_sub_elem.text)
+						article_text += ' ' + str(abstract_sub_elem.text)
 					except:
 						if 'unlabelled' not in abstract_dict.keys():
 							abstract_dict['unlabelled'] = str(abstract_sub_elem.text)
 						else:
 							abstract_dict['unlabelled'] = abstract_dict['unlabelled'] + "\r" + str(abstract_sub_elem.text)
+						article_text += ' ' + str(abstract_sub_elem.text)
 
 		json_str['article_abstract'] = abstract_dict
 
@@ -783,14 +862,14 @@ def get_article_info_2(elem, json_str):
 		json_str['article_type'] = None
 		json_str['article_type_id'] = None
 
-	return json_str
+	return json_str, article_text
 
-def get_snomed_annotation(text, section, cursor):
+def get_snomed_annotation(text, section, cache, cursor):
 	
 	if text is None:
 		return None, None
 	else:
-		annotation, sentences = ann.annotate_text_not_parallel(text, section, cursor, True, True, True)
+		annotation, sentences = ann.annotate_text_not_parallel(text, section, cache, cursor, True, True, True)
 		if not annotation.empty:
 			return annotation, sentences
 		else:
@@ -805,12 +884,17 @@ if __name__ == "__main__":
 	c = u.Timer("full timer")
 	load_pubmed_local_test(364)
 	c.stop()
+
+
 	# start_file = 364
 	# while (start_file < 929):
 	# 	print(start_file)
 	# 	load_pubmed_local_2(start_file)
-	# 	start_file += 11
-
+	# 	start_file += 1
+	# c = u.Timer('engine')
+	# engine = pg.return_sql_alchemy_engine()
+	# conn, cursor = pg.return_postgres_cursor()
+	# c.stop()
 
 nlm_cat_dict = {"a case report" :"methods"
 ,"abbreviations" :"background"
@@ -3846,6 +3930,4 @@ nlm_cat_dict = {"a case report" :"methods"
 ,"working hypothesis" :"objective"
 ,"setting" : "methods"
 ,"participants" : "methods" }
-
-
 

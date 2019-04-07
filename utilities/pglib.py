@@ -1,5 +1,6 @@
 import psycopg2
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 import time
 import os
@@ -29,6 +30,11 @@ def return_sql_alchemy_engine():
 	engine = create_engine('postgresql://LilNimster@localhost:5432/laso')
 	# engine = create_engine('postgresql://Nima@localhost:5432/laso')
 	return engine
+
+def return_numpy_from_query(cursor, sql_query, params):
+	cursor.execute(sql_query, params)
+	records = np.array(cursor.fetchall())
+	return records
 
 
 class Timer:

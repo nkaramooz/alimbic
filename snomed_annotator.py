@@ -1,20 +1,19 @@
 import pandas as pd
 import re
-import pickle
 import sys
 import psycopg2
-from sqlalchemy import create_engine
 from fuzzywuzzy import fuzz
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import numpy as np
-import time
-import multiprocessing as mp
+# import multiprocessing as mp
 import copy
 import utilities.utils as u
 import utilities.pglib as pg
 import unittest
 import uuid
+import time
+import sys
 
 def get_new_candidate_df(word, cursor, case_sensitive):
 
@@ -29,13 +28,16 @@ def get_new_candidate_df(word, cursor, case_sensitive):
 				(word_ord = 1))"
 	else:
 		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length \
-			from annotation.lemmas_3 where \
+			from annotation.lemmas_3 t1 where \
 			description_id in \
 			(select description_id from annotation.lemmas_3 where word in %s and \
 				(word_ord = 1))"
 
+
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
 	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length"])
+	new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
+
 
 	return new_candidate_df
 
@@ -53,24 +55,29 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 	lmtzr = WordNetLemmatizer()
 
 	# c = u.Timer('get_candidates')
-	for index,word in enumerate(ln_words):
+	c = u.Timer("iterate_candidates")
 
+	for index,word in enumerate(ln_words):
 		# identify acronyms
+
 		if word.upper() != word:
 			word = word.lower()
 
 		if word.lower() != 'vs':
 			word = lmtzr.lemmatize(word)
 
+		j = u.Timer("evaluate_candidate")
 		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 		# if not active_match:
-		new_candidate_df = pd.DataFrame()
-		if (cache.word == word).any():
-			new_candidate_ids = cache[(cache.word == word) & (cache.word_ord == 1)]['description_id']
+
+		new_candidate_df = cache[cache.word == word]
+
+		if len(new_candidate_df.index) > 0:
+			new_candidate_ids = new_candidate_df[new_candidate_df.word_ord == 1]['description_id']
 			# print(cache[(cache.word == word) & (cache.word_ord == 1)])
 			new_candidate_df = cache[cache.description_id.isin(new_candidate_ids)].copy()
-			new_candidate_df['l_dist'] = 0
+			new_candidate_df['l_dist'] = -1.0
 			new_candidate_df.loc[new_candidate_df.word == word, 'l_dist'] = 1
 
 		# else:
@@ -80,10 +87,11 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 			new_candidate_df['substring_start_index'] = index
 			new_candidate_df['description_start_index'] = index
 			candidate_df_arr.append(new_candidate_df)
-					
+
 		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 		results_df = results_df.append(new_results_df, sort=False)
 
+	# u.pprint(results_df)
 
 	if len(results_df.index) > 0:
 
@@ -94,9 +102,6 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
-
-		
-
 
 		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
@@ -124,24 +129,24 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		if len(final_results.index) > 0:
 			final_results['line'] = line
 
-			return final_results, cache
+			return final_results
 
-	return None, cache
+	return None
 
 def get_results(candidate_df_arr, end_index):
 	## no description here
 	new_candidate_df_arr = []
 	results_df = pd.DataFrame()
 	for index,df in enumerate(candidate_df_arr):
-		exclusion_series = df[df['l_dist'] == 0]['description_id'].tolist()
+		exclusion_series = df[df['l_dist'] == -1.0]['description_id'].tolist()
 		new_results = df[~df['description_id'].isin(exclusion_series)].copy()
 		new_results['description_end_index'] = end_index
 		
 		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
-		if len(remaining_candidates.index) != 0:
+		if len(remaining_candidates.index) > 0:
 			new_candidate_df_arr.append(remaining_candidates)
 		results_df = results_df.append(new_results, sort=False)
-
+	
 	return new_candidate_df_arr,results_df
 
 # May need to add exceptions for approved acronyms / common acronyms that don't need support
@@ -157,25 +162,37 @@ def acronym_check(results_df):
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
 	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
+
+# def l_func(row, word):
 	
 
-
-
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
+	# print(candidate_df_arr)
+	threshold = threshold/100.0
 
 	new_candidate_df_arr = []
 	for index,df in enumerate(candidate_df_arr):
 
 		df_copy = df.copy()
-
+		df_copy['l_dist_tmp'] = -1.0
 		if case_sensitive:
-			df_copy['l_dist'] = df_copy['word'].apply(lambda x: fuzz.ratio(word, x))
-		else:
-			df_copy['l_dist'] = df_copy['word'].apply(lambda x: fuzz.ratio(word.lower(), x.lower()))
-		# u.pprint(df_copy)
-		df_copy['l_dist'] = df_copy['l_dist']/100.00
-		df_copy.loc[df_copy.l_dist >= threshold, 'substring_start_index'] = substring_start_index
+			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x, word)/100.0)
 
+		else:
+			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x.lower(), word.lower())/100.0)
+
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold), ['substring_start_index']] = substring_start_index
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold), ['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold)][['l_dist_tmp']].values
+		df_copy = df_copy.drop(['l_dist_tmp'], axis=1)
+	
+		new_candidate_df_arr.append(df_copy)
+
+		# u.pprint(df_copy)
+		
+		# df_copy.loc[df_copy.l_dist >= threshold, 'substring_start_index'] = substring_start_index
+		# df_copy.loc[df_copy.l_dist < threshold, 'l_dist'] = 0
+		
+		
 		# for index,row in df_copy.iterrows():
 
 		# 	l_dist = float()
@@ -184,14 +201,16 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 		# 		l_dist = fuzz.ratio(word, row['word'])
 		# 	else:
 		# 		l_dist = fuzz.ratio(word.lower(), row['word'].lower())
-			
-		# 	# assign l_dist to only those that pass threshold
-		# 	if l_dist >= threshold: ### TUNE ME
-		# 		df_copy.loc[index, 'l_dist'] = l_dist/100.00
-		# 		df_copy.loc[index, 'substring_start_index'] = substring_start_index
+	
+			# assign l_dist to only those that pass threshold
+			# if l_dist >= threshold: ### TUNE ME
+			# 	df_copy.loc[index, 'l_dist'] = l_dist/100.00
+			# 	df_copy.loc[index, 'substring_start_index'] = substring_start_index
+
+		# u.pprint(df_copy)
 
 
-		new_candidate_df_arr.append(df_copy)
+		
 
 	# now want to make sure that number has gone up from before
 	# ideally should also at this point be pulling out complete matches.
@@ -212,7 +231,6 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 				final_candidate_df_arr.append(filtered_candidates)
 				active_match = True
 
-
 	return final_candidate_df_arr, active_match
 
 
@@ -224,12 +242,14 @@ def prune_results_v2(scores_df, og_results):
 	results_df = pd.DataFrame()
 	results_index = []
 	changes_made = False
+
 	for index, row in scores_df.iterrows():
 
 		if index not in exclude_index_arr:
 
 			exclude = scores_df.index.isin(exclude_index_arr)
 			subset_df = scores_df[~exclude].sort_values(['final_score', 'term_length'])
+			
 
 			subset_df = subset_df[
   				((subset_df['term_start_index'] <= row['term_start_index']) 
@@ -240,6 +260,7 @@ def prune_results_v2(scores_df, og_results):
   					& ((subset_df['term_end_index'] <= row['term_end_index'])))]
 
 			subset_df = subset_df.sort_values(['final_score', 'term_length'], ascending=False)
+
 
 			result = subset_df.iloc[0].copy()
 			if len(subset_df.index) > 1:
@@ -254,6 +275,7 @@ def prune_results_v2(scores_df, og_results):
 
 	if not changes_made:
 		final_results = pd.DataFrame()
+
 		for index,row in results_df.iterrows():
 
 			expanded_res = og_results[ \
@@ -261,6 +283,7 @@ def prune_results_v2(scores_df, og_results):
 				& (og_results['term_end_index'] == row['term_end_index'])]
 			
 			final_results = final_results.append(expanded_res, sort=False)
+
 		return final_results
 	else:
 		return prune_results_v2(results_df, og_results)
@@ -350,13 +373,13 @@ def add_names(results_df):
 
 def annotate_line_v2(line, ln_number, cursor, case_sensitive, cache):
 
+	
 	line = clean_text(line)
-	annotation, cache = return_line_snomed_annotation_v2(cursor, line, 93, case_sensitive, cache)
-
+	annotation = return_line_snomed_annotation_v2(cursor, line, 93, case_sensitive, cache)
 	if annotation is not None:
 		annotation['ln_number'] = ln_number
 		
-	return annotation, cache
+	return annotation
 
 def get_sentence_annotation(line, c_df):
 	c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
@@ -498,36 +521,23 @@ def get_children(conceptid, cursor):
 	return child_df['conceptid'].tolist()
 
 
-def annotate_text_not_parallel(text, section, cursor, case_sensitive, bool_acr_check, write_sentences):
+def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
 
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
 	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
 	
-
-	all_words = []
-	lmtzr = WordNetLemmatizer()
 	for ln_number, line in enumerate(tokenized):
-		words = line.split()
-		for index,w in enumerate(words):
-			if w.upper() != w:
-				w = w.lower()
-
-			if w.lower() != 'vs':
-				w = lmtzr.lemmatize(w)
-			all_words.append(w)
-
-	all_words = list(set(all_words))
-	cache = get_new_candidate_df(all_words, cursor, case_sensitive)
-
-	for ln_number, line in enumerate(tokenized):
-		res_df, cache = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
+		res_df = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
 		
 		ann_df = ann_df.append(res_df, sort=False)
+
 	
-	
+
 	if len(ann_df.index) > 0:
+		# No significant time sink below
 		ann_df = resolve_conflicts(ann_df, cursor)
+
 		if bool_acr_check:
 			ann_df = acronym_check(ann_df)
 
@@ -664,7 +674,7 @@ if __name__ == "__main__":
 	query35="interleukin-1 receptor antagonist"
 	query36="achr"
 	query37="Pulmonary veins. PVs."
-	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality. Many aspects of the management of atrial fibrillation remain controversial. We address nine specific controversies in atrial fibrillation management, briefly focusing on the relations between mechanisms and therapy, the roles of rhythm and rate control, the definition of optimum rate control, the need for early cardioversion to prevent remodelling, the comparison of electrical with pharmacological cardioversion, the selection of patients for long-term oral anticoagulation, the roles of novel long-term anticoagulation approaches and ablation therapy, and the potential usefulness of upstream therapy targeting substrate development. The background of every controversy is reviewed and our opinions expressed. Here, we hope to inform physicians about the most important controversies in this specialty and stimulate investigators to address unresolved issues."
+	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality and congestive heart failure."
 	query39="findings from the Baltimore ECA."
 	query40 = "bare metal stent"
 	query41 = "ECG"
@@ -684,10 +694,10 @@ if __name__ == "__main__":
 	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
 	# query 11
 	counter = 0
-	while (counter < 10):
+	while (counter < 1):
 		d = u.Timer('t')
-		res, sentences = annotate_text_not_parallel(query2, 'title', cursor, False, False, False)
-		# u.pprint(res)
+		res, sentences = annotate_text_not_parallel(query38, 'title', cursor, False, False, False)
+		u.pprint(res)
 		d.stop()
 		counter += 1
 	
