@@ -19,3 +19,4 @@ training_*
 txp_*
 word_count.pickle
 all_sentences_*
+*.bin

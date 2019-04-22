@@ -91,7 +91,6 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 		results_df = results_df.append(new_results_df, sort=False)
 
-	# u.pprint(results_df)
 
 	if len(results_df.index) > 0:
 
@@ -187,30 +186,6 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	
 		new_candidate_df_arr.append(df_copy)
 
-		# u.pprint(df_copy)
-		
-		# df_copy.loc[df_copy.l_dist >= threshold, 'substring_start_index'] = substring_start_index
-		# df_copy.loc[df_copy.l_dist < threshold, 'l_dist'] = 0
-		
-		
-		# for index,row in df_copy.iterrows():
-
-		# 	l_dist = float()
-
-		# 	if case_sensitive:
-		# 		l_dist = fuzz.ratio(word, row['word'])
-		# 	else:
-		# 		l_dist = fuzz.ratio(word.lower(), row['word'].lower())
-	
-			# assign l_dist to only those that pass threshold
-			# if l_dist >= threshold: ### TUNE ME
-			# 	df_copy.loc[index, 'l_dist'] = l_dist/100.00
-			# 	df_copy.loc[index, 'substring_start_index'] = substring_start_index
-
-		# u.pprint(df_copy)
-
-
-		
 
 	# now want to make sure that number has gone up from before
 	# ideally should also at this point be pulling out complete matches.
@@ -274,15 +249,18 @@ def prune_results_v2(scores_df, og_results):
 			results_df = results_df.append(result, sort=False)
 
 	if not changes_made:
-		final_results = pd.DataFrame()
+		# final_results = pd.DataFrame()
 
-		for index,row in results_df.iterrows():
+		final_results = og_results.merge(results_df[['term_start_index','term_end_index']], how='inner', left_on=['term_start_index','term_end_index'], right_on=['term_start_index','term_end_index']).copy()
+		final_results.rename(columns={'term_start_index_x' : 'term_start_index', 'term_end_index_x' : 'term_end_index'})
+	
+		# for index,row in results_df.iterrows():
 
-			expanded_res = og_results[ \
-				(og_results['term_start_index'] == row['term_start_index']) \
-				& (og_results['term_end_index'] == row['term_end_index'])]
+		# 	expanded_res = og_results[ \
+		# 		(og_results['term_start_index'] == row['term_start_index']) \
+		# 		& (og_results['term_end_index'] == row['term_end_index'])]
 			
-			final_results = final_results.append(expanded_res, sort=False)
+		# 	final_results = final_results.append(expanded_res, sort=False)
 
 		return final_results
 	else:
@@ -520,6 +498,32 @@ def get_children(conceptid, cursor):
 
 	return child_df['conceptid'].tolist()
 
+def get_all_words_list(text):
+	tokenized = nltk.sent_tokenize(text)
+	all_words = []
+	lmtzr = WordNetLemmatizer()
+	for ln_number, line in enumerate(tokenized):
+		words = line.split()
+		for index,w in enumerate(words):
+			if w.upper() != w:
+				w = w.lower()
+
+			if w.lower() != 'vs':
+				w = lmtzr.lemmatize(w)
+			all_words.append(w)
+
+	return list(set(all_words))
+
+def get_cache(all_words_list, cursor):
+	cache = get_new_candidate_df(all_words_list, cursor, True)
+	cache['points'] = 0
+	cache.loc[cache.word.isin(all_words_list), 'points'] = 1
+	csf = cache[['description_id', 'term_length', 'points']].groupby(['description_id', 'term_length'], as_index=False)['points'].sum()
+	candidate_dids = csf[csf['term_length'] == csf['points']]['description_id'].tolist()
+	
+	cache = cache[cache['description_id'].isin(candidate_dids)].copy()
+	cache = cache.drop(['points'], axis=1)
+	return cache
 
 def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
 
@@ -674,7 +678,7 @@ if __name__ == "__main__":
 	query35="interleukin-1 receptor antagonist"
 	query36="achr"
 	query37="Pulmonary veins. PVs."
-	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality and congestive heart failure."
+	query38="Atrial fibrillation is the most common sustained cardiac arrhythmia, and contributes greatly to cardiovascular morbidity and mortality and congestive heart failure"
 	query39="findings from the Baltimore ECA."
 	query40 = "bare metal stent"
 	query41 = "ECG"
@@ -696,7 +700,13 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		res, sentences = annotate_text_not_parallel(query38, 'title', cursor, False, False, False)
+		term = "non small cell lung cancer"
+		term = clean_text(term)
+		all_words = get_all_words_list(term)
+		u.pprint(all_words)
+		cache = get_cache(all_words, cursor)
+		u.pprint(cache[cache['conceptid'] == '254637007'])
+		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, False, False)
 		u.pprint(res)
 		d.stop()
 		counter += 1

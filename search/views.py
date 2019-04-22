@@ -12,7 +12,7 @@ from django.http import JsonResponse
 import numpy as np
 # Create your views here.
 
-INDEX_NAME='pubmedx1.3'
+INDEX_NAME='pubmedx1.4'
 
 
 lowDoseArr = [15,12,12,12,12,7,10]
@@ -755,8 +755,9 @@ def concept_search_results(request):
 		end_year = request.GET['end_year']
 		es = u.get_es_client()	
 		query = ann.clean_text(query)
-		
-		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cursor, True, False, False)
+		all_words = ann.get_all_words_list(query)
+		cache = ann.get_cache(all_words, cursor)
+		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, True, False, False)
 
 		sr = dict()
 		related_dict = dict()

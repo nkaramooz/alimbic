@@ -17,16 +17,19 @@ import sys
 
 INDEX_NAME = 'pubmedx1.4'
 
-def doc_worker(input):
+def doc_worker(input, conn,cursor):
+	
 	for func,args in iter(input.get, 'STOP'):
-		doc_calculate(func, args)
+		doc_calculate(func, args, conn,cursor)
 
 
-def doc_calculate(func, args):
-	func(*args)
+def doc_calculate(func, args, conn, cursor):
+	
+	func(*args, conn, cursor)
 
 
-def index_doc_from_elem(elem, filename):
+def index_doc_from_elem(elem, filename, conn, cursor):
+
 	elem = ET.parse(io.BytesIO(elem))
 	# if elem.tag != 'PubmedArticle':
 	# 	raise ValueError('lost element')
@@ -58,25 +61,25 @@ def index_doc_from_elem(elem, filename):
 	# Journal of hepatology
 	# JACC
 	# JACC Heart failure
-	# if issn in ['0895-7061', '1941-7225', '0194-911X', '1524-4563', '1469-493X', '1465-1858', \
-	# 	'0959-8138', '1756-1833', '0341-2040', '1432-1750', '1941-3289', '1941-3297', \
-	# 	'1533-4406', '0028-4793', '0002-838X', '1532-0650', '0003-4819', '1539-3704', \
-	# 	'0098-7484', '1538-3598', '2325-6621', '1943-5665', '0140-6736', '1474-547X', \
-	# 	'0028-3878', '1526-632X', '0009-7322', '1524-4539', '2090-5769', '2090-5777', \
-	# 	'0016-5085', '1524-4563', '0196-0644', '1097-6760', '0003-4819', '1539-3704', \
-	# 	'1073-449X', '1535-4970', '0006-4971', '1528-0020', '0022-5347', '0090-4295', \
-	# 	'1073-449X', '1535-4970', '0270-9139', '1527-3350', '0735-1097', '1558-3597', \
-	# 	'2213-1779', '2213-1787', '0039-2499', '1524-4628']:
-	if issn in ['1533-4406', '0028-4793']:
+	if issn in ['0895-7061', '1941-7225', '0194-911X', '1524-4563', '1469-493X', '1465-1858', \
+		'0959-8138', '1756-1833', '0341-2040', '1432-1750', '1941-3289', '1941-3297', \
+		'1533-4406', '0028-4793', '0002-838X', '1532-0650', '0003-4819', '1539-3704', \
+		'0098-7484', '1538-3598', '2325-6621', '1943-5665', '0140-6736', '1474-547X', \
+		'0028-3878', '1526-632X', '0009-7322', '1524-4539', '2090-5769', '2090-5777', \
+		'0016-5085', '1524-4563', '0196-0644', '1097-6760', '0003-4819', '1539-3704', \
+		'1073-449X', '1535-4970', '0006-4971', '1528-0020', '0022-5347', '0090-4295', \
+		'1073-449X', '1535-4970', '0270-9139', '1527-3350', '0735-1097', '1558-3597', \
+		'2213-1779', '2213-1787', '0039-2499', '1524-4628']:
+	# if issn in ['1533-4406', '0028-4793']:
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) >= 1980):
 				json_str, article_text = get_article_info_2(elem, json_str)
-				
+		
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
-					conn, cursor = pg.return_postgres_cursor()
+					# conn, cursor = pg.return_postgres_cursor()
 					
 					json_str = get_pmid(elem, json_str)
 					json_str = get_article_ids(elem, json_str)					
@@ -165,8 +168,8 @@ def index_doc_from_elem(elem, filename):
 					elif query_result['hits']['total'] == 1:
 						article_id = query_result['hits']['hits'][0]['_id']
 						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
-					cursor.close()
-					conn.close()
+					# cursor.close()
+					# conn.close()
 
 
 
@@ -183,7 +186,7 @@ def load_pubmed_local_2(start_file):
 
 	pool = []
 	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,cursors[i][0], cursors[i][1]))
+		p = mp.Process(target=doc_worker, args=(task_queue, cursors[i][0], cursors[i][1]))
 		pool.append(p)
 		p.start()
 
@@ -244,9 +247,9 @@ def load_pubmed_local_2(start_file):
 			abstract_counter = 0
 			file_path = folder_path + '/' + filename
 
-			file_num = int(re.findall('pubmed18n(.*).xml', filename)[0])
+			file_num = int(re.findall('pubmed19n(.*).xml', filename)[0])
 
-			if file_num == start_file:
+			if file_num >= start_file:
 				print(filename)
 			
 				file_timer = u.Timer('file')
@@ -289,10 +292,10 @@ def load_pubmed_local_2(start_file):
 				# 		elem.clear()
 				# 	root.clear()
 				file_timer.stop()
-				if file_num == start_file+1:
+				if file_num >= start_file+10:
 					break
-				break
-		if file_num == start_file:
+				
+		if file_num == start_file+10:
 			break
 				
 				
@@ -310,25 +313,25 @@ def load_pubmed_local_test(start_file):
 	
 	
 
-	# cursors = []
-	# for i in range(number_of_processes):
-	# 	conn, cursor = pg.return_postgres_cursor()
-	# 	cursors.append((conn,cursor))
-
-	# task_queue = mp.Queue()
-
-	# pool = []
-	# for i in range(number_of_processes):
-	# 	p = mp.Process(target=doc_worker, args=(task_queue,cursors[i][0], cursors[i][1]))
-	# 	pool.append(p)
-	# 	p.start()
+	cursors = []
+	for i in range(number_of_processes):
+		conn, cursor = pg.return_postgres_cursor()
+		cursors.append((conn,cursor))
 
 	task_queue = mp.Queue()
+
 	pool = []
 	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,))
+		p = mp.Process(target=doc_worker, args=(task_queue,cursors[i][0], cursors[i][1]))
 		pool.append(p)
 		p.start()
+
+	# task_queue = mp.Queue()
+	# pool = []
+	# for i in range(number_of_processes):
+	# 	p = mp.Process(target=doc_worker, args=(task_queue,))
+	# 	pool.append(p)
+	# 	p.start()
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -551,23 +554,12 @@ def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	cid_dict = {}
 	did_dict = {}
 	result_dict = {}
-	tokenized = nltk.sent_tokenize(article_text)
-	all_words = []
-	lmtzr = WordNetLemmatizer()
-	for ln_number, line in enumerate(tokenized):
-		words = line.split()
-		for index,w in enumerate(words):
-			if w.upper() != w:
-				w = w.lower()
-
-			if w.lower() != 'vs':
-				w = lmtzr.lemmatize(w)
-			all_words.append(w)
-
-	all_words = list(set(all_words))
+	
+	cleaned_text = ann.clean_text(article_text)
+	all_words = ann.get_all_words_list(cleaned_text)
 	
 	# True = case_sensitive
-	cache = ann.get_new_candidate_df(all_words, cursor, True)
+	cache = ann.get_cache(all_words, cursor)
 
 	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
 	if res is not None:
@@ -878,23 +870,18 @@ def get_snomed_annotation(text, section, cache, cursor):
 
 if __name__ == "__main__":
 
-
-
 	# start_file = 700
-	c = u.Timer("full timer")
-	load_pubmed_local_test(364)
-	c.stop()
-
-
-	# start_file = 364
-	# while (start_file < 929):
-	# 	print(start_file)
-	# 	load_pubmed_local_2(start_file)
-	# 	start_file += 1
-	# c = u.Timer('engine')
-	# engine = pg.return_sql_alchemy_engine()
-	# conn, cursor = pg.return_postgres_cursor()
+	# c = u.Timer("full timer")
+	# load_pubmed_local_test(364)
 	# c.stop()
+
+
+	start_file = 0
+	while (start_file < 973):
+		print(start_file)
+		load_pubmed_local_2(start_file)
+		start_file += 10
+	
 
 nlm_cat_dict = {"a case report" :"methods"
 ,"abbreviations" :"background"

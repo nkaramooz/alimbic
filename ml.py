@@ -41,7 +41,7 @@ from keras.wrappers.scikit_learn import KerasClassifier
 from sklearn.model_selection import RandomizedSearchCV
 import multiprocessing
 from gensim.models import Word2Vec
-
+import sqlalchemy as sqla
 
 plt.style.use('ggplot')
 
@@ -57,7 +57,7 @@ max_words = 40
 # [root, rel, spacer]
 
 def get_word_counts():
-	query = "select sentence from annotation.sentences3"
+	query = "select sentence from annotation.sentences4"
 	conn,cursor = pg.return_postgres_cursor()
 	sentence_df = pg.return_df_from_query(cursor, query, None, ['sentence'])
 	
@@ -83,23 +83,17 @@ def get_word_counts():
 	return counts
 
 def get_cid_and_word_counts():
-	query = "select distinct(sentence_tuples)::text[] from annotation.sentences3"
+	query = "select sentence_tuples from annotation.distinct_sentences"
 	conn,cursor = pg.return_postgres_cursor()
 	sentence_tuples_df = pg.return_df_from_query(cursor, query, None, ['sentence_tuples'])
 	
 	counts = {}
-	for index,sentence in sentence_tuples_df.iterrows():
+	for index,jb in sentence_tuples_df.iterrows():
 		last_cid = ""
-		for index,words in enumerate(sentence['sentence_tuples']):
-		
-			words = words.lower()
-			words = words.strip('(')
-			words = words.strip(')')
-			words = tuple(words.split(","))	
-
-			if (words[1] == last_cid):
+		for index,words in enumerate(jb[0]):
+			if words[1] == last_cid:
 				continue
-			elif (words[1] != '0'):
+			elif words[1] != 0:
 				last_cid = words[1]
 				if words[1] in counts.keys():
 					counts[words[1]] = counts[words[1]] + 1
@@ -107,17 +101,17 @@ def get_cid_and_word_counts():
 					counts[words[1]] = 1
 			else:
 				last_cid = ""
-				clean_word = ann.clean_text(words[0])
-				if clean_word in counts.keys():
-					counts[clean_word] = counts[clean_word] + 1
+				if words[0] in counts.keys():
+					counts[words[0]] = counts[words[0]] + 1
 				else:
-					counts[clean_word] = 1
-	counts = collections.OrderedDict(sorted(counts.items(), key=itemgetter(1), reverse = True))
-	
+					counts[words[0]] = 1
+	counts = collections.OrderedDict(sorted(counts.items(), key=itemgetter(1), reverse=True))
+
 	with open('cid_and_word_count.pickle', 'wb') as handle:
 		pk.dump(counts, handle, protocol=pk.HIGHEST_PROTOCOL)
 	u.pprint(counts)
 	return counts
+	
 
 
 def load_word_counts_dict(filename):
@@ -193,7 +187,7 @@ def gen_datasets_2(filename):
 
 			last_condition_id = item['condition_id']
 
-			condition_sentence_id_query = "select id from annotation.sentences3 where conceptid in %s"
+			condition_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
 			condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])
 
 
@@ -209,7 +203,7 @@ def gen_datasets_2(filename):
 		#this should give a full list for the training row
 
 
-		sentences_query = "select sentence_tuples::text[], sentence, conceptid from annotation.sentences3 where id in %s and conceptid in %s"
+		sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids['id'].tolist()), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "conceptid"])
 
 		label = item['label']
@@ -358,16 +352,8 @@ def get_labelled_data(is_test, sentences_df, condition_id_arr, tx_id_arr, item, 
 		sample = [(vocabulary_size-1)]*max_words
 		
 		counter=0
-		for index,words in enumerate(sentence['sentence_tuples']):
-			# words = words.strip('{')
-			# words = words.strip('}')
-			words = words.lower()
-			words = words.strip('(')
-			words = words.strip(')')
-			words = tuple(words.split(","))	
-
+		for index,words in enumerate(sentence[0]):
 			## words[1] is the conceptid, words[0] is the word
-
 			# condition 1 -- word is the condition of interest
 
 
@@ -412,16 +398,8 @@ def get_labelled_data_w2v(sentences_df, conditions_set, dictionary, reverse_dict
 		sample = [str((vocabulary_size-1))]*max_words
 		
 		counter=0
-		for index,words in enumerate(sentence['sentence_tuples']):
-			# words = words.strip('{')
-			# words = words.strip('}')
-			words = words.lower()
-			words = words.strip('(')
-			words = words.strip(')')
-			words = tuple(words.split(","))	
-
+		for index,words in enumerate(sentence[0]):
 			## words[1] is the conceptid, words[0] is the word
-
 			# condition 1 -- word is the condition of interest
 	
 			if words[1] in conditions_set and (sample[counter-1] != generic_condition_key):
@@ -452,14 +430,16 @@ def build_embedding():
 	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' "
 	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
 
-	max_len = 12990566
+	max_len_query = "select count(*) as cnt from annotation.distinct_sentences"
+	max_len = pg.return_df_from_query(cursor, max_len_query, None, ['cnt'])['cnt'].values
+	
 	counter = 0
 	
 	model = None
 	while counter < max_len:
 		sentence_vector = []
 		u.pprint(counter)
-		sentences_query = "select sentence_tuples::text[] from annotation.sentences3 limit 100000 offset %s"
+		sentences_query = "select sentence_tuples from annotation.distinct_sentences limit 100000 offset %s"
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (counter,), ['sentence_tuples'])	
 		sentence_vector = get_labelled_data_w2v(sentences_df, all_conditions_set, dictionary, reverse_dictionary)
 
@@ -492,7 +472,7 @@ def build_embedding():
 
 		# 	final_array.append(sentence_array)
 
-	model.save('concept_word_embedding.200.bin')
+	model.save('concept_word_embedding.200.04.21.bin')
 
 
 def build_model():
@@ -630,19 +610,18 @@ def treatment_recategorization_recs(model_name):
 	dictionary, reverse_dictionary = get_dictionaries()
 	model = load_model(model_name)
 
-	
-
 	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' "
 	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
 
-	
+	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered"
+	max_counter = pg.return_df_from_query(cursor, max_query, None, ['cnt'])['cnt'].values
 
 	counter = 0
-	max_counter = 1348396
+
 	while counter < max_counter:
 		print(counter)
 		results_df = pd.DataFrame()
-		treatment_candidates_query = "select sentence, sentence_tuples::text[], condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered limit 1000 offset %s"
+		treatment_candidates_query = "select sentence, sentence_tuples, condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered limit 1000 offset %s"
 		treatment_candidates_df = pg.return_df_from_query(cursor, treatment_candidates_query, (counter,), ['sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'pmid', 'id', 'section'])
 
 		for i,c in treatment_candidates_df.iterrows():
@@ -654,10 +633,10 @@ def treatment_recategorization_recs(model_name):
 
 		if counter == 0:
 			engine = pg.return_sql_alchemy_engine()
-			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False)
+			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 		else:
 			engine = pg.return_sql_alchemy_engine()
-			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='append', index=False)
+			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
 		counter += 1000
 	# u.pprint(results_df)
@@ -673,10 +652,10 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 	for index,words in enumerate(sentence['sentence_tuples']):
 		# words = words.strip('{')
 		# words = words.strip('}')
-		words = words.lower()
-		words = words.strip('(')
-		words = words.strip(')')
-		words = tuple(words.split(","))	
+		# words = words.lower()
+		# words = words.strip('(')
+		# words = words.strip(')')
+		# words = tuple(words.split(","))	
 		## words[1] is the conceptid, words[0] is the word
 		# condition 1 -- word is the condition of interest
 		if (words[1] == condition_id) and (sample[counter-1] != vocabulary_size-3):
@@ -711,7 +690,7 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 	
 
 def train_with_word2vec():
-	model = Word2Vec.load('concept_word_embedding.200.bin')
+	model = Word2Vec.load('concept_word_embedding.200.04.21.bin')
 	
 	embedding_dim = 200
 	embedding_matrix = np.zeros((vocabulary_size, embedding_dim))
@@ -729,10 +708,10 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	training_set = pd.read_pickle("./training_03_14_19")
+	training_set = pd.read_pickle("./training_04_21_19")
 	# training_set = training_set.append(training_set[training_set['label'] == 1].copy())
 	training_set = training_set.sample(frac=1).reset_index(drop=True)
-	test_set = pd.read_pickle("./testing_03_14_19")
+	test_set = pd.read_pickle("./testing_04_21_19")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -767,7 +746,7 @@ def train_with_word2vec():
 	print("Testing Accuracy:  {:.4f}".format(accuracy))
 	# plot_history(history)
 
-	model.save('txp_60_03_14_w2v.h5')
+	model.save('txp_60_04_21_w2v.h5')
 
 
 def glove_embeddings():
@@ -891,14 +870,13 @@ def plot_history(history):
 # build_model()
 
 
-
-# build_embedding()
 # get_cid_and_word_counts()
 # load_word_counts_dict("cid_and_word_count.pickle")
-# gen_datasets_2("03_14_19")
+# build_embedding()
+# gen_datasets_2("04_21_19")
 
 # train_with_word2vec()
-treatment_recategorization_recs('txp_60_03_14_w2v.h5')
+treatment_recategorization_recs('txp_60_04_21_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
 # model = Word2Vec.load('concept_word_embedding.bin')

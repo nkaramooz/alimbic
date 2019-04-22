@@ -5,17 +5,15 @@ create table title_treatment_candidates as (
 	select tb3.conceptid as condition_id, 
 		tb1.conceptid as treatment_id, 
 		tb1.sentence, 
-		tb1.sentence_tuples::text[], 
+		tb1.sentence_tuples, 
 		tb1.pmid, 
 		tb1.id,
 		tb1.section
-	from annotation.sentences3 tb1
+	from annotation.sentences4 tb1
 	join (select tb2.id, tb2.conceptid 
-			from annotation.sentences3 tb2
-		  	where
-		  		tb2.conceptid in 
-		  			(select root_cid from annotation.concept_types
-		  			where rel_type='condition' or rel_type='symptom')
+			from annotation.sentences4_limited tb2
+			inner join annotation.concept_types tb3
+			on tb2.conceptid = tb3.root_cid and rel_type in ('condition', 'symptom')
 	) tb3 
 	on tb1.id = tb3.id
 	and tb1.conceptid != tb3.conceptid
