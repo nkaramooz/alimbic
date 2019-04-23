@@ -549,6 +549,46 @@ def aws_load_pubmed_2(start_file, filter_words_df):
 	pool.close()
 	pool.join()
 
+def get_abstract_conceptids_3(abstract_dict, article_text, cursor):
+	cid_dict = {}
+	did_dict = {}
+	result_dict = {}
+	cleaned_text = ann.clean_text(article_text)
+	all_words = ann.get_all_words_list(cleaned_text)
+	cache = ann.get_cache(all_words, cursor)
+
+	prelim_ann = pd.DataFrame()
+	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
+	prelim_ann = prelim_ann.append(res, sort=False)
+
+	if abstract_dict['article_abstract'] is not None:
+		for index,k1 in enumerate(abstract_dict['article_abstract']):
+			res,new_sentences = get_snomed_annotation(abstract_dict['article_abstract'][k1], str(k1), cache, cursor)
+
+			if new_sentences is not None:
+				new_sentences['section_index'] = index
+				sentences = sentences.append(new_sentences, sort=False)
+			prelim_ann = prelim_ann.append(res, sort=False)
+
+		prelim_ann = ann.acronym_check(prelim_ann)
+
+		for index,k1 in enumerate(abstract_dict['article_abstract']):
+			k1_cid = str(k1) + "_cid"
+			k1_did = str(k1) + "_did"
+
+			annotated = prelim_ann[prelim_ann['section'] == str(k1)]
+			if annotated is not None:
+				cid_dict[k1_cid] = annotated['conceptid'].tolist()
+				did_dict[k1_did] = annotated['description_id'].tolist()
+			else:
+				cid_dict[k1_cid] = None
+				did_dict[k1_did] = None
+		result_dict['abstract'] = {'cid_dict' : cid_dict, 'did_dict' : did_dict, 'sentences' : sentences}
+		return result_dict
+	else:
+		result_dict['abstract'] = None
+		return result_dict
+
 
 def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	cid_dict = {}
@@ -580,7 +620,6 @@ def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			if res is not None:
-
 				cid_dict[k1_cid] = res['conceptid'].tolist()
 				did_dict[k1_did] = res['description_id'].tolist()
 			else:

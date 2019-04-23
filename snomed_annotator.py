@@ -542,8 +542,8 @@ def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, boo
 		# No significant time sink below
 		ann_df = resolve_conflicts(ann_df, cursor)
 
-		if bool_acr_check:
-			ann_df = acronym_check(ann_df)
+		# if bool_acr_check:
+		# 	ann_df = acronym_check(ann_df)
 
 		if write_sentences:
 			for ln_number, line in enumerate(tokenized):
