@@ -1122,7 +1122,14 @@ def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cur
 
 def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, concept_type):
 	dist_concept_list = list(set(conceptid_df['conceptid'].tolist()))
-	if len(dist_concept_list) > 0:
+
+	if concept_type == 'treatment' and len(dist_concept_list) > 0:
+		query = "select treatment_id as conceptid, 'treatment' as concept_type from annotation.treatment_recs_final where condition_id in %s"
+		tx_df = pg.return_df_from_query(cursor, query, (tuple(dist_concept_list),), ["conceptid", "concept_type"])
+		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['conceptid'])
+		return conceptid_df
+
+	elif len(dist_concept_list) > 0:
 
 		concept_type_query_string = """
 				select

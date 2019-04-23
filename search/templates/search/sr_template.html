@@ -37,9 +37,9 @@
 				{% if a.abstract_show is not None %}
 					<div class="preview-ellipsis">
 						{% if a.abstract_show.0 == 'unlabelled' %}
-							<h4><b>abstract</b></h4>
+							<h4>abstract</h4>
 						{% else %}
-							<h4><b>{{a.abstract_show.0}}</b></h4>
+							<h4>{{a.abstract_show.0}}</h4>
 						{% endif %}
 						<h4>{{a.abstract_show.1}}</h4><br>
 					</div>
@@ -48,7 +48,7 @@
 					<div class="expanded">
 						{% for item in a.abstract_hide %}
 							{% if item.0 != "text" %}
-								<h4><b>{{item.0}}</b></h4>
+								<h4>{{item.0}}</h4>
 							{% endif %}
 							<h4>{{item.1}}</h4> <br>
 						{% endfor %}
