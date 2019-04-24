@@ -1126,7 +1126,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
 		query = "select treatment_id as conceptid, 'treatment' as concept_type from annotation.treatment_recs_final where condition_id in %s"
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(dist_concept_list),), ["conceptid", "concept_type"])
-		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['conceptid'])
+		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 		return conceptid_df
 
 	elif len(dist_concept_list) > 0:

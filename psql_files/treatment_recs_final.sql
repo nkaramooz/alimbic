@@ -14,4 +14,4 @@ create table treatment_recs_final as (
 );
 
 create index tx_recs_final_cid on treatment_recs_final(condition_id);
-create index tx_recs_final_cid on treatment_recs_final(treatment_id);
+create index tx_recs_final_tid on treatment_recs_final(treatment_id);
