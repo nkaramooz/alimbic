@@ -754,7 +754,7 @@ def concept_search_results(request):
 		if len(primary_cids) == 1:
 			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=0, cursor=cursor)
 	
-	if (request.GET['query_type'] == 'pivot' and ('+' in request.GET or '-' in request.GET)) and (request.method != 'POST'):
+	if (request.GET['query_type'] == 'pivot' and ('+' in request.GET or '-' in request.GET)) or (request.method != 'POST' and request.method='GET') :
 		journals = request.GET.getlist('journals[]')
 		query = request.GET['query']
 		start_year = request.GET['start_year']
