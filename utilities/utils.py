@@ -111,7 +111,7 @@ def treatment_label(condition_id, treatment_id, treatment_label, cursor):
 		VALUES (%s, %s, %s)
 	"""
 	cursor.execute(positive_query, (condition_id, treatment_id, treatment_label))
-	cursor.connection.comit()
+	cursor.connection.commit()
 
 def add_description(conceptid, description, cursor):
 
