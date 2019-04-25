@@ -743,12 +743,12 @@ def concept_search_results(request):
 		params.update(res)
 
 		return render(request, 'search/concept_search_results_page.html', params)
-	elif "+" in request.GET:
+	elif request.GET['submit'] == '+':
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
 		if len(primary_cids) == 1:
 			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=1)
-	elif "-" in request.GET:
+	elif request.GET['submit'] == '-':
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
 		if len(primary_cids) == 1:
