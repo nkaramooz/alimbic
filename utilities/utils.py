@@ -104,6 +104,15 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 
 	return True
 
+def treatment_label(condition_id, treatment_id, treatment_label, cursor):
+	positive_query = """
+		set schema 'annotation';
+		INSERT INTO labelled_treatments_app (condition_id, treatment_id, label)
+		VALUES (%s, %s, %s)
+	"""
+	cursor.execute(positive_query, (condition_id, treatment_id, treatment_label))
+	cursor.connection.comit()
+
 def add_description(conceptid, description, cursor):
 
 	if is_valid_conceptid(conceptid, cursor):

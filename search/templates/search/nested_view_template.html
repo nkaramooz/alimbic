@@ -16,6 +16,38 @@
 
 		<input type="submit" value="{{item.name}} ({{item.count}} papers)" class="btn btn-link btn-sm">
 	</form>
+	<form action=# method="get"> 
+		{% csrf_token %}
+		<input type="hidden" name="pivot_cid" value="{{key}}">
+		<input type="hidden" name="term1" value="{{concepts.0.term}}">
+		<input type="hidden" name="term2" value="{{item.name}}">
+		<input type="hidden" name="query_type" value="positive">
+		<input type="hidden" name="pivot_type" value="{{pivot_type}}">
+		{% for c in primary_cids %}
+			<input type="hidden" name="primary_cids[]" value="{{c}}">
+		{% endfor %}
+		{% for j in journals %}
+			<input type="hidden" name="journals[]" value="{{j}}">
+		{% endfor %}
+
+		<input type="submit" value="+" class="btn btn-link btn-sm">
+	</form>
+	<form action=# method="get"> 
+		{% csrf_token %}
+		<input type="hidden" name="pivot_cid" value="{{key}}">
+		<input type="hidden" name="term1" value="{{concepts.0.term}}">
+		<input type="hidden" name="term2" value="{{item.name}}">
+		<input type="hidden" name="query_type" value="negative">
+		<input type="hidden" name="pivot_type" value="{{pivot_type}}">
+		{% for c in primary_cids %}
+			<input type="hidden" name="primary_cids[]" value="{{c}}">
+		{% endfor %}
+		{% for j in journals %}
+			<input type="hidden" name="journals[]" value="{{j}}">
+		{% endfor %}
+
+		<input type="submit" value="-" class="btn btn-link btn-sm">
+	</form>
 	{% if item.children|length > 0 %}
 		<ul>
 			{% for child in item.children %}

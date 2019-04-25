@@ -719,13 +719,8 @@ def concept_search_results(request):
 		term2 = request.GET['term2']
 		query = term1 + " " + term2
 		params = {}
-		# try:
-		# print(list(request.GET['journals[]'])[0])
 
 		params['journals'] = request.GET.getlist('journals[]')
-		# except:
-		# 	params['journals'] = []
-
 	
 		try:
 			if request.GET['start_year'] == '':
@@ -748,7 +743,18 @@ def concept_search_results(request):
 		params.update(res)
 
 		return render(request, 'search/concept_search_results_page.html', params)
-	else:
+	elif request.GET['query_type'] == 'positive':
+		primary_cids = request.GET.getlist('primary_cids[]')
+		pivot_cid = request.GET['pivot_cid']
+		if len(primary_cids) == 1:
+			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, label=1)
+	elif request.GET['query_type'] == 'negative':
+		primary_cids = request.GET.getlist('primary_cids[]')
+		pivot_cid = request.GET['pivot_cid']
+		if len(primary_cids) == 1:
+			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, label=0)
+	
+	if (request.GET['query_type'] != 'pivot') and (request.method != 'POST'):
 		journals = request.GET.getlist('journals[]')
 		query = request.GET['query']
 		start_year = request.GET['start_year']
