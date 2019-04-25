@@ -838,10 +838,8 @@ def rollups(cids_df, cursor):
 
 	json_resp = []
 	for i,r in cids_df.iterrows():
-		# print(r)
 		json_resp = get_json(r, json_resp)
-	# json_resp.append({'root_length' : len(cids_df)})
-	# print(json_resp) 
+
 	return json_resp
 
 # Takes sorted inputs, which is not ideal
@@ -893,7 +891,6 @@ def get_show_hide_components(sr_src, hit_dict):
 			if key1 == top_key:
 				continue
 			else:
-					# print(hit_dict['abstract_hide'])
 				hit_dict['abstract_hide'].append((key1, value1))
 		hit_dict['abstract_hide'] = (None if len(hit_dict['abstract_hide']) == 0 else hit_dict['abstract_hide'])
 	else:
@@ -901,12 +898,10 @@ def get_show_hide_components(sr_src, hit_dict):
 		hit_dict['abstract_hide'] = None
 	return hit_dict
 
-	# print(second_level_keys)
 
 def get_unmatched_terms(query, query_concepts_df):
 	unmatched_terms = ""
 	for index,word in enumerate(query.split()):
-
 		if len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
 			continue
 		else:
@@ -926,8 +921,6 @@ def get_concept_names_dict_for_sr(sr):
 				concept_df = concept_df.append(pd.DataFrame(hit['_source']['title_conceptids'], columns=['conceptid']))
 		except:
 			pass
-			# hit['_source']['title_conceptids'] = get_abstract_concept_arr_dict(title_df)
-	
 
 		abstract_concepts = es_util.get_flattened_abstract_concepts(hit)
 		if abstract_concepts is not None:
@@ -1208,16 +1201,16 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	query_concepts_dict = get_query_arr_dict(query_concept_list)
 	es_query = {"from" : 0, \
 					 "size" : 100, \
-					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids"], cursor)}
+					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 	sr_title_match = es.search(index=INDEX_NAME, body=es_query)
-	title_match_cids = get_title_cids(sr_title_match)
-	es_query = {"from" : 0, \
-					 "size" : 100, \
-					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["abstract_conceptids.*"], cursor)}
+	title_match_cids_df = get_title_cids(sr_title_match)
+	# es_query = {"from" : 0, \
+	# 				 "size" : 100, \
+	# 				 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["abstract_conceptids.*"], cursor)}
 
-	sr_abstract_match = es.search(index=INDEX_NAME, body=es_query)
-	sr_cid_df = get_abstract_cids(sr_abstract_match)
+	# sr_abstract_match = es.search(index=INDEX_NAME, body=es_query)
+	sr_cid_df = get_abstract_cids(sr_title_match)
 
 	sub_dict = dict()
 	sub_dict['term'] = root_concept_name
@@ -1226,11 +1219,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	sub_dict['condition'] = []
 	sub_dict['cause'] = []
 
-	sr_title_df = get_title_cids(sr_title_match)
-
 	if len(title_match_cids) > 0:
 		
-		agg_tx = get_query_concept_types_df_3(sr_title_df, query_concept_list, cursor, 'treatment')
+		agg_tx = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'treatment')
 
 		if len(agg_tx) > 0:
 			agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
@@ -1238,27 +1229,21 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
 			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
 			agg_tx = ann.add_names(agg_tx)
-			# agg_tx = agg_tx.sort_values(['count'], ascending=False)
-
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
-			# for index,row in agg_tx.iterrows():
-			# 	item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-			# 	sub_dict['treatment'].append(item_dict)
 
-		agg_diagnostic = get_query_concept_types_df_3(sr_title_df, query_concept_list, cursor, 'diagnostic')
+
+		# agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
+		agg_diagnostic = None
 		if len(agg_diagnostic) > 0:
 			agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_diagnostic['count'] = 1
 			agg_diagnostic = agg_diagnostic.groupby(['conceptid'],  as_index=False)['count'].sum()
 			agg_diagnostic = de_dupe_synonyms_2(agg_diagnostic, cursor)
 			agg_diagnostic = ann.add_names(agg_diagnostic)
-			# agg_diagnostic = agg_diagnostic.sort_values(['count'], ascending=False)
 			sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
-			# for index,row in agg_diagnostic.iterrows():
-			# 	item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
-			# 	sub_dict['diagnostic'].append(item_dict)
 
-		agg_cause = get_query_concept_types_df_3(sr_title_df, query_concept_list, cursor, 'cause')
+		# agg_cause = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'cause')
+		agg_cause = None
 		if len(agg_cause) > 0:
 			agg_cause = agg_cause.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_cause['count'] = 1
@@ -1270,7 +1255,8 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 				sub_dict['cause'].append(item_dict)
 	
-	agg_condition = get_query_concept_types_df_3(sr_cid_df, query_concept_list, cursor, 'condition')
+	# agg_condition = get_query_concept_types_df_3(sr_cid_df, query_concept_list, cursor, 'condition')
+	agg_condition = None
 	if len(agg_condition) > 0:
 		agg_condition = agg_condition.drop_duplicates(subset=['conceptid', 'pmid'])
 		agg_condition['count'] = 1

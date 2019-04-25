@@ -15,8 +15,8 @@
 		{% endfor %}
 
 		<input type="submit" value="{{item.name}} ({{item.count}} papers)" class="btn btn-link btn-sm">
-		<input type="submit" name="+" value="+" class="btn btn-link btn-sm">
 		<input type="submit" name="-" value="-" class="btn btn-link btn-sm">
+		<input type="submit" name="+" value="+" class="btn btn-link btn-sm">
 	</form>
 	{% if item.children|length > 0 %}
 		<ul>
