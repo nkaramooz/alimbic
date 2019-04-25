@@ -747,12 +747,12 @@ def concept_search_results(request):
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
 		if len(primary_cids) == 1:
-			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=1)
+			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=1, cursor=cursor)
 	elif '-' in request.GET:
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
 		if len(primary_cids) == 1:
-			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=0)
+			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=0, cursor=cursor)
 	
 	if (request.GET['query_type'] != 'pivot') and (request.method != 'POST'):
 		journals = request.GET.getlist('journals[]')
