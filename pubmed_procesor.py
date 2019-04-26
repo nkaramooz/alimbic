@@ -234,7 +234,7 @@ def load_pubmed_local_2(start_file):
 		es.indices.create(index=INDEX_NAME, body=settings)
 		
 
-	folder_arr = ['resources/baseline']
+	folder_arr = ['resources/updatefiles']
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -915,8 +915,8 @@ if __name__ == "__main__":
 	# c.stop()
 
 
-	start_file = 0
-	while (start_file < 973):
+	start_file = 973
+	while (start_file < 1120):
 		print(start_file)
 		load_pubmed_local_2(start_file)
 		start_file += 10
