@@ -7,6 +7,7 @@
 		<input type="hidden" name="term2" value="{{item.name}}">
 		<input type="hidden" name="query_type" value="pivot">
 		<input type="hidden" name="pivot_type" value="{{pivot_type}}">
+		<input type="hidden" name="query" value="{{query}}">
 		{% for c in primary_cids %}
 			<input type="hidden" name="primary_cids[]" value="{{c}}">
 		{% endfor %}
