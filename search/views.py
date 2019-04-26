@@ -1233,7 +1233,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 
 
 		# agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
-		agg_diagnostic = None
+		agg_diagnostic = []
 		if len(agg_diagnostic) > 0:
 			agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_diagnostic['count'] = 1
@@ -1243,7 +1243,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
 
 		# agg_cause = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'cause')
-		agg_cause = None
+		agg_cause = []
 		if len(agg_cause) > 0:
 			agg_cause = agg_cause.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_cause['count'] = 1
@@ -1256,7 +1256,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 				sub_dict['cause'].append(item_dict)
 	
 	# agg_condition = get_query_concept_types_df_3(sr_cid_df, query_concept_list, cursor, 'condition')
-	agg_condition = None
+	agg_condition = []
 	if len(agg_condition) > 0:
 		agg_condition = agg_condition.drop_duplicates(subset=['conceptid', 'pmid'])
 		agg_condition['count'] = 1
