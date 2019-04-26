@@ -8,6 +8,8 @@
 		<input type="hidden" name="query_type" value="pivot">
 		<input type="hidden" name="pivot_type" value="{{pivot_type}}">
 		<input type="hidden" name="query" value="{{query}}">
+		<input type="hidden" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
+		<input type="hidden" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
 		{% for c in primary_cids %}
 			<input type="hidden" name="primary_cids[]" value="{{c}}">
 		{% endfor %}
