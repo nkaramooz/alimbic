@@ -661,7 +661,7 @@ def conceptid_search_results(request, query, pivot_cids, pivot_type, journals, s
 	query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 	es_query = {"from" : 0, \
-				 "size" : 100, \
+				 "size" : 300, \
 				 "query": get_query(full_query_concepts_list, None, journals, start_year, end_year, ["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 	sr = es.search(index=INDEX_NAME, body=es_query)
@@ -789,7 +789,7 @@ def concept_search_results(request):
 
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 			es_query = {"from" : 0, \
-					 "size" : 100, \
+					 "size" : 300, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query)
@@ -1200,7 +1200,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 
 	query_concepts_dict = get_query_arr_dict(query_concept_list)
 	es_query = {"from" : 0, \
-					 "size" : 100, \
+					 "size" : 300, \
 					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 	sr_title_match = es.search(index=INDEX_NAME, body=es_query)
