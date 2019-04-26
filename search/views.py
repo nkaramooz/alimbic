@@ -1219,7 +1219,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	sub_dict['condition'] = []
 	sub_dict['cause'] = []
 
-	if len(title_match_cids) > 0:
+	if len(title_match_cids_df) > 0:
 		
 		agg_tx = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'treatment')
 
