@@ -1224,9 +1224,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	sub_dict['cause'] = []
 
 	if len(title_match_cids_df) > 0:
-		
+		f = u.Timer("query")
 		agg_tx = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'treatment')
-
+		f.stop()
 		if len(agg_tx) > 0:
 			agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
