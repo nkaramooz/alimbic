@@ -1233,7 +1233,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
 			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
 			agg_tx = ann.add_names(agg_tx)
+			j= u.Timer('rollup')
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
+			j.stop()
 
 
 		# agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
