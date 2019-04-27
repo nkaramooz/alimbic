@@ -798,7 +798,7 @@ def concept_search_results(request):
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 			c.stop()
 			primary_cids = query_concepts_df['conceptid'].tolist()
-		d.stop()
+			d.stop()
 		###UPDATE QUERY BELOW FOR FILTERS
 		else:
 
