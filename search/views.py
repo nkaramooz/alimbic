@@ -755,6 +755,7 @@ def concept_search_results(request):
 			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=0, cursor=cursor)
 	
 	if (request.GET['query_type'] == 'pivot' and ('+' in request.GET or '-' in request.GET)) or (request.method != 'POST' and request.method == 'GET') :
+		d = u.Timer('full')
 		journals = request.GET.getlist('journals[]')
 		query = request.GET['query']
 		start_year = request.GET['start_year']
@@ -793,16 +794,19 @@ def concept_search_results(request):
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query)
-
+			c = u.Timer('related_concepts')
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
+			c.stop()
 			primary_cids = query_concepts_df['conceptid'].tolist()
-
+		d.stop()
 		###UPDATE QUERY BELOW FOR FILTERS
 		else:
 
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
+		e = u.Timer('payload')
 		sr_payload = get_sr_payload(sr['hits']['hits'])
+		e.stop()
 
 		return render(request, 'search/concept_search_results_page.html', \
 			{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
