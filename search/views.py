@@ -1279,7 +1279,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 		# elif type(query_concept_list) == list:
 		# 	agg_condition = agg_condition[~agg_condition['conceptid'].isin(query_concept_list)]
 
+		j = u.Timer('rollups')
 		sub_dict['condition'] = rollups(agg_condition, cursor)
+		j.stop()
 		# for index,row in agg_condition.iterrows():
 		# 	item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
 		# 	sub_dict['condition'].append(item_dict)
