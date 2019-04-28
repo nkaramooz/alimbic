@@ -1231,8 +1231,12 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
+			g=u.Timer("de_dupe_synonyms")
 			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
+			g.stop()
+			q=u.Timer("add names")
 			agg_tx = ann.add_names(agg_tx)
+			q.stop()
 			j= u.Timer('rollup')
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
 			j.stop()
