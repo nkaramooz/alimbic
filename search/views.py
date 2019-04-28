@@ -1376,13 +1376,12 @@ def get_sr_pmids(sr):
 def get_abstract_cids(sr):
 	conceptid_df = pd.DataFrame(columns=['conceptid', 'pmid'])
 	for hit in sr['hits']['hits']:
-		abstract_conceptids = hit['_source']['abstract_conceptids']
-		if abstract_conceptids is not None:
-			for key1 in abstract_conceptids:
-				list_cids = abstract_conceptids[key1]
-				if list_cids is not None:
-					cids = list(set(list_cids))
-					conceptid_df = conceptid_df.append(pd.DataFrame([[cids]], columns=['conceptid', 'pmid']), sort=False)
+		if hit['_source']['abstract_conceptids'] is not None:
+			pmid = hit['_source']['pmid']
+			for key1 in hit['_source']['abstract_conceptids']:
+				if hit['_source']['abstract_conceptids'][key1] is not None:
+					for cid in list(set(hit['_source']['abstract_conceptids'][key1])):
+						conceptid_df = conceptid_df.append(pd.DataFrame([[cid, pmid]], columns=['conceptid', 'pmid']))
 	return conceptid_df
 
 ############################### VANCO CALC FUNCTIONS
