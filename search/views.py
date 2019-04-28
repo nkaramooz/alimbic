@@ -1371,7 +1371,7 @@ def get_abstract_cids(sr):
 			for key1 in hit['_source']['abstract_conceptids']:
 				if hit['_source']['abstract_conceptids'][key1] is not None:
 					for cid in list(set(hit['_source']['abstract_conceptids'][key1])):
-						conceptid_df = conceptid_df.append(pd.DataFrame([[cid, pmid]], columns=['conceptid', 'pmid']))
+						conceptid_df = conceptid_df.append(pd.DataFrame([[cid, pmid]], columns=['conceptid', 'pmid']), sort=False)
 
 	return conceptid_df
 
