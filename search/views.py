@@ -1382,7 +1382,7 @@ def get_abstract_cids(sr):
 				list_cids = abstract_conceptids[key1]
 				if list_cids is not None:
 					cids = list(set(list_cids))
-					conceptid_df = conceptid_df.append(pd.DataFrame([cids], columns=['conceptid', 'pmid']), sort=False)
+					conceptid_df = conceptid_df.append(pd.DataFrame([[cids]], columns=['conceptid', 'pmid']), sort=False)
 	return conceptid_df
 
 ############################### VANCO CALC FUNCTIONS
