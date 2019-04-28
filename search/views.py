@@ -1222,6 +1222,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	j=u.Timer('get abstract_cids')
 	sr_cid_df = get_abstract_cids(sr_title_match)
 	j.stop()
+	f = u.Timer("get pmids")
+	p = get_sr_pmids(sr_title_match)
+	f.stop()
 	sub_dict = dict()
 	sub_dict['term'] = root_concept_name
 	sub_dict['treatment'] = []
@@ -1362,19 +1365,24 @@ def get_title_cids(sr):
 
 	return conceptid_df
 
+def get_sr_pmids(sr):
+	pmids = []
+	for hit in sr['hits']['hits']:
+		pmid = hit['_source']['pmid']
+		if pmid is not None:
+			pmids.append(pmid)
+	return pmids
 
 def get_abstract_cids(sr):
 	conceptid_df = pd.DataFrame(columns=['conceptid', 'pmid'])
 	for hit in sr['hits']['hits']:
-		if hit['_source']['abstract_conceptids'] is not None:
-			pmid = hit['_source']['pmid']
-			for key1 in hit['_source']['abstract_conceptids']:
-				if hit['_source']['abstract_conceptids'][key1] is not None:
-					cids = list(set(hit['_source']['abstract_conceptids'][key1]))
+		abstract_conceptids = hit['_source']['abstract_conceptids']
+		if abstract_conceptids is not None:
+			for key1 in abstract_conceptids:
+				list_cids = abstract_conceptids[key1]
+				if list_cids is not None:
+					cids = list(set(list_cids))
 					conceptid_df = conceptid_df.append(pd.DataFrame([cids], columns=['conceptid', 'pmid']), sort=False)
-					# for cid in list(set(hit['_source']['abstract_conceptids'][key1])):
-					# 	conceptid_df = conceptid_df.append(pd.DataFrame([[cid, pmid]], columns=['conceptid', 'pmid']), sort=False)
-
 	return conceptid_df
 
 ############################### VANCO CALC FUNCTIONS
