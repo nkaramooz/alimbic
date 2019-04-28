@@ -1207,15 +1207,21 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 					 "size" : 300, \
 					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
+	m = u.Timer('elastic search')
 	sr_title_match = es.search(index=INDEX_NAME, body=es_query)
+	m.stop()
+	l = u.Timer("get title cids")
 	title_match_cids_df = get_title_cids(sr_title_match)
+	l.stop()
 	# es_query = {"from" : 0, \
 	# 				 "size" : 100, \
 	# 				 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["abstract_conceptids.*"], cursor)}
 
 	# sr_abstract_match = es.search(index=INDEX_NAME, body=es_query)
-	sr_cid_df = get_abstract_cids(sr_title_match)
 
+	j=u.Timer('get abstract_cids')
+	sr_cid_df = get_abstract_cids(sr_title_match)
+	j.stop()
 	sub_dict = dict()
 	sub_dict['term'] = root_concept_name
 	sub_dict['treatment'] = []
