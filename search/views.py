@@ -1127,8 +1127,11 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	dist_concept_list = list(set(conceptid_df['conceptid'].tolist()))
 
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
-		query = "select treatment_id as conceptid, 'treatment' as concept_type from annotation.treatment_recs_final where condition_id in %s"
-		tx_df = pg.return_df_from_query(cursor, query, (tuple(dist_concept_list),), ["conceptid", "concept_type"])
+		query = """select treatment_id as conceptid, 'treatment' as concept_type 
+			from annotation.treatment_recs_final where condition_id in %s 
+			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
+			where condition_id in %s) """
+		tx_df = pg.return_df_from_query(cursor, query, (tuple(dist_concept_list), tuple(dist_concept_list)), ["conceptid", "concept_type"])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 		return conceptid_df
 
@@ -1219,11 +1222,11 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 
 	# sr_abstract_match = es.search(index=INDEX_NAME, body=es_query)
 
-	j=u.Timer('get abstract_cids')
-	sr_cid_df = get_abstract_cids(sr_title_match)
-	j.stop()
+	# j=u.Timer('get abstract_cids')
+	# sr_cid_df = get_abstract_cids(sr_title_match)
+	# j.stop()
 	f = u.Timer("get pmids")
-	p = get_sr_pmids(sr_title_match)
+	title_match_cids_df = get_sr_pmids(sr_title_match)
 	f.stop()
 	sub_dict = dict()
 	sub_dict['term'] = root_concept_name
@@ -1237,9 +1240,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 		agg_tx = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'treatment')
 		f.stop()
 		if len(agg_tx) > 0:
-			agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
-			agg_tx['count'] = 1
-			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
+			# agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
+			# agg_tx['count'] = 1
+			# agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
 			g=u.Timer("de_dupe_synonyms")
 			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
 			g.stop()
@@ -1326,7 +1329,6 @@ def de_dupe_synonyms(df, cursor):
 	return df 		
 
 def de_dupe_synonyms_2(df, cursor):
-
 	if len(df) > 0:
 		synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
 
@@ -1338,7 +1340,6 @@ def de_dupe_synonyms_2(df, cursor):
 				new_conceptid = ref.iloc[0]['synonym_conceptid']
 				if len(df[df['conceptid'] == new_conceptid].index):
 					df.loc[ind, 'conceptid'] = new_conceptid
-
 		return df 
 	else:
 		return None
@@ -1372,6 +1373,15 @@ def get_sr_pmids(sr):
 		if pmid is not None:
 			pmids.append(pmid)
 	return pmids
+
+def get_abstract_cids_from_pmids(pmids, cursor):
+	query = """
+		select conceptid, count(*) as cnt
+		from annotation.sentences4
+		where pmid in %s
+		group by conceptid, pmid
+	"""
+	abstract_cids = pg.return_df_from_query(cursor, query, (pmids,), ["conceptid", "cnt"])
 
 def get_abstract_cids(sr):
 	conceptid_df = pd.DataFrame(columns=['conceptid', 'pmid'])
