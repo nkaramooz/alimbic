@@ -9,13 +9,20 @@ import pandas as pd
 
 INDEX_NAME='pubmedx1.4'
 
+def return_es_host():
+	# return {'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}
+	return {'host' : 'localhost', 'port' : 9200}
+
+def get_es_client():
+	# es = Elasticsearch(hosts=[return_es_host()], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	es = Elasticsearch([return_es_host()])
+	return es
 
 # You can update this to use sentences3
 def update_postgres_document_concept_count():
-	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
+	scroller = ElasticScroll(return_es_host(), {"match_all" : {}})
 	
 	conceptid_df = pd.DataFrame()
-	# while (scroller.has_next):
 
 	while scroller.has_next:
 		article_list = scroller.next()
@@ -38,14 +45,14 @@ def update_postgres_document_concept_count():
 	conceptid_df.to_sql('concept_counts', engine, schema='annotation', if_exists='replace')
 
 def update_postgres_document_description_count():
-	scroller = ElasticScroll({'host' : 'localhost', 'port' : 9200})
+	scroller = ElasticScroll(return_es_host(), {"match_all" : {}})
 	
 	did_df = pd.DataFrame()
 
 	while scroller.has_next:
 		article_list = scroller.next()
 
-		for hit in article_list:
+		for hit in article_list['hits']['hits']:
 			abstract_arr = get_flattened_abstract_concepts(hit)
 			if abstract_arr is not None:
 				did_df = did_df.append(pd.DataFrame(abstract_arr, columns=['did']), \
@@ -64,21 +71,22 @@ def update_postgres_document_description_count():
 
 
 class ElasticScroll():
-	def __init__(self,server_info):
+	def __init__(self,server_info, query):
 		self.es = Elasticsearch([server_info])
 		self.initialized = False
 		self.sid = None
 		self.scroll_size = None
 		self.has_next = True
+		self.query = query
 
 	def next(self):
 		if not self.initialized:
 			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='1000m', \
-				size=1000, body={"query" : {"match_all" : {}}})
+				size=1000, body={"query" : self.query})
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
 			self.initialized = True
-			return pages['hits']['hits']
+			return pages
 		else:
 			if self.scroll_size > 0:
 				pages = self.es.scroll(scroll_id = self.sid, scroll='1000m')
@@ -86,7 +94,7 @@ class ElasticScroll():
 				self.scroll_size = len(pages['hits']['hits'])
 				if self.scroll_size == 0:
 					self.has_next = False
-				return pages['hits']['hits']
+				return pages
 
 
 def get_flattened_abstract_concepts(hit):

@@ -6,7 +6,7 @@ create table treatment_recs_final as (
 	select condition_id, treatment_id, avg(score) as score
 	from (
 		select condition_id, treatment_id, avg(score) as score
-		from annotation.raw_treatment_recs
+		from annotation.raw_treatment_recs_staging
 		group by condition_id, treatment_id, pmid
 	) tb1
 	group by condition_id, treatment_id

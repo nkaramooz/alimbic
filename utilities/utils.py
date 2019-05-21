@@ -565,6 +565,8 @@ def get_es_client():
 	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
 	return es
 
+
+
 if __name__ == "__main__":
 	lemmatize_table()
 

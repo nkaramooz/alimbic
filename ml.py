@@ -45,7 +45,7 @@ import sqlalchemy as sqla
 
 plt.style.use('ggplot')
 
-vocabulary_size = 10000
+vocabulary_size = 20000
 
 # need one for root (condition), need one for rel treatment
 # need one for none (spacer)
@@ -53,7 +53,7 @@ vocabulary_spacer = 4
 target_condition_key = vocabulary_size-3
 generic_condition_key = vocabulary_size-4
 target_treatment_key = vocabulary_size-2
-max_words = 40
+max_words = 60
 # [root, rel, spacer]
 
 def get_word_counts():
@@ -157,39 +157,56 @@ def gen_datasets_2(filename):
 	condition_id_arr = []
 	last_condition_id = ""
 	condition_sentence_ids = pd.DataFrame()
+	sentences_df = pd.DataFrame()
 	for index,item in labelled_ids.iterrows():
 		u.pprint(index)
-		if item['condition_id'] != last_condition_id:
+		if item['condition_id'] == '%':
 
-			if item['condition_id'] in condition_id_cache.keys():
-				condition_id_arr = condition_id_cache[item['condition_id']]
+			tx_id_arr = None
+			if item['treatment_id'] in treatment_id_cache.keys():
+				tx_id_arr = treatment_id_cache[item['treatment_id']]
 			else:
+				tx_id_arr = [item['treatment_id']]
+				tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
+				treatment_id_cache[item['treatment_id']] = tx_id_arr
 
-				condition_id_arr = [item['condition_id']]
-				condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
-				condition_id_cache[item['condition_id']] = condition_id_arr
+			tx_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
+			tx_sentence_ids = pg.return_df_from_query(cursor, tx_sentence_id_query, (tuple(tx_id_arr),), ["id"])
 
-			last_condition_id = item['condition_id']
+			sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
+			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_sentence_ids), tuple(all_conditions_set)), ["sentence_tuples", "sentence", "conceptid"])
 
-			condition_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
-			condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])
-
-
-		tx_id_arr = None
-		if item['treatment_id'] in treatment_id_cache.keys():
-			tx_id_arr = treatment_id_cache[item['treatment_id']]
 		else:
-			tx_id_arr = [item['treatment_id']]
-			tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
-			treatment_id_cache[item['treatment_id']] = tx_id_arr
+			if item['condition_id'] != last_condition_id:
 
+				if item['condition_id'] in condition_id_cache.keys():
+					condition_id_arr = condition_id_cache[item['condition_id']]
+				else:
+
+					condition_id_arr = [item['condition_id']]
+					condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
+					condition_id_cache[item['condition_id']] = condition_id_arr
+
+				
+
+				condition_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
+				condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])
+
+
+			tx_id_arr = None
+			if item['treatment_id'] in treatment_id_cache.keys():
+				tx_id_arr = treatment_id_cache[item['treatment_id']]
+			else:
+				tx_id_arr = [item['treatment_id']]
+				tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
+				treatment_id_cache[item['treatment_id']] = tx_id_arr
 
 		#this should give a full list for the training row
 
 
-		sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
-		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids['id'].tolist()), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "conceptid"])
-
+			sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
+			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids['id'].tolist()), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "conceptid"])
+		last_condition_id = item['condition_id']
 		label = item['label']
 
 		all_sentences_df = all_sentences_df.append(get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary, all_conditions_set), sort=False)
@@ -212,9 +229,9 @@ def gen_datasets_2(filename):
 
 def get_sentences_df(condition_id_arr, tx_id_arr, cursor):
 
-	sentence_query = "select id, sentence_tuples::text[], sentence, conceptid from annotation.sentences3 where conceptid in %s"
+	sentence_query = "select id, sentence_tuples::text[], sentence, conceptid from annotation.sentences4 where conceptid in %s"
 	sentence_df = pg.return_df_from_query(cursor, sentence_query, (tuple(condition_id_arr),), ["id", "sentence_tuples", "sentence", "conceptid"])
-	treatments_df = "select id, sentence_tuples::text[], sentence, conceptid from annotation.sentences3 where conceptid in %s"
+	treatments_df = "select id, sentence_tuples::text[], sentence, conceptid from annotation.sentences4 where conceptid in %s"
 	treatments_df = pg.return_df_from_query(cursor, sentence_query, (tuple(tx_id_arr),), ["id", "sentence_tuples", "sentence", "conceptid"])
 
 	sentence_df = sentence_df[sentence_df['id'].isin(treatments_df['id'])]
@@ -440,10 +457,10 @@ def treatment_recategorization_recs(model_name):
 
 		if counter == 0:
 			engine = pg.return_sql_alchemy_engine()
-			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='replace', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
+			results_df.to_sql('raw_treatment_recs_staging', engine, schema='annotation', if_exists='replace', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 		else:
 			engine = pg.return_sql_alchemy_engine()
-			results_df.to_sql('raw_treatment_recs', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
+			results_df.to_sql('raw_treatment_recs_staging', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
 		counter += 1000
 	# u.pprint(results_df)
@@ -508,9 +525,9 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	training_set = pd.read_pickle("./training_04_21_19")
+	training_set = pd.read_pickle("./training_05_18_19")
 	training_set = training_set.sample(frac=1).reset_index(drop=True)
-	test_set = pd.read_pickle("./testing_04_21_19")
+	test_set = pd.read_pickle("./testing_05_18_19")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -519,12 +536,12 @@ def train_with_word2vec():
 	y_test = np.array(test_set['label'].tolist())
 	
 	embedding_size=200
-	batch_size = 64
-	num_epochs = 3
+	batch_size = 128
+	num_epochs = 4
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
-	model.add(Dropout(0.2))
+	model.add(Dropout(0.3))
 	model.add(LSTM(800, return_sequences=True))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
@@ -543,7 +560,7 @@ def train_with_word2vec():
 	print("Testing Accuracy:  {:.4f}".format(accuracy))
 	# plot_history(history)
 
-	model.save('txp_60_04_21_w2v.h5')	
+	model.save('txp_60_05_18_w2v.h5')	
 
 
 def plot_history(history):
@@ -575,10 +592,9 @@ def plot_history(history):
 # get_cid_and_word_counts()
 # load_word_counts_dict("cid_and_word_count.pickle")
 # build_embedding()
-# gen_datasets_2("04_21_19")
-
-# train_with_word2vec()
-treatment_recategorization_recs('txp_60_04_21_w2v.h5')
+gen_datasets_2("05_18_19")
+train_with_word2vec()
+# treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
 
