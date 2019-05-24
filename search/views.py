@@ -790,11 +790,11 @@ def concept_search_results(request):
 
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 			es_query = {"from" : 0, \
-					 "size" : 500, \
+					 "size" : 300, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query)
-
+			u.pprint('primary search results obtained')
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 
 			primary_cids = query_concepts_df['conceptid'].tolist()
@@ -1183,7 +1183,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
 def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, query_type):
-
+	u.pprint("get_related_conceptids")
 	result_dict = dict()
 	es = u.get_es_client()
 	root_concept_name = ""
