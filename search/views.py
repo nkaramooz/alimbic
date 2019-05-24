@@ -1219,6 +1219,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	title_match_cids_df = pd.DataFrame()
 	while scroller.has_next:
 		article_list = scroller.next()
+		u.pprint(article_list)
 		title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 
 	# title_match_cids_df = get_title_cids(sr_title_match)
