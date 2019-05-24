@@ -1214,7 +1214,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	# sr_title_match = es.search(index=INDEX_NAME, body=es_query)
 	# title_match_cids_df = get_title_cids(sr_title_match)
 
-	scroller = es_util.ElasticScroll(es_util.return_es_host(), es_query)
+	scroller = es_util.ElasticScroll(es, es_query)
 
 	title_match_cids_df = pd.DataFrame()
 	while scroller.has_next:

@@ -71,8 +71,8 @@ def update_postgres_document_description_count():
 
 
 class ElasticScroll():
-	def __init__(self,server_info, query):
-		self.es = Elasticsearch([server_info])
+	def __init__(self,client, query):
+		self.es = client
 		self.initialized = False
 		self.sid = None
 		self.scroll_size = None
