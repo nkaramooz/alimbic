@@ -27,7 +27,7 @@ def return_df_from_query(cursor, sql_query, params, column_names):
 	return pd.DataFrame(records, columns = column_names)
 
 def return_sql_alchemy_engine():
-	# engine = create_engine('postgresql://laso_db:%s@laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com:5432/laso') % os.environ['DB_PSWD']
+	# engine = create_engine('postgresql://laso_db:%s@laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com:5432/laso') % DB_S
 	engine = create_engine('postgresql://LilNimster@localhost:5432/laso')
 	# engine = create_engine('postgresql://Nima@localhost:5432/laso')
 	return engine

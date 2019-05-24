@@ -1205,21 +1205,21 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			root_cid = query_concept_list[0]
 
 	query_concepts_dict = get_query_arr_dict(query_concept_list)
-	# , "abstract_conceptids.*"
-	es_query = {"from" : 0, \
-					 "size" : 100, \
-					 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)}
-	# es_query = get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)
 
-	sr_title_match = es.search(index=INDEX_NAME, body=es_query)
-	title_match_cids_df = get_title_cids(sr_title_match)
+	# es_query = {"from" : 0, \
+	# 				 "size" : 100, \
+	# 				 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)}
+	es_query = get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)
 
-	# scroller = es_util.ElasticScroll(es_util.return_es_host(), es_query)
+	# sr_title_match = es.search(index=INDEX_NAME, body=es_query)
+	# title_match_cids_df = get_title_cids(sr_title_match)
 
-	# title_match_cids_df = pd.DataFrame()
-	# while scroller.has_next:
-	# 	article_list = scroller.next()
-	# 	title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
+	scroller = es_util.ElasticScroll(es_util.return_es_host(), es_query)
+
+	title_match_cids_df = pd.DataFrame()
+	while scroller.has_next:
+		article_list = scroller.next()
+		title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 
 	# title_match_cids_df = get_title_cids(sr_title_match)
 

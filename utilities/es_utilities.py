@@ -81,7 +81,7 @@ class ElasticScroll():
 
 	def next(self):
 		if not self.initialized:
-			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='1m', \
+			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='2m', \
 				size=500, body={"query" : self.query})
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
@@ -89,7 +89,7 @@ class ElasticScroll():
 			return pages
 		else:
 			if self.scroll_size > 0:
-				pages = self.es.scroll(scroll_id = self.sid, scroll='1m')
+				pages = self.es.scroll(scroll_id = self.sid, scroll='2m')
 				self.sid = pages['_scroll_id']
 				self.scroll_size = len(pages['hits']['hits'])
 				if self.scroll_size == 0:
