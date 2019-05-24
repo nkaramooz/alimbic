@@ -81,10 +81,8 @@ class ElasticScroll():
 
 	def next(self):
 		if not self.initialized:
-			u.pprint("prior to pages")
 			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='2m', \
 				size=500, body={"query" : self.query})
-			u.pprint('after pages')
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
 			self.initialized = True
