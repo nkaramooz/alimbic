@@ -138,13 +138,7 @@ def load_word_counts_dict(filename):
 		# print(reverse_dict)
 		# print(reverse_dict[1])
 
-
-def gen_datasets_2(filename):
-
-	conn,cursor = pg.return_postgres_cursor()
-	labelled_query = "select condition_id, treatment_id, label from annotation.labelled_treatments order by condition_id"
-	labelled_ids = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
-
+def return_sentence_vectors_from_labels(labelled_ids, conn, cursor):
 	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' "
 	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
 
@@ -210,19 +204,42 @@ def gen_datasets_2(filename):
 		label = item['label']
 
 		all_sentences_df = all_sentences_df.append(get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary, all_conditions_set), sort=False)
+	return all_sentences_df
 
-	all_sentences_df = all_sentences_df.sample(frac=1).reset_index(drop=True)
-	all_sentences_filename = "./all_sentences_" + str(filename)
-	all_sentences_df.to_pickle(all_sentences_filename)
-	all_sentences_df['rand'] = np.random.uniform(0,1, len(all_sentences_df))
-	training_set = all_sentences_df[all_sentences_df['rand'] < 0.90].copy()
-	testing_set = all_sentences_df[all_sentences_df['rand'] >= 0.90].copy()
+def gen_datasets_2(filename):
+
+	conn,cursor = pg.return_postgres_cursor()
+	labelled_query = "select condition_id, treatment_id, label from annotation.labelled_treatments order by condition_id where label=0"
+	labelled_ids_0 = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
+	labelled_query = "select condition_id, treatment_id, label from annotation.labelled_treatments order by condition_id where label=1"
+	labelled_ids_1 = pg.return_df_from_query(cursor, labelled_query, None, ["condition_id", "treatment_id", "label"])
+
+	all_sentences_df_0 = return_sentence_vectors_from_labels(labelled_ids_0, conn, cursor)
+	all_sentences_df_1 = return_sentence_vectors_from_labels(labelled_ids_1, conn, cursor)
+
+	# reshuffle data
+
+	all_sentences_df_0['rand'] = np.random.uniform(0,1, len(all_sentences_df_0))
+	training_set_0 = all_sentences_df_0[all_sentences_df_0['rand'] < 0.90].copy()
+	testing_set_0 = all_sentences_df_0[all_sentences_df_0['rand'] >= 0.90].copy()
+
+
+	all_sentences_df_1['rand'] = np.random.uniform(0,1, len(all_sentences_df_1))
+	training_set_1 = all_sentences_df_1[all_sentences_df_1['rand'] < 0.90].copy()
+	testing_set_1 = all_sentences_df_0[all_sentences_df_1['rand'] >= 0.90].copy()
+
+	training_set_df = training_set_0.append(training_set_1, sort=False)
+	training_set_df = training_set_df.sample(frac=1).reset_index(drop=True)
+
+	testing_set_df = testing_set_0.append(testing_set_1, sort=False)
+	testing_set_df = testing_set_df.sample(frac=1).reset_index(drop=True)
+
 
 	training_filename = "./training_" + str(filename)
 	testing_filename = "./testing_" + str(filename)
 
-	training_set.to_pickle(training_filename)
-	testing_set.to_pickle(testing_filename)
+	training_set_df.to_pickle(training_filename)
+	testing_set_df.to_pickle(testing_filename)
 
 	return training_filename, testing_filename
 
@@ -537,12 +554,14 @@ def train_with_word2vec():
 	
 	embedding_size=200
 	batch_size = 128
-	num_epochs = 4
+	num_epochs = 6
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
-	model.add(Dropout(0.3))
+	model.add(Dropout(0.1))
 	model.add(LSTM(800, return_sequences=True))
+	model.add(Dropout(0.1))
+	model.add(LSTM(200, return_sequences=True))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
 
@@ -551,7 +570,7 @@ def train_with_word2vec():
              optimizer='adam', 
              metrics=['accuracy'])
 
-	history = model.fit(x_train, y_train, validation_split = 0.1, batch_size=batch_size, epochs=num_epochs, shuffle='batch')
+	history = model.fit(x_train, y_train, validation_split = 0.15, batch_size=batch_size, epochs=num_epochs, shuffle='batch')
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -592,7 +611,7 @@ def plot_history(history):
 # get_cid_and_word_counts()
 # load_word_counts_dict("cid_and_word_count.pickle")
 # build_embedding()
-gen_datasets_2("05_18_19")
+# gen_datasets_2("05_18_19")
 train_with_word2vec()
 # treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')

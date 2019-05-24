@@ -5,7 +5,7 @@ create table title_treatment_candidates_filtered as (
 	select *
 	from annotation.title_treatment_candidates t1
 	where not exists (select 1 from snomed.curr_transitive_closure_f
-		where subtypeid = t1.treatment_id and supertypeid in ('362981000', '123037004', '404684003', '363787002', '48176007'))
+		where subtypeid != '257556004' and subtypeid = t1.treatment_id and supertypeid in ('362981000', '123037004', '404684003', '363787002', '48176007'))
 );
 
 create index title_f_condition_id on title_treatment_candidates_filtered(condition_id);

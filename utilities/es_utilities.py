@@ -1,6 +1,6 @@
 import snomed_annotator as ann
 import utilities.pglib as pg
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, RequestsHttpConnection
 from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
 import pandas as pd
@@ -81,15 +81,15 @@ class ElasticScroll():
 
 	def next(self):
 		if not self.initialized:
-			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='1000m', \
-				size=1000, body={"query" : self.query})
+			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='1m', \
+				size=500, body={"query" : self.query})
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
 			self.initialized = True
 			return pages
 		else:
 			if self.scroll_size > 0:
-				pages = self.es.scroll(scroll_id = self.sid, scroll='1000m')
+				pages = self.es.scroll(scroll_id = self.sid, scroll='1m')
 				self.sid = pages['_scroll_id']
 				self.scroll_size = len(pages['hits']['hits'])
 				if self.scroll_size == 0:
