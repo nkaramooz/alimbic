@@ -605,7 +605,7 @@ def post_elastic_search(request):
 	return HttpResponseRedirect(reverse('search:elastic_search_results', args=(query,)))
 
 def elastic_search_results(request, query):
-	es = u.get_es_client()
+	es = es_util.get_es_client()
 	es_query = get_text_query(query)
 	sr = es.search(index=INDEX_NAME, body=es_query)['hits']['hits']
 	sr_payload = get_sr_payload(sr)
@@ -653,7 +653,7 @@ def conceptid_search_results(request, query, pivot_cids, pivot_type, journals, s
 
 	query_concepts_df = pd.DataFrame(pivot_cids, columns=['conceptid'])
 
-	es = u.get_es_client()
+	es = es_util.get_es_client()
 	conn, cursor = pg.return_postgres_cursor()
 
 	full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
@@ -760,7 +760,7 @@ def concept_search_results(request):
 		query = request.GET['query']
 		start_year = request.GET['start_year']
 		end_year = request.GET['end_year']
-		es = u.get_es_client()	
+		es = es_util.get_es_client()	
 		query = ann.clean_text(query)
 		all_words = ann.get_all_words_list(query)
 		cache = ann.get_cache(all_words, cursor)
@@ -1185,7 +1185,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, query_type):
 	u.pprint("get_related_conceptids")
 	result_dict = dict()
-	es = u.get_es_client()
+	es = es_util.get_es_client()
 	root_concept_name = ""
 	root_cid = None
 	if query_type == 'symptom' and len(query_concept_list) > 1:
