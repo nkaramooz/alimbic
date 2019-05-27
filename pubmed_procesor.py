@@ -18,13 +18,11 @@ import sys
 INDEX_NAME = 'pubmedx1.4'
 
 def doc_worker(input, conn,cursor):
-	
 	for func,args in iter(input.get, 'STOP'):
 		doc_calculate(func, args, conn,cursor)
 
 
 def doc_calculate(func, args, conn, cursor):
-	
 	func(*args, conn, cursor)
 
 

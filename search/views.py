@@ -1183,7 +1183,6 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
 def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, query_type):
-	u.pprint("get_related_conceptids")
 	result_dict = dict()
 	es = es_util.get_es_client()
 	root_concept_name = ""
@@ -1219,7 +1218,10 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	title_match_cids_df = pd.DataFrame()
 	while scroller.has_next:
 		article_list = scroller.next()
-		title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
+		if article_list is not None: 
+			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
+		else:
+			break
 	# title_match_cids_df = get_title_cids(sr_title_match)
 
 	# es_query = {"from" : 0, \

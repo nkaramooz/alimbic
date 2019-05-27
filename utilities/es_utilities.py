@@ -85,6 +85,7 @@ class ElasticScroll():
 				size=500, body={"query" : self.query})
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
+			print(pages['hits']['total'])
 			self.initialized = True
 			return pages
 		else:
