@@ -143,7 +143,7 @@ def return_sentence_vectors_from_labels(labelled_ids, conn, cursor):
 	for index,item in labelled_ids.iterrows():
 		u.pprint(index)
 		if item['condition_id'] == '%':
-
+			
 			tx_id_arr = None
 			if item['treatment_id'] in treatment_id_cache.keys():
 				tx_id_arr = treatment_id_cache[item['treatment_id']]
@@ -153,11 +153,11 @@ def return_sentence_vectors_from_labels(labelled_ids, conn, cursor):
 				treatment_id_cache[item['treatment_id']] = tx_id_arr
 
 			tx_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
-			tx_sentence_ids = pg.return_df_from_query(cursor, tx_sentence_id_query, (tuple(tx_id_arr),), ["id"])
+			tx_sentence_ids = pg.return_df_from_query(cursor, tx_sentence_id_query, (tuple(tx_id_arr),), ["id"])["id"].tolist()
 
-			sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
-			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_sentence_ids), tuple(all_conditions_set)), ["sentence_tuples", "sentence", "conceptid"])
-
+			sentences_query = "select sentence_tuples, sentence, conceptid from annotation.tmp where id in %s"
+			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_sentence_ids),), ["sentence_tuples", "sentence", "conceptid"])
+			print("len of wildcard: " + str(len(sentences_df)))
 		else:
 			if item['condition_id'] != last_condition_id:
 
@@ -172,7 +172,7 @@ def return_sentence_vectors_from_labels(labelled_ids, conn, cursor):
 				
 
 				condition_sentence_id_query = "select id from annotation.sentences4 where conceptid in %s"
-				condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])
+				condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])["id"].tolist()
 
 
 			tx_id_arr = None
@@ -187,7 +187,7 @@ def return_sentence_vectors_from_labels(labelled_ids, conn, cursor):
 
 
 			sentences_query = "select sentence_tuples, sentence, conceptid from annotation.sentences4 where id in %s and conceptid in %s"
-			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids['id'].tolist()), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "conceptid"])
+			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "conceptid"])
 		last_condition_id = item['condition_id']
 		label = item['label']
 
@@ -212,7 +212,8 @@ def gen_datasets_2(filename):
 	training_set_0 = all_sentences_df_0[all_sentences_df_0['rand'] < 0.90].copy()
 	testing_set_0 = all_sentences_df_0[all_sentences_df_0['rand'] >= 0.90].copy()
 
-
+	# double size of positives to better balance
+	all_sentences_df_1 = all_sentences_df_1.append(all_sentences_df_1)
 	all_sentences_df_1['rand'] = np.random.uniform(0,1, len(all_sentences_df_1))
 	print("length of label 1: " + str(len(all_sentences_df_1)))
 	training_set_1 = all_sentences_df_1[all_sentences_df_1['rand'] < 0.90].copy()
@@ -534,9 +535,9 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	training_set = pd.read_pickle("./training_05_24_19")
+	training_set = pd.read_pickle("./training_05_28_19")
 	training_set = training_set.sample(frac=1).reset_index(drop=True)
-	test_set = pd.read_pickle("./testing_05_24_19")
+	test_set = pd.read_pickle("./testing_05_28_19")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -546,14 +547,12 @@ def train_with_word2vec():
 	
 	embedding_size=200
 	batch_size = 128
-	num_epochs = 6
+	num_epochs = 3
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
 	model.add(Dropout(0.1))
-	model.add(LSTM(800, return_sequences=True))
-	model.add(Dropout(0.1))
-	model.add(LSTM(200, return_sequences=True))
+	model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
 
@@ -562,7 +561,7 @@ def train_with_word2vec():
              optimizer='adam', 
              metrics=['accuracy'])
 
-	history = model.fit(x_train, y_train, validation_split = 0.15, batch_size=batch_size, epochs=num_epochs, shuffle='batch')
+	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0 : 0.3, 1 : 1})
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -571,7 +570,7 @@ def train_with_word2vec():
 	print("Testing Accuracy:  {:.4f}".format(accuracy))
 	# plot_history(history)
 
-	model.save('txp_200_05_24_w2v.h5')	
+	model.save('txp_200_05_30_w2v.h5')	
 
 
 def plot_history(history):
@@ -618,11 +617,11 @@ def parallel_treatment_recategorization_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 
 	dictionary, reverse_dictionary = get_dictionaries()
-	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' "
+	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition'"
 	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
 
 
-	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered"
+	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered where condition_id = '49436004' "
 	max_counter = pg.return_df_from_query(cursor, max_query, None, ['cnt'])['cnt'].values[0]
 
 	counter = 0
@@ -649,9 +648,9 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 
 	counter = start_row
 
-	while (counter <= counter+8000) and (counter <= max_counter):
+	while (counter <= start_row+7000) and (counter <= max_counter):
 
-		treatment_candidates_query = "select sentence, sentence_tuples, condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered limit 1000 offset %s"
+		treatment_candidates_query = "select sentence, sentence_tuples, condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered where condition_id = '49436004' limit 1000 offset %s"
 		treatment_candidates_df = pg.return_df_from_query(cursor, treatment_candidates_query, (counter,), ['sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'pmid', 'id', 'section'])
 
 		params = (model_name, treatment_candidates_df, all_conditions_set, dictionary, reverse_dictionary)
@@ -671,11 +670,11 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 # load_word_counts_dict("cid_and_word_count.pickle")
 
 # build_embedding()
-# gen_datasets_2("05_24_19")
-# train_with_word2vec()
+# gen_datasets_2("05_28_19")
+train_with_word2vec()
 
 # treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-parallel_treatment_recategorization('txp_200_05_24_w2v.h5')
+# parallel_treatment_recategorization_top('txp_200_05_28_w2v.h5')
 
