@@ -68,6 +68,60 @@ def log_annotation_error(root_cid, associated_cid, old_rel_type, cursor):
 
 	return True
 
+def acronym_override(did, is_acronym, cursor):
+	engine = pg.return_sql_alchemy_engine()
+
+	modify_acronym_query = """
+		set schema 'annotation';
+		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+		INSERT INTO acronym_override (id, description_id, is_acronym, effectivetime)
+		VALUES (public.uuid_generate_v4(), %s, %s, now())
+	"""
+	cursor.execute(modify_acronym_query, (did, is_acronym))
+	cursor.connection.commit()
+
+	# now need to modify downstream tables (key_words, and lemmas)
+
+	get_query = """
+		select description_id, conceptid, term, word, word_ord, term_length, is_acronym
+		from annotation.augmented_active_key_words_v3
+		where description_id = %s
+	"""
+	entry_df = pg.return_df_from_query(cursor, get_query, (did,), ['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+
+	delete_query = """
+		delete from annotation.augmented_active_key_words_v3
+		where description_id = %s
+	"""	
+	cursor.execute(delete_query, (did,))
+	cursor.connection.commit()
+
+	entry_df['is_acronym'] = is_acronym
+	entry_df.to_sql('augmented_active_key_words_v3', engine, schema='annotation', if_exists='append', index=False)
+
+
+	get_query = """
+		select description_id, conceptid, term, word, word_ord, term_length, is_acronym
+		from annotation.lemmas_3
+		where description_id = %s
+	"""
+
+	entry_df = pg.return_df_from_query(cursor, get_query, (did,), \
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+
+	delete_query = """
+		delete from annotation.lemmas_3
+		where description_id = %s
+	"""
+	cursor.execute(delete_query, (did,))
+	cursor.connection.commit()
+
+	entry_df['is_acronym'] = is_acronym
+	entry_df.to_sql('lemmas_3', engine, schema='annotation', if_exists='append', index=False)
+
+	return True	
+
+
 def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cursor):
 	remove_query = """
 		set schema 'annotation';
@@ -112,6 +166,7 @@ def treatment_label(condition_id, treatment_id, treatment_label, cursor):
 	"""
 	cursor.execute(positive_query, (condition_id, treatment_id, treatment_label))
 	cursor.connection.commit()
+
 
 def add_description(conceptid, description, cursor):
 
@@ -423,7 +478,7 @@ def get_key_word_query(conceptid, descriptionid, description):
 def get_key_word_query_3(conceptid, descriptionid, description):
 	query = """
 		set schema 'annotation';
-		INSERT INTO augmented_active_key_words_v3 (description_id, conceptid, term, word, word_ord, term_length)
+		INSERT INTO augmented_active_key_words_v3 (description_id, conceptid, term, word, word_ord, term_length, is_acronym)
 
 		select 
   			concept_table.description_id
@@ -432,6 +487,7 @@ def get_key_word_query_3(conceptid, descriptionid, description):
   			,concept_table.word
   			,concept_table.word_ord
   			,len_tb.term_length
+  			,case when acr.is_acronym is not NULL then acr.is_acronym else concept_table.is_acronym end as is_acronym 
 		from (
     		select 
             	description_id
@@ -439,6 +495,7 @@ def get_key_word_query_3(conceptid, descriptionid, description):
             	,term
             	,case when upper(word) = word then word else lower(word) end as word
             	,word_ord
+            	,case when upper(term) = term then 1 else 0 end as is_acronym
     		from (
         		select 
             		description_id
@@ -481,7 +538,9 @@ def get_key_word_query_3(conceptid, descriptionid, description):
        		) tmp
     		group by tmp.description_id
    		) len_tb
- 		on concept_table.description_id = len_tb.description_id
+ 			on concept_table.description_id = len_tb.description_id
+ 		left join annotation.acronym_override acr
+      		on concept_table.description_id = acr.description_id
  	; 
 	""" % (descriptionid, conceptid, description, descriptionid, conceptid, description)
 
@@ -498,7 +557,7 @@ def lemmatize_description_id_3(description_id, cursor):
 	""" % description_id
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
 	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
 
 	engine = pg.return_sql_alchemy_engine()
@@ -510,9 +569,8 @@ def lemmatize_table():
 	conn, cursor = pg.return_postgres_cursor()
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length'])
+		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
 
-	print(new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'])
 	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])]['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()
 

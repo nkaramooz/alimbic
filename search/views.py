@@ -41,6 +41,10 @@ def post_concept_override(request):
 		u.activate_description_id(description_id, cursor)
 	elif request.POST['action_type'] == 'add_concept':
 		u.add_concept(description, cursor)
+	elif request.POST['action_type'] == 'is_acronym':
+		u.acronym_override(description_id, 1, cursor)
+	elif request.POST['action_type'] == 'is_not_acronym':
+		u.acronym_override(description_id, 0, cursor)
 
 	cursor.close()
 	conn.close()
@@ -710,7 +714,7 @@ def concept_search_results(request):
 					elif error_type == 'annotation_error':
 						u.log_annotation_error(root_cid, associated_cid, curr_concept_type, cursor)
 
-	if request.GET['query_type'] == 'pivot' and '+' not in request.GET and '-' not in request.GET:
+	if request.GET['query_type'] == 'pivot' and '+' not in request.GET and '-' not in request.GET and 'na' not in request.GET:
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
 		pivot_type = request.GET['pivot_type']
@@ -753,7 +757,12 @@ def concept_search_results(request):
 		pivot_cid = request.GET['pivot_cid']
 		if len(primary_cids) == 1:
 			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=0, cursor=cursor)
-	
+	elif 'na' in request.GET:
+		primary_cids = request.GET.getlist('primary_cids[]')
+		pivot_cid = request.GET['pivot_cid']
+		if len(primary_cids) == 1:
+			u.treatment_label(condition_id=primary_cids[0], treatment_id=pivot_cid, treatment_label=2, cursor=cursor)
+
 	if (request.GET['query_type'] == 'pivot' and ('+' in request.GET or '-' in request.GET)) or (request.method != 'POST' and request.method == 'GET') :
 
 		journals = request.GET.getlist('journals[]')
@@ -763,9 +772,9 @@ def concept_search_results(request):
 		es = es_util.get_es_client()	
 		query = ann.clean_text(query)
 		all_words = ann.get_all_words_list(query)
-		cache = ann.get_cache(all_words, cursor)
-		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, True, False, False)
-
+		cache = ann.get_cache(all_words, False, cursor)
+		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
+		
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
@@ -794,7 +803,7 @@ def concept_search_results(request):
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query)
-			u.pprint('primary search results obtained')
+
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 
 			primary_cids = query_concepts_df['conceptid'].tolist()
@@ -1129,7 +1138,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		query = """select treatment_id as conceptid 
 			from annotation.treatment_recs_final where condition_id in %s 
 			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
-			where condition_id in %s and label=0) """
+			where condition_id in %s and (label=0 or label=2) ) """
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 

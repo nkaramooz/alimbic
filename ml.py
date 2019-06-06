@@ -535,9 +535,9 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	training_set = pd.read_pickle("./training_05_28_19")
+	training_set = pd.read_pickle("./training_06_02_19")
 	training_set = training_set.sample(frac=1).reset_index(drop=True)
-	test_set = pd.read_pickle("./testing_05_28_19")
+	test_set = pd.read_pickle("./testing_06_02_19")
 
 	x_train = np.array(training_set['x_train'].tolist())
 	y_train = np.array(training_set['label'].tolist())
@@ -547,7 +547,7 @@ def train_with_word2vec():
 	
 	embedding_size=200
 	batch_size = 128
-	num_epochs = 3
+	num_epochs = 5
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
@@ -561,7 +561,7 @@ def train_with_word2vec():
              optimizer='adam', 
              metrics=['accuracy'])
 
-	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0 : 0.3, 1 : 1})
+	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0 : 0.77, 1 : 1})
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -570,7 +570,7 @@ def train_with_word2vec():
 	print("Testing Accuracy:  {:.4f}".format(accuracy))
 	# plot_history(history)
 
-	model.save('txp_200_05_30_w2v.h5')	
+	model.save('txp_200_06_02_w2v.h5')	
 
 
 def plot_history(history):
@@ -617,17 +617,17 @@ def parallel_treatment_recategorization_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 
 	dictionary, reverse_dictionary = get_dictionaries()
-	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition'"
+	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' and root_cid='59621000' "
 	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
 
 
-	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered where condition_id = '49436004' "
+	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered where condition_id = '59621000' "
 	max_counter = pg.return_df_from_query(cursor, max_query, None, ['cnt'])['cnt'].values[0]
 
 	counter = 0
 	while counter < max_counter:
 		parallel_treatment_recategorization_bottom(model_name, counter, all_conditions_set, dictionary, reverse_dictionary, max_counter)
-		counter += 8000
+		counter += 16000
 
 def parallel_treatment_recategorization_bottom(model_name, start_row, all_conditions_set, dictionary, reverse_dictionary, max_counter):
 	conn,cursor = pg.return_postgres_cursor()
@@ -648,20 +648,23 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 
 	counter = start_row
 
-	while (counter <= start_row+7000) and (counter <= max_counter):
+	while (counter <= start_row+15000) and (counter <= max_counter):
 
-		treatment_candidates_query = "select sentence, sentence_tuples, condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered where condition_id = '49436004' limit 1000 offset %s"
+		treatment_candidates_query = "select sentence, sentence_tuples, condition_id, treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered where condition_id = '59621000' limit 1000 offset %s"
 		treatment_candidates_df = pg.return_df_from_query(cursor, treatment_candidates_query, (counter,), ['sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'pmid', 'id', 'section'])
 
 		params = (model_name, treatment_candidates_df, all_conditions_set, dictionary, reverse_dictionary)
 		task_queue.put((batch_treatment_recategorization, params))
-		counter += 1000
+		counter += 2000
 
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
 	for p in pool:
 		p.join()
+
+	for g in engine_arr:
+		g.dispose()
 
 # build_model()
 
@@ -670,11 +673,11 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 # load_word_counts_dict("cid_and_word_count.pickle")
 
 # build_embedding()
-# gen_datasets_2("05_28_19")
-train_with_word2vec()
+# gen_datasets_2("06_02_19")
+# train_with_word2vec()
 
 # treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-# parallel_treatment_recategorization_top('txp_200_05_28_w2v.h5')
+parallel_treatment_recategorization_top('txp_200_06_02_w2v.h5')
 

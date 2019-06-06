@@ -22,74 +22,76 @@
 		
 		<ul class="list-group">
 			<div class="glance_topic">
-				<div class="accordion" id="treatmentAccordion">
- 					 <div class="card">
-    					<div class="card-header" id="headingOne">
-      						<!-- <h5 class="mb-0"> -->
-       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
-        							<h5> Interventions / Drugs </h5>
-        						</button>
-      						<!-- </h5> -->
-      						<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
-								<div class="card-body">
-									<ul>
-										{% for node in treatment %}
-											{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
-										{% endfor %}
-									</ul>
+				{% if treatment|length > 0 %}
+					<div class="accordion" id="treatmentAccordion">
+	 					 <div class="card">
+	    					<div class="card-header" id="headingOne">
+	      						<!-- <h5 class="mb-0"> -->
+	       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
+	        							<h5> Interventions / Drugs   ({{treatment|length}}) </h5>
+	        						</button>
+	      						<!-- </h5> -->
+	      						<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
+									<div class="card-body">
+										<ul>
+											{% for node in treatment %}
+												{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
+											{% endfor %}
+										</ul>
+									</div>
 								</div>
 							</div>
 						</div>
 					</div>
-				</div>
+				{% endif %}
 
 
 
+				{% if diagnostic|length > 0 %}
+					<div class="accordion" id="diagnosticAccordion">
+	 					 <div class="card">
+	    					<div class="card-header" id="headingOne">
+	      						<h5 class="mb-0">
+	       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#diagnostic" aria-expanded="false" aria-controls="diagnostic">
+	        							<h5> Diagnostics   ({{diagnostic|length}}) </h5>
+	        						</button>
+	      						</h5>
+	      						<div id="diagnostic" class="collapse" aria-labelledby="headingOne" data-parent="#diagnosticAccordion">
+									<div class="card-body">
+										<ul>
+											{% for node in diagnostic %}
+												{% include 'search/nested_view_template.html' with pivot_type='diagnostic' %}
+											{% endfor %}
+										</ul>
+									</div>
+								</div>
+							</div>
+						</div>
+				{% endif %}
 
-				<div class="accordion" id="diagnosticAccordion">
- 					 <div class="card">
-    					<div class="card-header" id="headingOne">
-      						<h5 class="mb-0">
-       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#diagnostic" aria-expanded="false" aria-controls="diagnostic">
-        							<h5> Diagnostics </h5>
-        						</button>
-      						</h5>
-      						<div id="diagnostic" class="collapse" aria-labelledby="headingOne" data-parent="#diagnosticAccordion">
-								<div class="card-body">
-									<ul>
-										{% for node in diagnostic %}
-											{% include 'search/nested_view_template.html' with pivot_type='diagnostic' %}
-										{% endfor %}
-									</ul>
+
+				{% if condition|length > 0 %}
+					<div class="accordion" id="conditionAccordion">
+	 					 <div class="card">
+	    					<div class="card-header" id="headingOne">
+	      						<h5 class="mb-0">
+	       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#condition" aria-expanded="false" aria-controls="condition">
+	        							<h5> Conditions   ({{condition|length}}) </h5>
+	        						</button>
+	      						</h5>
+	      						<div id="condition" class="collapse" aria-labelledby="headingOne" data-parent="#conditionAccordion">
+									<div class="card-body">
+										<ul>
+											{% for node in condition %}
+												{% include 'search/nested_view_template.html' with pivot_type='condition' %}
+											{% endfor %}
+										</ul>
+									</div>
 								</div>
 							</div>
 						</div>
 					</div>
-
-
-
-
-				<div class="accordion" id="conditionAccordion">
- 					 <div class="card">
-    					<div class="card-header" id="headingOne">
-      						<h5 class="mb-0">
-       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#condition" aria-expanded="false" aria-controls="condition">
-        							<h5> Conditions </h5>
-        						</button>
-      						</h5>
-      						<div id="condition" class="collapse" aria-labelledby="headingOne" data-parent="#conditionAccordion">
-								<div class="card-body">
-									<ul>
-										{% for node in condition %}
-											{% include 'search/nested_view_template.html' with pivot_type='condition' %}
-										{% endfor %}
-									</ul>
-								</div>
-							</div>
-						</div>
-					</div>
-
-			</div>
+				{% endif %}
 		</ul>
 	</div>
 <!-- 			{% for k1,v1 in at_a_glance.related.items %}

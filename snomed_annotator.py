@@ -15,34 +15,39 @@ import uuid
 import time
 import sys
 
-def get_new_candidate_df(word, cursor, case_sensitive):
-
+def get_new_candidate_df(word, case_sensitive, cursor):
+	u.pprint(word)
 	#Knocks off a second off a sentence by selecting for word_ord=1
 	new_candidate_query = ""
 
 	if case_sensitive:
-		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length \
+		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, is_acronym \
 			from annotation.lemmas_3 where \
 			description_id in \
 			(select description_id from annotation.lemmas_3 where word in %s and \
 				(word_ord = 1))"
 	else:
-		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length \
+		for i,v in enumerate(word):
+			word[i] = word[i].lower()
+
+		u.pprint(word)
+		new_candidate_query = "select description_id, conceptid, term, lower(word), word_ord, term_length, is_acronym \
 			from annotation.lemmas_3 t1 where \
 			description_id in \
-			(select description_id from annotation.lemmas_3 where word in %s and \
+			(select description_id from annotation.lemmas_3 where lower(word) in %s and \
 				(word_ord = 1))"
 
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
-	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length"])
-	new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
+	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "is_acronym"])
 
+	# new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
 
+	# sys.exit(0)
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
-	
+	case_sensitive
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
 	annotation_header = ['query', 'substring', 'substring_start_index', \
 		'substring_end_index', 'conceptid']
@@ -59,8 +64,8 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 	for index,word in enumerate(ln_words):
 		# identify acronyms
-
-		if word.upper() != word:
+		print(word)
+		if (word.upper() != word) or (not case_sensitive):
 			word = word.lower()
 
 		if word.lower() != 'vs':
@@ -91,18 +96,20 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 		results_df = results_df.append(new_results_df, sort=False)
 
-
+	u.pprint(results_df)
 	if len(results_df.index) > 0:
 
 		order_score = results_df
 		
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
-		
+
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
 
+		
 		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
+	
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
 
 		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
@@ -121,9 +128,10 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
 		joined_results['final_score'] = joined_results['final_score'] + 0.5*joined_results['term_length']
 
-		# u.pprint(joined_results)
+
 
 		final_results = prune_results_v2(joined_results, joined_results)
+		# final_results['is_acronym'] = final_results.merge(results_df, on=['description_id'])['is_acronym']
 
 		if len(final_results.index) > 0:
 			final_results['line'] = line
@@ -159,6 +167,8 @@ def acronym_check(results_df):
 	acronym_df = results_df[results_df['acronym'] == True].copy()
 	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
+	u.pprint(approved_acronyms)
+	u.pprint("above approved")
 	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
 
@@ -514,15 +524,18 @@ def get_all_words_list(text):
 
 	return list(set(all_words))
 
-def get_cache(all_words_list, cursor):
-	cache = get_new_candidate_df(all_words_list, cursor, True)
+def get_cache(all_words_list, case_sensitive, cursor):
+	cache = get_new_candidate_df(all_words_list, case_sensitive, cursor)
 	cache['points'] = 0
+
 	cache.loc[cache.word.isin(all_words_list), 'points'] = 1
 	csf = cache[['description_id', 'term_length', 'points']].groupby(['description_id', 'term_length'], as_index=False)['points'].sum()
+
 	candidate_dids = csf[csf['term_length'] == csf['points']]['description_id'].tolist()
 	
 	cache = cache[cache['description_id'].isin(candidate_dids)].copy()
 	cache = cache.drop(['points'], axis=1)
+
 	return cache
 
 def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
@@ -530,13 +543,13 @@ def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, boo
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
 	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
-	
+	print(cache)
 	for ln_number, line in enumerate(tokenized):
 		res_df = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
-		
+		print(res_df)
 		ann_df = ann_df.append(res_df, sort=False)
 
-	
+
 
 	if len(ann_df.index) > 0:
 		# No significant time sink below
@@ -684,6 +697,10 @@ if __name__ == "__main__":
 	query44="Everolimus an inhibitor of the"
 	query45="Aortic dissection"
 	query46="Likelihood ratio"
+	query47="E. Coli"
+	query48="cold"
+	query49="hepatitis B"
+	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
 
 	# check_timer = u.Timer("full")
 
@@ -697,14 +714,16 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = "non small cell lung cancer"
+		term = query49
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		u.pprint(all_words)
-		cache = get_cache(all_words, cursor)
-		u.pprint(cache[cache['conceptid'] == '254637007'])
-		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, False, False)
+		cache = get_cache(all_words, False, cursor)
+
+		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, True, True, False)
+		res = acronym_check(res)
 		u.pprint(res)
+		
 		d.stop()
 		counter += 1
 	

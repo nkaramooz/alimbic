@@ -17,6 +17,7 @@ create table base_concept_types as (
 		select 
 			subtypeid as conceptid, 
 			case 
+				when supertypeid = '49755003' then 'condition' --therapeutic diet
 				when supertypeid = '226077000' then 'treatment' --therapeutic diet
 				when supertypeid = '105958000' then 'treatment'
 				when supertypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
