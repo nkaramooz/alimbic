@@ -23,25 +23,30 @@
 		<ul class="list-group">
 			<div class="glance_topic">
 				{% if treatment|length > 0 %}
-					<div class="accordion" id="treatmentAccordion">
-	 					 <div class="card">
-	    					<div class="card-header" id="headingOne">
+					<div class="list-group-item list-group-item-action" id="treatmentAccordion">
+	 					 <!-- <div class="card"> -->
+	    					<!-- <div class="card-header" id="headingOne"> -->
 	      						<!-- <h5 class="mb-0"> -->
-	       							<button class="btn btn-link collapsed" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
-	        							<h5> Interventions / Drugs   ({{treatment|length}}) </h5>
-	        						</button>
+
+	       						<!-- 	<button class="btn btn-link collapsed align-items-center" type="button" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments"> -->
+	        							<h5 class="btn btn-link collapsed" data-toggle="collapse" data-target="#treatments" aria-expanded="false" aria-controls="treatments"> Interventions / Drugs 
+	        							<span class="badge badge-primary badge-pill align-items-right"> {{treatment|length}} </span>
+	        							</h5>
+	        						<!-- </button> -->
+	        							
 	      						<!-- </h5> -->
+
 	      						<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
-									<div class="card-body">
+									<!-- <div class="card-body"> -->
 										<ul>
 											{% for node in treatment %}
 												{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
 											{% endfor %}
 										</ul>
-									</div>
+									<!-- </div> -->
 								</div>
-							</div>
-						</div>
+							<!-- </div> -->
+						<!-- </div> -->
 					</div>
 				{% endif %}
 

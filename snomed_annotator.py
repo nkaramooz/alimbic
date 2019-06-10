@@ -16,7 +16,7 @@ import time
 import sys
 
 def get_new_candidate_df(word, case_sensitive, cursor):
-	u.pprint(word)
+
 	#Knocks off a second off a sentence by selecting for word_ord=1
 	new_candidate_query = ""
 
@@ -30,7 +30,6 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 		for i,v in enumerate(word):
 			word[i] = word[i].lower()
 
-		u.pprint(word)
 		new_candidate_query = "select description_id, conceptid, term, lower(word), word_ord, term_length, is_acronym \
 			from annotation.lemmas_3 t1 where \
 			description_id in \
@@ -43,14 +42,11 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 
 	# new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
 
-	# sys.exit(0)
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
-	case_sensitive
-	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid']	
-	annotation_header = ['query', 'substring', 'substring_start_index', \
-		'substring_end_index', 'conceptid']
+
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid', 'is_acronym']
 
 	ln_words = line.split()
 
@@ -64,8 +60,8 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 	for index,word in enumerate(ln_words):
 		# identify acronyms
-		print(word)
-		if (word.upper() != word) or (not case_sensitive):
+		u.pprint(word)
+		if not case_sensitive:
 			word = word.lower()
 
 		if word.lower() != 'vs':
@@ -96,18 +92,17 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
 		results_df = results_df.append(new_results_df, sort=False)
 
-	u.pprint(results_df)
+
 	if len(results_df.index) > 0:
 
 		order_score = results_df
-		
+
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
 
 		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
-
-		
+	
 		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
 	
 		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
@@ -131,7 +126,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 
 		final_results = prune_results_v2(joined_results, joined_results)
-		# final_results['is_acronym'] = final_results.merge(results_df, on=['description_id'])['is_acronym']
+		final_results['is_acronym'] = final_results.merge(results_df, on=['description_id'])['is_acronym']
 
 		if len(final_results.index) > 0:
 			final_results['line'] = line
@@ -158,17 +153,14 @@ def get_results(candidate_df_arr, end_index):
 
 # May need to add exceptions for approved acronyms / common acronyms that don't need support
 def acronym_check(results_df):
-	results_df['acronym'] = np.where(results_df['term'] == results_df['term'].str.upper(), True, False)
-	non_acronyms_df = results_df[results_df['acronym'] == False].copy()
+	non_acronyms_df = results_df[results_df['is_acronym'] == 0].copy()
 	
 	cid_counts = non_acronyms_df['conceptid'].value_counts()
 	cid_cnt_df = pd.DataFrame({'conceptid':cid_counts.index, 'count':cid_counts.values})
 
-	acronym_df = results_df[results_df['acronym'] == True].copy()
+	acronym_df = results_df[results_df['is_acronym'] == 1].copy()
 	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
-	u.pprint(approved_acronyms)
-	u.pprint("above approved")
 	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
 
@@ -176,7 +168,7 @@ def acronym_check(results_df):
 	
 
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
-	# print(candidate_df_arr)
+	print(candidate_df_arr)
 	threshold = threshold/100.0
 
 	new_candidate_df_arr = []
@@ -535,7 +527,6 @@ def get_cache(all_words_list, case_sensitive, cursor):
 	
 	cache = cache[cache['description_id'].isin(candidate_dids)].copy()
 	cache = cache.drop(['points'], axis=1)
-
 	return cache
 
 def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
@@ -697,11 +688,11 @@ if __name__ == "__main__":
 	query44="Everolimus an inhibitor of the"
 	query45="Aortic dissection"
 	query46="Likelihood ratio"
-	query47="E. Coli"
+	query47="E. coli"
 	query48="cold"
 	query49="hepatitis B"
 	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
-
+	query51="protein kinase C"
 	# check_timer = u.Timer("full")
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
@@ -714,13 +705,14 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query49
+		term = query1
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
-		u.pprint(all_words)
+
 		cache = get_cache(all_words, False, cursor)
 
-		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, True, True, False)
+		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
+		u.pprint(res)
 		res = acronym_check(res)
 		u.pprint(res)
 		
