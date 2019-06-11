@@ -60,9 +60,12 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 	for index,word in enumerate(ln_words):
 		# identify acronyms
-		u.pprint(word)
+
 		if not case_sensitive:
 			word = word.lower()
+		else:
+			if word.upper() != word:
+				word = word.lower()
 
 		if word.lower() != 'vs':
 			word = lmtzr.lemmatize(word)

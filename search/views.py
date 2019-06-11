@@ -1138,8 +1138,11 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		query = """select treatment_id as conceptid 
 			from annotation.treatment_recs_final where condition_id in %s 
 			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
-			where condition_id in %s and (label=0 or label=2) ) """
-		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
+			where condition_id in %s and (label=0 or label=2) 
+			union 
+			select synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in (select
+			treatment_id from annotation.labelled_treatments_app where condition_id in %s and (label=0 or label=2))) """
+		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 
 		return conceptid_df
@@ -1373,7 +1376,7 @@ def de_dupe_synonyms_2(df, cursor):
 
 			if len(synonym_cid) > 0:
 				synonym_cid = synonym_cid[0]
-				u.pprint(synonym_cid)
+
 				# u.pprint(t['conceptid'])
 				if t['conceptid'] not in synonym_cid:
 					results_df = results_df.append(pd.DataFrame([[synonym_cid, t['count']]], columns=['conceptid', 'count']))
@@ -1383,7 +1386,7 @@ def de_dupe_synonyms_2(df, cursor):
 				results_df = results_df.append(t)
 
 		results_df['count'] = results_df['count'].astype('int64')
-		u.pprint(results_df)
+
 		# results_df = results_df.groupby(['conceptid'], as_index=False)['count'].sum()
 		# csf = cache[['description_id', 'term_length', 'points']].groupby(['description_id', 'term_length'], as_index=False)['points'].sum()
 		# 	cnt = df[df['conceptid'] == t['conceptid']]
