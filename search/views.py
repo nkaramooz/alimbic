@@ -1138,10 +1138,10 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		query = """select treatment_id as conceptid 
 			from annotation.treatment_recs_final where condition_id in %s 
 			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
-			where condition_id in %s and (label=0 or label=2) 
+			where (condition_id in %s and label=0) or label=2) 
 			union 
 			select synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in (select
-			treatment_id from annotation.labelled_treatments_app where condition_id in %s and (label=0 or label=2))) """
+			treatment_id from annotation.labelled_treatments_app where (condition_id in %s and label=0) or label=2) """
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 

@@ -396,6 +396,12 @@ def get_sentence_annotation(line, c_df):
 	else:
 		return None
 
+def get_concept_synonyms_list_from_list(concept_list, cursor):
+	query = "select synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
+	synonym_df = pg.return_df_from_query(cursor, query, (tuple(concept_list),), ["synonym_conceptid"])
+	concept_list.extend(synonym_df['synonym_conceptid'].tolist())
+	return list(set(concept_list))
+
 def get_concept_synonyms_list_from_series(conceptid_series, cursor):
 
 	conceptid_list = tuple(conceptid_series.tolist())
@@ -700,27 +706,25 @@ if __name__ == "__main__":
 
 	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	conn, cursor = pg.return_postgres_cursor()
+	# s = pd.DataFrame([['66925006']], columns=['conceptid'])
+	print(get_concept_synonyms_list_from_list(['66925006'], cursor))
 
-	# u.pprint(return_line_snomed_annotation_v2(cursor, query46, 87, False, {}))
-	# u.pprint(return_line_snomed_annotation(cursor, query2, 87))
-	# u.pprint(return_line_snomed_annotation(cursor, query3, 87))
-	# query 11
-	counter = 0
-	while (counter < 1):
-		d = u.Timer('t')
-		term = query1
-		term = clean_text(term)
-		all_words = get_all_words_list(term)
+	# counter = 0
+	# while (counter < 1):
+	# 	d = u.Timer('t')
+	# 	term = query1
+	# 	term = clean_text(term)
+	# 	all_words = get_all_words_list(term)
 
-		cache = get_cache(all_words, False, cursor)
+	# 	cache = get_cache(all_words, False, cursor)
 
-		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
-		u.pprint(res)
-		res = acronym_check(res)
-		u.pprint(res)
+	# 	res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
+	# 	u.pprint(res)
+	# 	res = acronym_check(res)
+	# 	u.pprint(res)
 		
-		d.stop()
-		counter += 1
+	# 	d.stop()
+	# 	counter += 1
 	
 	# cursor.close()
 	# u.pprint("=============================")
