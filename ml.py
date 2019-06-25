@@ -41,6 +41,7 @@ vocabulary_spacer = 4
 target_condition_key = vocabulary_size-3
 generic_condition_key = vocabulary_size-4
 target_treatment_key = vocabulary_size-2
+# other_tx_key = vocabulary_size-vocabulary_spacer
 max_words = 60
 # [root, rel, spacer]
 
@@ -203,11 +204,8 @@ def return_sentence_vectors_from_labels(labelled_ids, conn, cursor, engine):
 		label = item['label']
 
 		sentences_df = get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary, all_conditions_set)
-
-		u.pprint(sentences_df)
-		u.pprint(sentences_df.columns)
-		# sys.exit(0)
-		sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+		if len(sentences_df.index) > 0:
+			sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
 
 def gen_datasets_2(filename):
@@ -322,9 +320,9 @@ def get_labelled_data(is_test, sentences_df, condition_id_arr, tx_id_arr, item, 
 				sample[counter] = vocabulary_size-3
 				counter += 1
 			# - word is treatment of interest
-			elif words[1] not in condition_id_arr and words[1] in conditions_set and (sample[counter-1] != generic_condition_key):
-				sample[counter] = str(generic_condition_key)
-				counter += 1
+			# elif words[1] not in condition_id_arr and words[1] in conditions_set and (sample[counter-1] != generic_condition_key):
+			# 	sample[counter] = generic_condition_key
+			# 	counter += 1
 			elif (words[1] in tx_id_arr) and (sample[counter-1] != vocabulary_size-2):
 				sample[counter] = vocabulary_size-2
 				counter += 1
@@ -507,7 +505,7 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 			counter += 1
 		# - word is treatment of interest
 		elif words[1] != condition_id and words[1] in conditions_set and (sample[counter-1] != generic_condition_key):
-			sample[counter] = str(generic_condition_key)
+			sample[counter] = generic_condition_key
 			counter += 1
 		elif (words[1] == tx_id) and (sample[counter-1] != vocabulary_size-2):
 			sample[counter] = vocabulary_size-2
@@ -552,12 +550,50 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	training_set = pd.read_pickle("./training_06_11_19")
-	training_set = training_set.sample(frac=1).reset_index(drop=True)
-	test_set = pd.read_pickle("./testing_06_11_19")
+	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
+	all_0_query = """
+		select x_train, label
+		from annotation.training_sentences
+		where label=0
+	"""
+	all_0_df = pg.return_df_from_query(cursor, all_0_query, None, ["x_train", "label"])
+	all_0_df['rand'] = np.random.uniform(0,1, len(all_0_df))
 
-	x_train = np.array(training_set['x_train'].tolist())
-	y_train = np.array(training_set['label'].tolist())
+	train_set = all_0_df[all_0_df['rand'] < 0.90].copy()
+	test_set = all_0_df[all_0_df['rand'] >= 0.90].copy()
+
+	all_1_query = """
+		select x_train, label
+		from annotation.training_sentences
+		where label=1
+	"""
+	all_1_df = pg.return_df_from_query(cursor, all_1_query, None, ["x_train", "label"])
+	all_1_df['rand'] = np.random.uniform(0,1, len(all_1_df))
+
+	train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
+	train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
+	train_set = train_set.sample(frac=1).reset_index(drop=True)
+
+	test_set = test_set.append(all_1_df[all_1_df['rand'] >= 0.90].copy())
+	test_set = test_set.sample(frac=1).reset_index(drop=True)
+
+	train_set.to_sql('train_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
+	test_set.to_sql('test_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
+	
+
+		# # double size of positives to better balance
+	# all_sentences_df_1 = all_sentences_df_1.append(all_sentences_df_1)
+	# all_sentences_df_1['rand'] = np.random.uniform(0,1, len(all_sentences_df_1))
+	# print("length of label 1: " + str(len(all_sentences_df_1)))
+	# training_set_1 = all_sentences_df_1[all_sentences_df_1['rand'] < 0.90].copy()
+	# testing_set_1 = all_sentences_df_1[all_sentences_df_1['rand'] >= 0.90].copy()
+	# training_set = pd.read_pickle("./training_06_11_19")
+	# training_set = training_set.sample(frac=1).reset_index(drop=True)
+	# test_set = pd.read_pickle("./testing_06_11_19")
+
+	x_train = np.array(train_set['x_train'].tolist())
+	y_train = np.array(train_set['label'].tolist())
 
 	x_test = np.array(test_set['x_train'].tolist())
 	y_test = np.array(test_set['label'].tolist())
@@ -645,7 +681,7 @@ def parallel_treatment_recategorization_top(model_name):
 	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered"
 	max_counter = pg.return_df_from_query(cursor, max_query, None, ['cnt'])['cnt'].values[0]
 
-	counter = 1968000
+	counter = 0
 	while counter < max_counter:
 		parallel_treatment_recategorization_bottom(model_name, counter, all_conditions_set, dictionary, reverse_dictionary, max_counter)
 		counter += 16000
@@ -694,11 +730,11 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 # load_word_counts_dict("cid_and_word_count.pickle")
 
 # build_embedding()
-gen_datasets_2("06_15_19")
+# gen_datasets_2("06_15_19")
 # train_with_word2vec()
 
 # treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-# parallel_treatment_recategorization_top('txp_200_06_11_w2v.h5')
+parallel_treatment_recategorization_top('txp_200_06_15_w2v.h5')
 
