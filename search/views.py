@@ -1135,14 +1135,20 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	dist_concept_list = list(set(conceptid_df['conceptid'].tolist()))
 
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
-		query = """select treatment_id as conceptid 
-			from annotation.treatment_recs_final where condition_id in %s 
+		query = """
+			select conceptid from (
+			select treatment_id as conceptid, score
+			from annotation.raw_treatment_recs_staging where condition_id in %s 
 			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
-			where (condition_id in %s and label=0) or label=2) 
+			where (condition_id in %s and label=0) or label=2)
 			union 
-			select synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in (select
-			treatment_id from annotation.labelled_treatments_app where (condition_id in %s and label=0) or label=2) """
+			select synonym_conceptid, 0.0 as score from annotation.concept_terms_synonyms where reference_conceptid in (select
+			treatment_id from annotation.labelled_treatments_app where (condition_id in %s and label=0) or label=2) ) tb2
+			group by tb2.conceptid
+			having avg(score) >= 0.50 and count(*) > 1 """
+
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
+
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
 
 		return conceptid_df
@@ -1234,6 +1240,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
+
 	# title_match_cids_df = get_title_cids(sr_title_match)
 
 	# es_query = {"from" : 0, \

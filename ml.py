@@ -531,7 +531,8 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 
 	
 
-def train_with_word2vec():
+def train_with_word2vec(new_data_set):
+	conn,cursor = pg.return_postgres_cursor()
 	model = Word2Vec.load('concept_word_embedding.200.04.21.bin')
 	
 	embedding_dim = 200
@@ -550,37 +551,42 @@ def train_with_word2vec():
 		if counter >= (vocabulary_size-vocabulary_spacer):
 			break
 
-	conn,cursor = pg.return_postgres_cursor()
-	engine = pg.return_sql_alchemy_engine()
-	all_0_query = """
-		select x_train, label
-		from annotation.training_sentences
-		where label=0
-	"""
-	all_0_df = pg.return_df_from_query(cursor, all_0_query, None, ["x_train", "label"])
-	all_0_df['rand'] = np.random.uniform(0,1, len(all_0_df))
+	if new_data_set:
+		
+		engine = pg.return_sql_alchemy_engine()
+		all_0_query = """
+			select x_train, label
+			from annotation.training_sentences
+			where label=0
+		"""
+		all_0_df = pg.return_df_from_query(cursor, all_0_query, None, ["x_train", "label"])
+		all_0_df['rand'] = np.random.uniform(0,1, len(all_0_df))
 
-	train_set = all_0_df[all_0_df['rand'] < 0.90].copy()
-	test_set = all_0_df[all_0_df['rand'] >= 0.90].copy()
+		train_set = all_0_df[all_0_df['rand'] < 0.90].copy()
+		test_set = all_0_df[all_0_df['rand'] >= 0.90].copy()
 
-	all_1_query = """
-		select x_train, label
-		from annotation.training_sentences
-		where label=1
-	"""
-	all_1_df = pg.return_df_from_query(cursor, all_1_query, None, ["x_train", "label"])
-	all_1_df['rand'] = np.random.uniform(0,1, len(all_1_df))
+		all_1_query = """
+			select x_train, label
+			from annotation.training_sentences
+			where label=1
+		"""
+		all_1_df = pg.return_df_from_query(cursor, all_1_query, None, ["x_train", "label"])
+		all_1_df['rand'] = np.random.uniform(0,1, len(all_1_df))
 
-	train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
-	train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
-	train_set = train_set.sample(frac=1).reset_index(drop=True)
+		train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
+		train_set = train_set.append(all_1_df[all_1_df['rand'] < 0.90].copy())
+		train_set = train_set.sample(frac=1).reset_index(drop=True)
 
-	test_set = test_set.append(all_1_df[all_1_df['rand'] >= 0.90].copy())
-	test_set = test_set.sample(frac=1).reset_index(drop=True)
+		test_set = test_set.append(all_1_df[all_1_df['rand'] >= 0.90].copy())
+		test_set = test_set.sample(frac=1).reset_index(drop=True)
 
-	train_set.to_sql('train_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
-	test_set.to_sql('test_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
-	
+		train_set.to_sql('train_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
+		test_set.to_sql('test_set', engine, schema='annotation', if_exists='replace', index=False, dtype={'x_train' : sqla.types.JSON})
+	else:
+		train_query = "select x_train, label from annotation.train_set"		
+		train_set = pg.return_df_from_query(cursor, train_query, None, ["x_train", "label"])
+		test_query = "select x_train, label from annotation.test_set"
+		test_set = pg.return_df_from_query(cursor, test_query, None, ["x_train", "label"])
 
 		# # double size of positives to better balance
 	# all_sentences_df_1 = all_sentences_df_1.append(all_sentences_df_1)
@@ -600,7 +606,7 @@ def train_with_word2vec():
 	
 	embedding_size=200
 	batch_size = 256
-	num_epochs = 3
+	num_epochs = 5
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
@@ -616,7 +622,7 @@ def train_with_word2vec():
              metrics=['accuracy'])
 
 	# class_weight={0 : 0.77, 1 : 1}
-	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0: 1.5, 1: 1})
+	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0: 2, 1: 1})
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -667,7 +673,7 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	model = load_model(model_name)
 	treatment_candidates_df['x_train'] = treatment_candidates_df.apply(apply_get_labelled_data, dictionary=dictionary, reverse_dictionary=reverse_dictionary, all_conditions_set=all_conditions_set, axis=1)
 	treatment_candidates_df['score'] = treatment_candidates_df.apply(apply_score, model=model, axis=1)
-	treatment_candidates_df.to_sql('raw_treatment_recs_staging_2', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
+	treatment_candidates_df.to_sql('raw_treatment_recs_staging_3', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 	u.pprint("write")
 
 def parallel_treatment_recategorization_top(model_name):
@@ -731,10 +737,10 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 
 # build_embedding()
 # gen_datasets_2("06_15_19")
-# train_with_word2vec()
+train_with_word2vec(False)
 
-# treatment_recategorization_recs('txp_60_05_17_w2v.h5')
+treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-parallel_treatment_recategorization_top('txp_200_06_15_w2v.h5')
+# parallel_treatment_recategorization_top('txp_200_06_15_w2v.h5')
 

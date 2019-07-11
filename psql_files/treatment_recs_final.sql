@@ -10,7 +10,7 @@ create table treatment_recs_final as (
 		group by condition_id, treatment_id, pmid
 	) tb1
 	group by condition_id, treatment_id
-	having avg(score) >= 0.50
+
 );
 
 create index tx_recs_final_cid on treatment_recs_final(condition_id);
