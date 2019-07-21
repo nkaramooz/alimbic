@@ -1136,21 +1136,16 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
 		query = """
-			select conceptid from (
-			select treatment_id as conceptid, score
-			from annotation.raw_treatment_recs_staging where condition_id in %s 
-			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app 
-			where (condition_id in %s and label=0) or label=2)
-			union 
-			select synonym_conceptid, 0.0 as score from annotation.concept_terms_synonyms where reference_conceptid in (select
-			treatment_id from annotation.labelled_treatments_app where (condition_id in %s and label=0) or label=2) ) tb2
-			group by tb2.conceptid
-			having avg(score) >= 0.50 and count(*) > 1 """
+			select treatment_id from annotation.treatment_recs_final where condition_id in %s 
+			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app where condition_id in %s and (label=0 or label=2))
+			 """
 
-		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list), tuple(query_concept_list), tuple(query_concept_list)), ["conceptid"])
-
+		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),tuple(query_concept_list)), ["conceptid"])
+		print(tx_df[tx_df['conceptid'] == '276239002'])
+		print(conceptid_df[conceptid_df['conceptid'] == '276239002'])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
-
+		print(conceptid_df[conceptid_df['conceptid'] == '276239002'])
+		print(len(conceptid_df))
 		return conceptid_df
 
 	elif len(dist_concept_list) > 0:
@@ -1230,7 +1225,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 
 	# sr_title_match = es.search(index=INDEX_NAME, body=es_query)
 	# title_match_cids_df = get_title_cids(sr_title_match)
-
+	c = u.Timer('search')
 	scroller = es_util.ElasticScroll(es, es_query)
 
 	title_match_cids_df = pd.DataFrame()
@@ -1240,6 +1235,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
+	c.stop()
 
 	# title_match_cids_df = get_title_cids(sr_title_match)
 
@@ -1270,7 +1266,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			# agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
-			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
+			print(agg_tx[agg_tx['conceptid'] == '276239002'])
+			# agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
+			print(agg_tx[agg_tx['conceptid'] == '276239002'])
 			agg_tx = ann.add_names(agg_tx)
 			
 			sub_dict['treatment'] = rollups(agg_tx, cursor)

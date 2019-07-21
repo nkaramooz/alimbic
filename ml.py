@@ -611,7 +611,7 @@ def train_with_word2vec(new_data_set):
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
 	model.add(Dropout(0.2))
-	model.add(LSTM(200, return_sequences=True))
+	model.add(LSTM(400, return_sequences=True))
 	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
@@ -622,7 +622,7 @@ def train_with_word2vec(new_data_set):
              metrics=['accuracy'])
 
 	# class_weight={0 : 0.77, 1 : 1}
-	history = model.fit(x_train, y_train, validation_split = 0.20, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0: 2, 1: 1})
+	history = model.fit(x_train, y_train, validation_split = 0.10, batch_size=batch_size, epochs=num_epochs, shuffle='batch', class_weight={0: 2, 1: 1})
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -631,7 +631,7 @@ def train_with_word2vec(new_data_set):
 	print("Testing Accuracy:  {:.4f}".format(accuracy))
 	# plot_history(history)
 
-	model.save('txp_200_06_15_w2v.h5')	
+	model.save('txp_200_07_16_w2v.h5')	
 
 
 def plot_history(history):
@@ -673,7 +673,7 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	model = load_model(model_name)
 	treatment_candidates_df['x_train'] = treatment_candidates_df.apply(apply_get_labelled_data, dictionary=dictionary, reverse_dictionary=reverse_dictionary, all_conditions_set=all_conditions_set, axis=1)
 	treatment_candidates_df['score'] = treatment_candidates_df.apply(apply_score, model=model, axis=1)
-	treatment_candidates_df.to_sql('raw_treatment_recs_staging_3', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
+	treatment_candidates_df.to_sql('raw_treatment_recs_staging_2', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 	u.pprint("write")
 
 def parallel_treatment_recategorization_top(model_name):
@@ -736,11 +736,11 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 # load_word_counts_dict("cid_and_word_count.pickle")
 
 # build_embedding()
-# gen_datasets_2("06_15_19")
-train_with_word2vec(False)
+# gen_datasets_2("7_16_19")
+# train_with_word2vec(True)
 
-treatment_recategorization_recs('txp_60_05_17_w2v.h5')
+# treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-# parallel_treatment_recategorization_top('txp_200_06_15_w2v.h5')
+parallel_treatment_recategorization_top('txp_200_07_16_w2v.h5')
 
