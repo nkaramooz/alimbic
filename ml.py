@@ -534,7 +534,7 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 def train_with_word2vec(new_data_set):
 	conn,cursor = pg.return_postgres_cursor()
 	model = Word2Vec.load('concept_word_embedding.200.04.21.bin')
-	
+	report = open('ml_report.txt', 'w')
 	embedding_dim = 200
 	embedding_matrix = np.zeros((vocabulary_size, embedding_dim))
 	dictionary, reverse_dictionary = get_dictionaries()
@@ -605,18 +605,23 @@ def train_with_word2vec(new_data_set):
 	y_test = np.array(test_set['label'].tolist())
 	
 	embedding_size=200
-	batch_size = 256
+	batch_size = 128
 	num_epochs = 5
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
-	model.add(LSTM(800, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	model.add(LSTM(500, return_sequences=True))
+	# model.add(LSTM(400, return_sequences=True))
 	model.add(Dropout(0.2))
-	model.add(LSTM(400, return_sequences=True))
+	model.add(TimeDistributed(Dense(100)))
 	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
 
 	print(model.summary())
+	model.summary(print_fn=lambda x: report.write(x + '\n'))
+	report.write('\n')
+
 	model.compile(loss='binary_crossentropy', 
              optimizer='adam', 
              metrics=['accuracy'])
@@ -626,12 +631,21 @@ def train_with_word2vec(new_data_set):
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
-	print("Training Accuracy: {:.4f}".format(accuracy))
+	training = "Training Accuracy: {:.4f}".format(accuracy)
+	print(training)
 	loss, accuracy = model.evaluate(x_test, y_test, verbose=False)
-	print("Testing Accuracy:  {:.4f}".format(accuracy))
+	testing = "Testing Accuracy:  {:.4f}".format(accuracy)
+	print(testing)
 	# plot_history(history)
 
-	model.save('txp_200_07_16_w2v.h5')	
+	model.save('txp_200_07_20_w2v.h5')
+	report.write(training)
+	report.write('\n')
+	report.write(testing)
+	report.write('\n')
+	report.close()
+	
+
 
 
 def plot_history(history):
@@ -737,10 +751,13 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 
 # build_embedding()
 # gen_datasets_2("7_16_19")
-# train_with_word2vec(True)
+
 
 # treatment_recategorization_recs('txp_60_05_17_w2v.h5')
 # confirmation('txp_60_03_02_w2v.h5')
 
-parallel_treatment_recategorization_top('txp_200_07_16_w2v.h5')
+# https://github.com/adventuresinML/adventures-in-ml-code/blob/master/keras_lstm.py
+# https://adventuresinmachinelearning.com/keras-lstm-tutorial/
+train_with_word2vec(False)
+# parallel_treatment_recategorization_top('txp_200_07_16_w2v.h5')
 

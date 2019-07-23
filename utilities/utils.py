@@ -101,7 +101,7 @@ def acronym_override(did, is_acronym, cursor):
 
 
 	get_query = """
-		select description_id, conceptid, term, word, word_ord, term_length, is_acronym
+		select description_id, conceptid, term, term_lower, word, word_ord, term_length, is_acronym
 		from annotation.lemmas_3
 		where description_id = %s
 	"""
@@ -553,12 +553,12 @@ def lemma(word):
 
 def lemmatize_description_id_3(description_id, cursor):
 	query = """
-		select * from annotation.augmented_active_key_words_v3
+		select description_id, conceptid, term, lower(term) as term_lower, word, word_ord, term_length, is_acronym from annotation.augmented_active_key_words_v3
 		where description_id = '%s'
 	""" % description_id
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
 
 	engine = pg.return_sql_alchemy_engine()
@@ -566,11 +566,11 @@ def lemmatize_description_id_3(description_id, cursor):
 		engine, schema='annotation', if_exists='append', index=False)
 
 def lemmatize_table():
-	query = "select * from annotation.augmented_active_key_words_v3"
+	query = "select description_id, conceptid, term, lower(term) as term_lower, word, word_ord, term_length, is_acronym from annotation.augmented_active_key_words_v3"
 	conn, cursor = pg.return_postgres_cursor()
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 
 	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])]['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()

@@ -15,11 +15,11 @@ create table treatment_recs_final as (
 		select root_cid as root_cid, root_cid as subtypeid
 		from annotation.concept_types
 		) t3
-	left join annotation.raw_treatment_recs_staging t4
+	left join annotation.raw_treatment_recs_staging_2 t4
 		on t3.subtypeid=t4.condition_id
 	) t5
 group by root_cid, treatment_id
-having avg(score) > 0.70
+having avg(score) > 0.50
 );
 
 create index tx_recs_final_cid on treatment_recs_final(condition_id);
