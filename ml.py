@@ -538,10 +538,17 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, dictionary, revers
 
 def train_with_word2vec(new_data_set):
 	conn,cursor = pg.return_postgres_cursor()
+
 	# model = Word2Vec.load('concept_word_embedding.500.7.23.bin')
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	# embedding_matrix = np.zeros((vocabulary_size, embedding_size))
+
+	model = Word2Vec.load('concept_word_embedding.200.04.21.bin')
+	report = open('ml_report.txt', 'w')
+	embedding_dim = 200
+	embedding_matrix = np.zeros((vocabulary_size, embedding_dim))
+
 	dictionary, reverse_dictionary = get_dictionaries()
 
 	# counter = 0
@@ -610,15 +617,17 @@ def train_with_word2vec(new_data_set):
 	y_test = np.array(test_set['label'].tolist())
 	
 
+	embedding_size=200
 	batch_size = 128
-	num_epochs = 20
+	num_epochs = 5
 	model=Sequential()
-	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
+	model.add(Embedding(vocabulary_size, embedding_size, weights=[embedding_matrix], input_length=max_words, trainable=True))
 	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
 	model.add(LSTM(500, return_sequences=True))
 	# model.add(LSTM(400, return_sequences=True))
-	model.add(Dropout(0.3))
-	model.add(TimeDistributed(Dense(500)))
+	model.add(Dropout(0.2))
+	model.add(TimeDistributed(Dense(100)))
+
 	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
@@ -644,7 +653,9 @@ def train_with_word2vec(new_data_set):
 	print(testing)
 	# plot_history(history)
 
-	model.save('txp_200_07_27_w2v.h5')
+
+	model.save('txp_200_07_20_w2v.h5')
+
 	report.write(training)
 	report.write('\n')
 	report.write(testing)
@@ -762,11 +773,18 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 # gen_datasets()
 
 
+# build_embedding()
+# gen_datasets_2("7_16_19")
+
+
 
 # confirmation('txp_60_03_02_w2v.h5')
 
 # https://github.com/adventuresinML/adventures-in-ml-code/blob/master/keras_lstm.py
 # https://adventuresinmachinelearning.com/keras-lstm-tutorial/
-# train_with_word2vec(True)
-parallel_treatment_recategorization_top('model-05.hdf5')
+
+
+train_with_word2vec(False)
+# parallel_treatment_recategorization_top('txp_200_07_16_w2v.h5')
+
 
