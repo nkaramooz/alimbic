@@ -8,15 +8,15 @@ import os
 DB_S = ''
 
 def return_postgres_cursor():
-	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' user='laso_db' password='%s'" % DB_S
-	conn_string = "host='localhost' dbname='laso' user='LilNimster'"
+	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % DB_S
+	conn_string = "host='localhost' dbname='laso' user='LilNimster' connect_timeout=5"
 	# conn_string = "host='localhost' dbname='laso' user='Nima'"
 	conn = psycopg2.connect(conn_string)
 	cursor = conn.cursor()
 	return conn,cursor
 
 def return_postgres_conn():
-	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' user='laso_db' password='%s'" % DB_S
+	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % DB_S
 	conn_string = "host='localhost' dbname='laso' user='LilNimster'"
 	conn = psycopg2.connect(conn_string)
 	return conn

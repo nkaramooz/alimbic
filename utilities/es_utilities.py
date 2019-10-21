@@ -7,7 +7,7 @@ import pandas as pd
 
 # Create your views here.
 
-INDEX_NAME='pubmedx1.4'
+INDEX_NAME='pubmedx1.5'
 
 def return_es_host():
 	# return {'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}
@@ -78,23 +78,28 @@ class ElasticScroll():
 		self.scroll_size = None
 		self.has_next = True
 		self.query = query
+		self.counter = 0
 
 	def next(self):
 		if not self.initialized:
-			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='2m', \
-				size=500, body={"query" : self.query})
+			pages = self.es.search(index=INDEX_NAME, doc_type='abstract', scroll='5m', \
+				size=500, request_timeout=100000, body={"query" : self.query})
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']
-			print(pages['hits']['total'])
 			self.initialized = True
+			self.counter += 1
 			return pages
 		else:
 			if self.scroll_size > 0:
-				pages = self.es.scroll(scroll_id = self.sid, scroll='2m')
+				pages = self.es.scroll(scroll_id = self.sid, scroll='5m')
 				self.sid = pages['_scroll_id']
 				self.scroll_size = len(pages['hits']['hits'])
+				self.counter += 1
+				print(self.counter)
 				if self.scroll_size == 0:
 					self.has_next = False
+				# if self.counter > 0:
+				# 	self.has_next = False
 				return pages
 
 

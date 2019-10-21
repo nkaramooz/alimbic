@@ -15,7 +15,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import sys
 
-INDEX_NAME = 'pubmedx1.4'
+INDEX_NAME = 'pubmedx1.5'
 
 def doc_worker(input, conn,cursor):
 	for func,args in iter(input.get, 'STOP'):
@@ -26,7 +26,7 @@ def doc_calculate(func, args, conn, cursor):
 	func(*args, conn, cursor)
 
 
-def index_doc_from_elem(elem, filename, conn, cursor):
+def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 
 	elem = ET.parse(io.BytesIO(elem))
 	# if elem.tag != 'PubmedArticle':
@@ -59,21 +59,13 @@ def index_doc_from_elem(elem, filename, conn, cursor):
 	# Journal of hepatology
 	# JACC
 	# JACC Heart failure
-	if issn in ['0895-7061', '1941-7225', '0194-911X', '1524-4563', '1469-493X', '1465-1858', \
-		'0959-8138', '1756-1833', '0341-2040', '1432-1750', '1941-3289', '1941-3297', \
-		'1533-4406', '0028-4793', '0002-838X', '1532-0650', '0003-4819', '1539-3704', \
-		'0098-7484', '1538-3598', '2325-6621', '1943-5665', '0140-6736', '1474-547X', \
-		'0028-3878', '1526-632X', '0009-7322', '1524-4539', '2090-5769', '2090-5777', \
-		'0016-5085', '1524-4563', '0196-0644', '1097-6760', '0003-4819', '1539-3704', \
-		'1073-449X', '1535-4970', '0006-4971', '1528-0020', '0022-5347', '0090-4295', \
-		'1073-449X', '1535-4970', '0270-9139', '1527-3350', '0735-1097', '1558-3597', \
-		'2213-1779', '2213-1787', '0039-2499', '1524-4628']:
+	if issn in issn_list:
 	# if issn in ['1533-4406', '0028-4793']:
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 
 		if json_str['journal_pub_year'] is not None:
-			if (int(json_str['journal_pub_year']) >= 1980):
+			if (int(json_str['journal_pub_year']) >= 2000):
 				json_str, article_text = get_article_info_2(elem, json_str)
 		
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
@@ -188,6 +180,11 @@ def load_pubmed_local_2(start_file):
 		pool.append(p)
 		p.start()
 
+	conn, cursor = pg.return_postgres_cursor()
+	issn_query = "select issn from pubmed.additional_journals"
+	issn_list = pg.return_df_from_query(cursor, issn_query, None, ['issn'])['issn'].tolist()
+	cursor.close()
+	conn.close()
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -232,7 +229,7 @@ def load_pubmed_local_2(start_file):
 		es.indices.create(index=INDEX_NAME, body=settings)
 		
 
-	folder_arr = ['resources/updatefiles']
+	folder_arr = ['resources/baseline']
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -257,38 +254,12 @@ def load_pubmed_local_2(start_file):
 				file_abstract_counter = 0
 				for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
 					json_str = {}
-					params = (ET.tostring(elem), filename)
+					params = (ET.tostring(elem), filename, issn_list)
 					task_queue.put((index_doc_from_elem, params))
 					file_abstract_counter += 1
 					elem.clear()
 
 
-				# for elem in root:
-				# 	if elem.tag == 'PubmedArticle':
-				# 		params = (elem, filename)
-				# 		task_queue.put((index_doc_from_elem, params))
-				# 		file_abstract_counter += 1
-				# 		abstract_counter += 1
-
-				# 	elif elem.tag == 'DeleteCitation':
-				# 		delete_pmid_arr = get_deleted_pmid(elem)
-
-				# 		for pmid in delete_pmid_arr:
-				# 			get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-				# 			query_result = es.search(index=INDEX_NAME, body=get_article_query)
-
-				# 			if query_result['hits']['total'] == 0:
-				# 				continue
-				# 			elif query_result['hits']['total'] == 1:
-				# 				article_id = query_result['hits']['hits'][0]['_id']
-				# 				es.delete(index=INDEX_NAME, doc_type='abstract', id=article_id)
-				# 			else:
-				# 				print("delete: more than one document found")
-				# 				print(pmid)
-				# 		elem.clear()
-				# 	else:
-				# 		elem.clear()
-				# 	root.clear()
 				file_timer.stop()
 				if file_num >= start_file+10:
 					break
@@ -553,7 +524,7 @@ def get_abstract_conceptids_3(abstract_dict, article_text, cursor):
 	result_dict = {}
 	cleaned_text = ann.clean_text(article_text)
 	all_words = ann.get_all_words_list(cleaned_text)
-	cache = ann.get_cache(all_words, cursor)
+	cache = ann.get_cache(all_words, True, cursor)
 
 	prelim_ann = pd.DataFrame()
 	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
@@ -597,7 +568,7 @@ def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	all_words = ann.get_all_words_list(cleaned_text)
 	
 	# True = case_sensitive
-	cache = ann.get_cache(all_words, cursor)
+	cache = ann.get_cache(all_words, True, cursor)
 
 	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
 	if res is not None:
@@ -763,62 +734,6 @@ def get_journal_info(elem, json_str):
 
 	return json_str
 
-# def get_article_info(elem, json_str):
-
-# 	try:
-# 		article_elem = elem.find('./MedlineCitation/Article')
-# 	except:
-# 		json_str['article_title'] = None
-# 		json_str['article_abstract'] = None
-# 		json_str['article_type'] = None
-# 		json_str['article_type_id'] = None
-
-# 	try:
-# 		title_elem = article_elem.find('./ArticleTitle')
-# 		json_str['article_title'] = title_elem.text
-# 	except:
-# 		json_str['article_title'] = None
-
-# 	try:
-# 		abstract_elem = article_elem.find('./Abstract')
-# 		abstract_dict = {}
-
-# 		for abstract_sub_elem in abstract_elem:
-
-# 			sub_elem_dict = {}
-			
-# 			if not abstract_sub_elem.attrib:
-# 				sub_elem_dict['text'] = abstract_sub_elem.text
-# 				abstract_dict['text'] =  sub_elem_dict
-# 			else:
-# 				if abstract_sub_elem.attrib['Label'] == "":
-# 					sub_elem_dict["unlabelled"] == abstract_sub_elem.text
-# 				else:
-# 					sub_elem_dict[abstract_sub_elem.attrib['Label'].lower()] = abstract_sub_elem.text 
-
-# 				try:
-# 					abstract_dict[abstract_sub_elem.attrib['NlmCategory'].lower()] = sub_elem_dict
-# 				except:
-# 					abstract_dict[abstract_sub_elem.attrib['Label'].lower()] = sub_elem_dict
-
-# 		json_str['article_abstract'] = abstract_dict
-
-# 	except:
-# 		json_str['article_abstract'] = None
-
-# 	try:
-# 		article_type_elem = article_elem.findall('./PublicationTypeList/PublicationType')
-# 		json_str['article_type'] = []
-# 		json_str['article_type_id'] = []
-
-# 		for node in article_type_elem:
-# 			json_str['article_type'].append(node.text)
-# 			json_str['article_type_id'].append(node.attrib['UI'])
-# 	except:
-# 		json_str['article_type'] = None
-# 		json_str['article_type_id'] = None
-
-# 	return json_str
 
 def get_article_info_2(elem, json_str):
 	article_text = ""
@@ -903,7 +818,21 @@ def get_snomed_annotation(text, section, cache, cursor):
 			return annotation, sentences
 		else:
 			return None, None
-		
+
+def index_sentences(index_num):
+	conn, cursor = pg.return_postgres_cursor()
+
+	index_query = """
+		set schema 'annotation';
+		create index sentences5_id_ind on sentences5(id);
+		create index sentences5_pmid_ind on sentences5(pmid);
+		create index sentences5_conceptid_ind on sentences5(conceptid);
+		create index sentences5_section_ind on sentences5(section);
+	"""
+
+	cursor.execute(index_query, None)
+	cursor.connection.commit()
+	cursor.close()		
 
 if __name__ == "__main__":
 
@@ -913,11 +842,12 @@ if __name__ == "__main__":
 	# c.stop()
 
 
-	start_file = 973
-	while (start_file < 1120):
+	start_file = 1
+	while (start_file < 973):
 		print(start_file)
 		load_pubmed_local_2(start_file)
 		start_file += 10
+	# index_sentences(5)
 	
 
 nlm_cat_dict = {"a case report" :"methods"

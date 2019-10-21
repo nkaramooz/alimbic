@@ -9,9 +9,9 @@ create table title_treatment_candidates as (
 		tb1.pmid, 
 		tb1.id,
 		tb1.section
-	from annotation.sentences4 tb1
+	from annotation.sentences5 tb1
 	join (select tb2.id, tb2.conceptid 
-			from annotation.sentences4_limited tb2
+			from annotation.sentences5 tb2
 			inner join annotation.concept_types tb3
 			on tb2.conceptid = tb3.root_cid and rel_type in ('condition', 'symptom', 'organism')
 	) tb3 

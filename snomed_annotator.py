@@ -171,7 +171,6 @@ def acronym_check(results_df):
 	
 
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
-	print(candidate_df_arr)
 	threshold = threshold/100.0
 
 	new_candidate_df_arr = []
@@ -543,10 +542,9 @@ def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, boo
 	tokenized = nltk.sent_tokenize(text)
 	ann_df = pd.DataFrame()
 	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
-	print(cache)
+
 	for ln_number, line in enumerate(tokenized):
 		res_df = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
-		print(res_df)
 		ann_df = ann_df.append(res_df, sort=False)
 
 
@@ -702,29 +700,24 @@ if __name__ == "__main__":
 	query49="hepatitis B"
 	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
 	query51="protein kinase C"
-	# check_timer = u.Timer("full")
 
-	# pprint(add_names(return_query_snomed_annotation_v3(query, 87)))
 	conn, cursor = pg.return_postgres_cursor()
-	# s = pd.DataFrame([['66925006']], columns=['conceptid'])
-	print(get_concept_synonyms_list_from_list(['66925006'], cursor))
 
-	# counter = 0
-	# while (counter < 1):
-	# 	d = u.Timer('t')
-	# 	term = query1
-	# 	term = clean_text(term)
-	# 	all_words = get_all_words_list(term)
 
-	# 	cache = get_cache(all_words, False, cursor)
-
-	# 	res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
-	# 	u.pprint(res)
-	# 	res = acronym_check(res)
-	# 	u.pprint(res)
+	counter = 0
+	while (counter < 1):
+		d = u.Timer('t')
+		term = query1
+		term = clean_text(term)
+		all_words = get_all_words_list(term)
+		cache = get_cache(all_words, False, cursor)
+		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
+		u.pprint(res)
+		res = acronym_check(res)
+		u.pprint(res)
 		
-	# 	d.stop()
-	# 	counter += 1
+		d.stop()
+		counter += 1
 	
 	# cursor.close()
 	# u.pprint("=============================")

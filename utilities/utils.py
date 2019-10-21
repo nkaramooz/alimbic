@@ -26,7 +26,7 @@ def pprint(data_frame):
 
 def write_sentences(s_df, cursor):
 	engine = pg.return_sql_alchemy_engine()
-	s_df.to_sql('sentences4', \
+	s_df.to_sql('sentences5', \
 		engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
 def get_conceptid_name(conceptid, cursor):
@@ -101,13 +101,13 @@ def acronym_override(did, is_acronym, cursor):
 
 
 	get_query = """
-		select description_id, conceptid, term, word, word_ord, term_length, is_acronym
+		select description_id, conceptid, term, term_lower, word, word_ord, term_length, is_acronym
 		from annotation.lemmas_3
 		where description_id = %s
 	"""
 
 	entry_df = pg.return_df_from_query(cursor, get_query, (did,), \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 
 	delete_query = """
 		delete from annotation.lemmas_3
@@ -553,12 +553,12 @@ def lemma(word):
 
 def lemmatize_description_id_3(description_id, cursor):
 	query = """
-		select * from annotation.augmented_active_key_words_v3
+		select description_id, conceptid, term, lower(term) as term_lower, word, word_ord, term_length, is_acronym from annotation.augmented_active_key_words_v3
 		where description_id = '%s'
 	""" % description_id
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 	new_candidate_df['word'] = new_candidate_df['word'].map(lemma)
 
 	engine = pg.return_sql_alchemy_engine()
@@ -566,11 +566,11 @@ def lemmatize_description_id_3(description_id, cursor):
 		engine, schema='annotation', if_exists='append', index=False)
 
 def lemmatize_table():
-	query = "select * from annotation.augmented_active_key_words_v3"
+	query = "select description_id, conceptid, term, lower(term) as term_lower, word, word_ord, term_length, is_acronym from annotation.augmented_active_key_words_v3"
 	conn, cursor = pg.return_postgres_cursor()
 
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
-		['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
+		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 
 	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])]['word'].map(lemma)
 	engine = pg.return_sql_alchemy_engine()
@@ -621,7 +621,7 @@ def insert_new_vc_case(uid, casename, cursor):
 
 def get_es_client():
 	# es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200}])
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
 	return es
 
 

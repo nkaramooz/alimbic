@@ -12,7 +12,7 @@ from django.http import JsonResponse
 import numpy as np
 # Create your views here.
 
-INDEX_NAME='pubmedx1.4'
+INDEX_NAME='pubmedx1.5'
 
 
 lowDoseArr = [15,12,12,12,12,7,10]
@@ -32,7 +32,6 @@ def post_concept_override(request):
 	conceptid = request.POST['conceptid']
 	description_id = request.POST['description_id']
 	description = request.POST['description_text']
-
 	if request.POST['action_type'] == 'add_description':
 		u.add_description(conceptid, description, cursor)
 	elif request.POST['action_type'] == 'deactivate_description_id':
@@ -52,7 +51,7 @@ def post_concept_override(request):
 
 ############################## VC LOADING DOSE ##############################
 def loading_form(request, cid):
-	cursor = pg.return_postgres_cursor()
+	conn,cursor = pg.return_postgres_cursor()
 	case_payload = {}
 	if request.method == "GET":
 		case = Case(cid=cid, cursor=cursor)
@@ -771,9 +770,20 @@ def concept_search_results(request):
 		end_year = request.GET['end_year']
 		es = es_util.get_es_client()	
 		query = ann.clean_text(query)
-		all_words = ann.get_all_words_list(query)
-		cache = ann.get_cache(all_words, False, cursor)
-		query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
+		if query.upper() != query:
+			query = query.lower()
+		raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
+		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
+		
+
+		if (len(query_concepts_df.index) != 0):
+			query_concepts_df['term_start_index'] = 0
+			query_concepts_df['term_end_index'] = len(query.split(' '))-1
+
+		elif (len(query_concepts_df.index) == 0):
+			all_words = ann.get_all_words_list(query)
+			cache = ann.get_cache(all_words, False, cursor)
+			query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
 		
 		sr = dict()
 		related_dict = dict()
@@ -1137,7 +1147,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
 		query = """
 			select treatment_id from annotation.treatment_recs_final where condition_id in %s 
-			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app where condition_id in %s and (label=0 or label=2))
+			and treatment_id not in (select treatment_id from annotation.labelled_treatments_app where label=2 or (condition_id in %s and label=0))
 			 """
 
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),tuple(query_concept_list)), ["conceptid"])
@@ -1235,6 +1245,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
+		# break
 	c.stop()
 
 	# title_match_cids_df = get_title_cids(sr_title_match)
@@ -1266,9 +1277,9 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			# agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
-			print(agg_tx[agg_tx['conceptid'] == '276239002'])
+			print(agg_tx[agg_tx['conceptid'] == '38268001'])
 			# agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
-			print(agg_tx[agg_tx['conceptid'] == '276239002'])
+			print(agg_tx[agg_tx['conceptid'] == '38268001'])
 			agg_tx = ann.add_names(agg_tx)
 			
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
