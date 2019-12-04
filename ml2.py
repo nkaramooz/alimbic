@@ -148,8 +148,8 @@ def train_data_generator(batch_size, cursor):
 		y_train = train_df_0['label'].tolist()
 		id_df = train_df_0['id'].tolist()
 
-		query = "select id, x_train, label from annotation.training_sentences_with_version where ver=%s and label = 1 order by random() limit %s"
-		train_df_1 = pg.return_df_from_query(cursor, query, (curr_version, batch_size_1), ['id', 'x_train', 'label'])
+		query = "select id, x_train, label from annotation.training_sentences_with_version where label = 1 order by random() limit %s"
+		train_df_1 = pg.return_df_from_query(cursor, query, (batch_size_1,), ['id', 'x_train', 'label'])
 
 		x_train.extend(train_df_1['x_train'].tolist())
 		y_train.extend(train_df_1['label'].tolist())
@@ -172,13 +172,14 @@ def train_data_generator(batch_size, cursor):
 			yield None
 
 	
-
+## 0 label = 2810596
+## 1 label = 62767
 def train_with_word2vec():
 	conn,cursor = pg.return_postgres_cursor()
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 10
+	num_epochs = 2
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
@@ -201,7 +202,7 @@ def train_with_word2vec():
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 	# class_weight={0 : 0.77, 1 : 1}
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1.2, 1:1}, steps_per_epoch =((1038526//batch_size)+1),callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1, 1:1}, steps_per_epoch =((2810596//batch_size)+1),callbacks=[checkpointer])
 
 
 	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -289,7 +290,7 @@ def recat_calculate(func, args, engine):
 
 
 def apply_get_labelled_data(row, all_conditions_set, all_treatments_set):
-	return get_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)['x_train'].values[0]
+	return get_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
 
 
 def apply_score(row, model):
@@ -340,28 +341,43 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 			break
 			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
 
-	return pd.DataFrame([[sentence['sentence'], sentence['sentence_tuples'], \
-		condition_id, tx_id, sample, sentence['pmid'], sentence['id']]], \
-		columns=['sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train', 'pmid', 'id'])
+	return sample
 
 
 def gen_datasets_top():
 	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
+
 	query = "select min(ver) as ver from annotation.labelled_treatments t1"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
+	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
+
 
 	query = "select count(*) as cnt from annotation.labelled_treatments"
 	max_counter = int(pg.return_df_from_query(cursor, query, None, ['cnt'])['cnt'][0])
 
-	counter = 0
-	while counter < max_counter:
-		gen_datasets_bottom(new_version, conditions_set, treatments_set)
-		counter += 16
+	query = """
+			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s limit 1
+		"""
+	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+	
+	while (len(labels_df) > 0):
+		print(labels_df)
+		write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, engine, cursor)
+		query = "UPDATE annotation.labelled_treatments set ver = %s where id = %s"
+		cursor.execute(query, (new_version, labels_df['id'].values[0]))
+		cursor.connection.commit()
+
+		query = """
+			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s limit 1
+		"""
+		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+		
 
 def gen_datasets_bottom(new_version, conditions_set, treatments_set):
-	number_of_processes = 8
+	number_of_processes = 1
 	engine_arr = []
 	cursor_arr = []
 	old_version = new_version-1
@@ -388,10 +404,9 @@ def gen_datasets_bottom(new_version, conditions_set, treatments_set):
 			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and condition_id=%s limit 2
 		"""
 	labels_df = pg.return_df_from_query(cursor, query, (old_version,'%'), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
-
 	
 
-	while (len(labels_df) > 0 and counter <= 16):
+	while (len(labels_df) > 0 and counter <= 1):
 		query = "UPDATE annotation.labelled_treatments set ver = %s where id = %s"
 		cursor.execute(query, (new_version, labels_df['id'].values[0]))
 		cursor.connection.commit()
@@ -409,7 +424,7 @@ def gen_datasets_bottom(new_version, conditions_set, treatments_set):
 		
 		# except:
 		# 	cursor.connection.rollback()
-		counter += 2
+		counter += 1
 	cursor.close()
 	conn.close()
 
@@ -444,27 +459,27 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 			tx_id_arr = [item['treatment_id']]
 			tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
 			tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
-
 	
 			sentences_query = """
 						select 
 							t1.sentence_tuples
 							,t1.sentence
-							,t1.conceptid as condition_id
-							,t2.treatment_id
+							,t1.conceptid as treatment_id
+							,t2.condition_id
 							,t1.id
 							,t1.pmid
 						from annotation.sentences5 t1
-						right join (select id, conceptid as treatment_id from annotation.sentences5 where conceptid in %s) t2
+						right join (select id, conceptid as condition_id from annotation.sentences5) t2
 							on t1.id = t2.id
 						inner join (select root_cid from annotation.concept_types where rel_type='condition') t3
-							on t1.conceptid = t3.root_cid
+							on t2.condition_id = t3.root_cid
+						where t1.conceptid in %s
 					"""
 			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
-				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id' 'id', 'pmid'])
+				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
 			
 			print("finished query")
-				
+			
 			print("len of wildcard: " + str(len(sentences_df)))
 		
 		else:
@@ -477,116 +492,27 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 			tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
 
 			sentences_query = """
-				select sentence_tuples, sentence, t2.condition_id, conceptid as treatment_id, t1.id, t1.pmid
-				from annotation.sentences5 t1 where conceptid in %s
+				select sentence_tuples, sentence, t2.condition_id, t1.conceptid as treatment_id, t1.id, t1.pmid
+				from annotation.sentences5 t1
 				right join (
 					select id, conceptid as condition_id from annotation.sentences5 where conceptid in %s
 				) t2
 				on t1.id = t2.id
+				where conceptid in %s
 			"""
 			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
 				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
-		sentences_df = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+		
+		if len(sentences_df.index) > 0:
+			sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+			sentences_df['label'] = item['label']
+			sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
-		u.pprint(sentences_df)
-	####
-	# condition_id_cache = {}
-	# treatment_id_cache = {}
-
-	# condition_id_arr = []
-	# last_condition_id = ""
-	# condition_sentence_ids = pd.DataFrame()
-
-	# for index,item in labels_df.iterrows():
-	# 	u.pprint(index)
-	# 	sentences_df = pd.DataFrame()
-
-	# 	if len(condition_id_cache) > 100:
-	# 		condition_id_cache = {}
-
-	# 	if len(treatment_id_cache) > 100:
-	# 		treatment_id_cache = {}
-
-	# 	if item['condition_id'] == '%':
-			
-	# 		tx_id_arr = None
-	# 		if item['treatment_id'] in treatment_id_cache.keys():
-	# 			tx_id_arr = treatment_id_cache[item['treatment_id']]
-	# 		else:
-	# 			tx_id_arr = [item['treatment_id']]
-	# 			tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
-	# 			tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
-	# 			treatment_id_cache[item['treatment_id']] = tx_id_arr
-
-	# 		for index,value in enumerate(tx_id_arr):
-	# 			sentences_query = """
-	# 				select t1.sentence_tuples
-	# 					,t1.sentence
-	# 					,t1.conceptid
-	# 					,t1.id
-	# 					,t1.pmid
-	# 				from annotation.sentences5 t1
-	# 				right join (select id from annotation.sentences5 where conceptid=%s) t2
-	# 				on t1.id = t2.id
-	# 				left join (select root_cid from annotation.concept_types where rel_type='condition') t3
-	# 				on t1.conceptid = t3.root_cid
-	# 			"""
-
-	# 			sentences_df = pg.return_df_from_query(cursor, sentences_query, (value,), \
-	# 				["sentence_tuples", "sentence", "condition_id", "id", "pmid"])
-	# 			sentences_df['treatment_id'] = item['treatment_id']
-	# 			print("finished query")
-
-	# 			sentences_df = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
-
-	# 		print("len of wildcard: " + str(len(sentences_df)))
-	# 	else:
-			# if item['condition_id'] != last_condition_id:
-
-			# if item['condition_id'] in condition_id_cache.keys():
-			# 	condition_id_arr = condition_id_cache[item['condition_id']]
-			# else:
-
-			# 	condition_id_arr = [item['condition_id']]
-			# 	condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
-				#below function gives unique values
-			# 	condition_id_arr = ann.get_concept_synonyms_list_from_list(condition_id_arr, cursor)
-			# 	condition_id_cache[item['condition_id']] = condition_id_arr
-
-			# condition_sentence_id_query = "select id from annotation.sentences5 where conceptid in %s"
-			# condition_sentence_ids = pg.return_df_from_query(cursor, condition_sentence_id_query, (tuple(condition_id_arr),), ["id"])["id"].tolist()
-
-			# tx_id_arr = None
-			# if item['treatment_id'] in treatment_id_cache.keys():
-			# 	tx_id_arr = treatment_id_cache[item['treatment_id']]
-			# else:
-			# 	tx_id_arr = [item['treatment_id']]
-			# 	tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
-			# 	tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
-			# 	treatment_id_cache[item['treatment_id']] = tx_id_arr
-
-		#this should give a full list for the training row
-
-			# sentences_query = "select sentence_tuples, sentence, conceptid, t1.id, t1.pmid from annotation.sentences5 t1 where id in %s and conceptid in %s"
-			# sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_sentence_ids), tuple(tx_id_arr)), ["sentence_tuples", "sentence", "condition_id", 'id', 'pmid'])
-
-		# last_condition_id = item['condition_id']
-		# label = item['label']
-
-		# print(sentences_df)
-		# sys.exit(0)
-		# u.pprint(sentences_df)
-		# sentences_df = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
-		# print(sentences_df)
-		# sys.exit(0)
-		# sentences_df = get_labelled_data(True, sentences_df, condition_id_arr, tx_id_arr, item, dictionary, reverse_dictionary, all_conditions_set)
-		# if len(sentences_df.index) > 0:
-		# 	sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
-
+		
 
 if __name__ == "__main__":
 	# conn, cursor = pg.return_postgres_cursor()
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
-	# parallel_treatment_recategorization_top('model-05.hdf5')
-	gen_datasets_top()
+	parallel_treatment_recategorization_top('model-02.hdf5')
+	# gen_datasets_top()
