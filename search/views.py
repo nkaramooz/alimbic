@@ -22,9 +22,52 @@ freqArr = ["8", "12", "12", "24", "0", "post-HD", "24"]
 def home_page(request):
 	return render(request, 'search/home_page.html')
 
+
+### ML training data
+def training(request):
+	return render(request, 'search/training.html')
+
+def is_conceptid(conceptid, cursor):
+	query = "select conceptid from annotation.active_selected_concepts where conceptid =%s "
+	res = pg.return_df_from_query(cursor, query, (conceptid,), ["conceptid"])
+	if len(res.index) == 1:
+		return True
+	else:
+		return False
+
+def not_in_training_set(condition_id, treatment_id, cursor):
+	query = "select condition_id from annotation.training_sentences where condition_id=%s and treatment_id=%s"
+	res = pg.return_df_from_query(cursor, query, (condition_id, treatment_id), ['condition_id'])
+	if len(res.index) > 0:
+		return False
+	else:
+		return True
+
+
+def post_training(request):
+	conn,cursor = pg.return_postgres_cursor()
+	condition_id = request.POST['condition_id']
+
+	treatment_id = request.POST['treatment_id']
+	label = None
+
+	if (is_conceptid(condition_id, cursor) and is_conceptid(treatment_id, cursor)):
+		if not_in_training_set(condition_id, treatment_id, cursor):
+			if request.POST['label'] == '0':
+				label = 0
+			elif request.POST['label'] == '1':
+				label = 1
+			elif request.POST['label'] == '2':
+				label = 2
+
+			u.treatment_label(condition_id, treatment_id, label, cursor)
+			
+	cursor.close()
+	conn.close()
+	return HttpResponseRedirect(reverse('search:training'))
+
 ### CONCEPT OVERRIDE FUNCTIONS
 def concept_override(request):
-
 	return render(request, 'search/concept_override.html')
 
 def post_concept_override(request):
@@ -812,7 +855,7 @@ def concept_search_results(request):
 					 "size" : 300, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
-			sr = es.search(index=INDEX_NAME, body=es_query)
+			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 

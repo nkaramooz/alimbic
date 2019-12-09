@@ -159,14 +159,24 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	return True
 
 def treatment_label(condition_id, treatment_id, treatment_label, cursor):
-	positive_query = """
+	query = """
 		set schema 'annotation';
 		INSERT INTO labelled_treatments_app (condition_id, treatment_id, label)
 		VALUES (%s, %s, %s)
 	"""
-	cursor.execute(positive_query, (condition_id, treatment_id, treatment_label))
+	cursor.execute(query, (condition_id, treatment_id, treatment_label))
+	cursor.connection.commit()
+
+	query = """
+		set schema 'annotation';
+		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+		INSERT INTO labelled_treatments (id, condition_id, treatment_id, label, ver)
+		VALUES (public.uuid_generate_v4(), %s, %s, %s, 0)
+	"""
+	cursor.execute(query, (condition_id, treatment_id, treatment_label))
 	cursor.connection.commit()
 	print("COMMIT")
+
 
 
 def add_description(conceptid, description, cursor):

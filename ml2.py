@@ -39,13 +39,14 @@ spacer_ind = 0
 UNK_ind = 1
 vocabulary_size = 20000
 
-# need one for root (condition), need one for rel treatment
-# need one for none (spacer)
+
+# Vocabulary spacer should be 4
+# UNK should have index of 1, but unable to change this now
 vocabulary_spacer = 5
-target_treatment_key = vocabulary_size-vocabulary_spacer+3
-target_condition_key = vocabulary_size-vocabulary_spacer+2
-generic_condition_key = vocabulary_size-vocabulary_spacer+1
-generic_treatment_key = vocabulary_size-vocabulary_spacer
+target_treatment_key = vocabulary_size-vocabulary_spacer+3 #1998
+target_condition_key = vocabulary_size-vocabulary_spacer+2 #1997
+generic_condition_key = vocabulary_size-vocabulary_spacer+1 #1996
+generic_treatment_key = vocabulary_size-vocabulary_spacer #1995
 
 max_words = 60
 
@@ -179,16 +180,14 @@ def train_with_word2vec():
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 2
+	num_epochs = 3
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
 	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
-	# model.add(LSTM(500, return_sequences=True))
-	# model.add(LSTM(400, return_sequences=True))
 	model.add(Dropout(0.3))
 	model.add(TimeDistributed(Dense(500)))
-	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
 
@@ -200,24 +199,24 @@ def train_with_word2vec():
              optimizer='adam', 
              metrics=['accuracy'])
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
-	# class_weight={0 : 0.77, 1 : 1}
+
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1}, steps_per_epoch =((2810596//batch_size)+1),callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1.2, 1:1}, steps_per_epoch =((2810596//batch_size)+1), callbacks=[checkpointer])
 
 
-	loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
-	training = "Training Accuracy: {:.4f}".format(accuracy)
-	print(training)
-	loss, accuracy = model.evaluate(x_test, y_test, verbose=False)
-	testing = "Testing Accuracy:  {:.4f}".format(accuracy)
-	print(testing)
+	# loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
+	# training = "Training Accuracy: {:.4f}".format(accuracy)
+	# print(training)
+	# loss, accuracy = model.evaluate(x_test, y_test, verbose=False)
+	# testing = "Testing Accuracy:  {:.4f}".format(accuracy)
+	# print(testing)
 	# plot_history(history)
 
-	model.save('txp_200_07_27_w2v.h5')
-	report.write(training)
-	report.write('\n')
-	report.write(testing)
-	report.write('\n')
+	
+	# report.write(training)
+	# report.write('\n')
+	# report.write(testing)
+	# report.write('\n')
 	report.close()
 	
 
@@ -225,9 +224,8 @@ def parallel_treatment_recategorization_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 
 	# dictionary, reverse_dictionary = get_dictionaries()
-	conditions_query = "select root_cid from annotation.concept_types where rel_type='condition' or rel_type='symptom' "
-	all_conditions_set = set(pg.return_df_from_query(cursor, conditions_query, None, ["root_cid"])["root_cid"].tolist())
-
+	
+	all_conditions_set = get_all_conditions_set() 
 	all_treatments_set = get_all_treatments_set()
 
 	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered_final where condition_id = '91302008' "
@@ -302,7 +300,7 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	model = load_model(model_name)
 	treatment_candidates_df['x_train'] = treatment_candidates_df.apply(apply_get_labelled_data, all_conditions_set=all_conditions_set, all_treatments_set=all_treatments_set, axis=1)
 	treatment_candidates_df['score'] = treatment_candidates_df.apply(apply_score, model=model, axis=1)
-	treatment_candidates_df.to_sql('raw_treatment_recs_staging_4', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
+	treatment_candidates_df.to_sql('raw_treatment_recs_staging_5', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 	u.pprint("write")
 
 
@@ -315,7 +313,10 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 	for index,words in enumerate(sentence['sentence_tuples']):
 		## words[1] is the conceptid, words[0] is the word
 		# condition 1 -- word is the condition of interest
-		if words[1] == condition_id and sample[counter-1] != target_condition_key:
+
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
 			sample[counter] = target_condition_key
 		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
 			sample[counter] = generic_condition_key
@@ -508,11 +509,99 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 			sentences_df['label'] = item['label']
 			sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
+
+def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
+	final_results = pd.DataFrame()
+
+	sample = [0]*max_words
+	
+	counter=0
+	for index,words in enumerate(sentence['sentence_tuples'][0]):
+
+		## words[1] is the conceptid, words[0] is the word
+		# condition 1 -- word is the condition of interest
 		
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
+			sample[counter] = target_condition_key
+		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
+			sample[counter] = generic_condition_key
+			# - word is generic treatment
+		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
+			sample[counter] = target_treatment_key
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			sample[counter] = generic_treatment_key
+			# Now using conceptid if available
+		elif words[1] != 0 and (get_word_index(words[1]) != UNK_ind) and get_word_index(words[1]) != sample[counter-1]:
+			sample[counter] = get_word_index(words[1])
+		elif (words[1] == 0 and (get_word_index(words[0]) != UNK_ind) and get_word_index(words[0]) != sample[counter-1])\
+			and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0])
+		elif (words[1] == 0) and (get_word_index(words[0]) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0])
+		else:
+			counter -= 1
+		print(words)
+		print(sample[counter])
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
+
+	return sample
+
 
 if __name__ == "__main__":
-	# conn, cursor = pg.return_postgres_cursor()
+	conn, cursor = pg.return_postgres_cursor()
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
-	parallel_treatment_recategorization_top('model-02.hdf5')
+	# parallel_treatment_recategorization_top('model-03.hdf5')
 	# gen_datasets_top()
+	model = load_model('model-03.hdf5')
+	input_sentence = input("Enter sentence: ")
+	term = ann.clean_text(input_sentence)
+	all_words = ann.get_all_words_list(term)
+	cache = ann.get_cache(all_words, False, cursor)
+	# cache = pd.DataFrame(columns=["description_id", "conceptid", "term", "word", "word_ord", "term_length", "is_acronym"])
+	annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False)
+	annotation = ann.acronym_check(annotation)
+	sentence_tuple = ann.get_sentence_annotation(term, annotation)
+	u.pprint(sentence_tuple)
+
+	condition_ind = int(input("Enter condition index (start or end): "))
+	print(sentence_tuple[condition_ind])
+
+	condition_id = sentence_tuple[condition_ind][1]
+
+	print(condition_id)
+	
+	sentence_df = pd.DataFrame([[term, sentence_tuple]], columns=['sentence', 'sentence_tuples'])
+	print(sentence_df)
+
+	
+	all_conditions_set = get_all_conditions_set()
+	all_treatments_set = get_all_treatments_set()
+
+	final_res = []
+	for ind,word in enumerate(sentence_df['sentence_tuples'][0]):
+
+		if word[1] == condition_id:
+			continue
+		else:
+			labelled_sentence = get_labelled_data_sentence_custom(sentence_df, condition_id, word[0], all_conditions_set, all_treatments_set)
+			labelled_sentence = np.array([labelled_sentence])
+
+			res = float(model.predict(labelled_sentence)[0][0])
+			final_res.append((word[0], word[1], res))
+			print(labelled_sentence)
+			print(word)
+			print(res)
+	
+	cursor.close()
+	conn.close()
+
+	print(final_res)
+			
+	

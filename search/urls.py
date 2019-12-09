@@ -17,6 +17,9 @@ urlpatterns = [
     url(r'^results/$', views.concept_search_results,  name='concept_search_results'),
     url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
     url(r'^concept_override/', views.concept_override, name='concept_override'),
+    url(r'^training/post/$', views.post_training, name='post_training'),
+    url(r'^training/', views.training, name='training'),
+
 
     url(r'^vancomycin/$', views.vc_main, name='vc_main'),
     url(r'^vancomycin/cases/(?P<uid>.*)$', views.vc_cases, name='vc_cases'),

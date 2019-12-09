@@ -700,6 +700,7 @@ if __name__ == "__main__":
 	query49="hepatitis B"
 	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
 	query51="protein kinase C"
+	query52="Renal replacement therapy"
 
 	conn, cursor = pg.return_postgres_cursor()
 
@@ -707,7 +708,7 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query1
+		term = query52
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False, cursor)
