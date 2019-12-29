@@ -1,0 +1,15 @@
+<head> 
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+</head>
+
+<h1> ML / Treatment example </h1>
+<form action="{% url 'search:post_ml' %}" method="post"> 
+{% csrf_token %}
+	<h3> sentence: <input type="textarea" name="sentence" value="{{input_sentence}}"> </h3> <br> 
+	<h3> index: <input type="text" name="index"></h3><br>
+
+	<h3> {{ sentence_tuple }} </h3> <br><br>
+	<h3> {{res }} </h3><br> <br>
+	<input type="submit" value="submit">
+</form>

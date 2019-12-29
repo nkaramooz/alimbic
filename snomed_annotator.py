@@ -701,6 +701,7 @@ if __name__ == "__main__":
 	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
 	query51="protein kinase C"
 	query52="Renal replacement therapy"
+	query53="Methotrexate can improve joint pain in rheumatoid arthritis" ## NEED TO FIX THIS. NOT ANNOTATING CORRECTLY
 
 	conn, cursor = pg.return_postgres_cursor()
 

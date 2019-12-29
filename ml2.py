@@ -57,6 +57,7 @@ def get_all_conditions_set():
 	return all_conditions_set
 
 def get_all_treatments_set():
+	
 	query = "select root_cid from annotation.concept_types where rel_type='treatment'"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
@@ -180,7 +181,7 @@ def train_with_word2vec():
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 3
+	num_epochs = 4
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
@@ -218,6 +219,24 @@ def train_with_word2vec():
 	# report.write(testing)
 	# report.write('\n')
 	report.close()
+
+def update_word2vec(model_name):
+	conn,cursor = pg.return_postgres_cursor()
+	embedding_size=500
+	batch_size = 500
+	num_epochs = 3
+	model = load_model(model_name)
+
+	all_conditions_set = get_all_conditions_set()
+	all_treatments_set = get_all_treatments_set()
+
+	
+	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
+
+
+	history = model.fit_generator(train_data_generator(batch_size, cursor), \
+	 epochs=num_epochs, class_weight={0:1.2, 1:1}, steps_per_epoch =((2810596//batch_size)+1), callbacks=[checkpointer])
+
 	
 
 def parallel_treatment_recategorization_top(model_name):
@@ -228,7 +247,7 @@ def parallel_treatment_recategorization_top(model_name):
 	all_conditions_set = get_all_conditions_set() 
 	all_treatments_set = get_all_treatments_set()
 
-	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered_final where condition_id = '91302008' "
+	max_query = "select count(*) as cnt from annotation.title_treatment_candidates_filtered_final"
 	max_counter = pg.return_df_from_query(cursor, max_query, None, ['cnt'])['cnt'].values[0]
 
 	counter = 0
@@ -260,7 +279,7 @@ def parallel_treatment_recategorization_bottom(model_name, start_row, all_condit
 		u.pprint(counter)
 		treatment_candidates_query = """select sentence, sentence_tuples, condition_id, 
 			treatment_id, pmid, id, section from annotation.title_treatment_candidates_filtered_final 
-			where condition_id = '91302008' limit 2000 offset %s"""
+			limit 2000 offset %s"""
 		treatment_candidates_df = pg.return_df_from_query(cursor, treatment_candidates_query, \
 			(counter,), ['sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'pmid', 'id', 'section'])
 
@@ -507,7 +526,8 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 		if len(sentences_df.index) > 0:
 			sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 			sentences_df['label'] = item['label']
-			sentences_df.to_sql('training_sentences', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+			sentences_df['ver'] = 0
+			sentences_df.to_sql('training_sentences_with_version', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
 
 def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
@@ -531,6 +551,7 @@ def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, condition
 		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
 			sample[counter] = target_treatment_key
 		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			u.pprint(words[0])
 			sample[counter] = generic_treatment_key
 			# Now using conceptid if available
 		elif words[1] != 0 and (get_word_index(words[1]) != UNK_ind) and get_word_index(words[1]) != sample[counter-1]:
@@ -542,8 +563,7 @@ def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, condition
 			sample[counter] = get_word_index(words[0])
 		else:
 			counter -= 1
-		print(words)
-		print(sample[counter])
+
 		counter += 1
 
 		if counter >= max_words-1:
@@ -552,35 +572,9 @@ def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, condition
 
 	return sample
 
+def analyze_sentence(sentence_df, condition_id, cursor):
+	model = load_model('model-04.hdf5')
 
-if __name__ == "__main__":
-	conn, cursor = pg.return_postgres_cursor()
-	# print(train_data_generator(10, cursor))
-	# train_with_word2vec()
-	# parallel_treatment_recategorization_top('model-03.hdf5')
-	# gen_datasets_top()
-	model = load_model('model-03.hdf5')
-	input_sentence = input("Enter sentence: ")
-	term = ann.clean_text(input_sentence)
-	all_words = ann.get_all_words_list(term)
-	cache = ann.get_cache(all_words, False, cursor)
-	# cache = pd.DataFrame(columns=["description_id", "conceptid", "term", "word", "word_ord", "term_length", "is_acronym"])
-	annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False)
-	annotation = ann.acronym_check(annotation)
-	sentence_tuple = ann.get_sentence_annotation(term, annotation)
-	u.pprint(sentence_tuple)
-
-	condition_ind = int(input("Enter condition index (start or end): "))
-	print(sentence_tuple[condition_ind])
-
-	condition_id = sentence_tuple[condition_ind][1]
-
-	print(condition_id)
-	
-	sentence_df = pd.DataFrame([[term, sentence_tuple]], columns=['sentence', 'sentence_tuples'])
-	print(sentence_df)
-
-	
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
@@ -592,16 +586,90 @@ if __name__ == "__main__":
 		else:
 			labelled_sentence = get_labelled_data_sentence_custom(sentence_df, condition_id, word[0], all_conditions_set, all_treatments_set)
 			labelled_sentence = np.array([labelled_sentence])
-
+			u.pprint(labelled_sentence)
 			res = float(model.predict(labelled_sentence)[0][0])
 			final_res.append((word[0], word[1], res))
 			print(labelled_sentence)
 			print(word)
 			print(res)
-	
+	return final_res
+
+def print_contingency(model_name):
+	conn, cursor = pg.return_postgres_cursor()
+	model = load_model(model_name)
+
+	all_conditions_set = get_all_conditions_set()
+	all_treatments_set = get_all_treatments_set()
+
+	# should be OK to load 10k into memory
+
+	testing_query = "select x_train, label from annotation.test_sentences"
+	sentences_df = pg.return_df_from_query(cursor, testing_query, None, ['x_train', 'label'])
+
+	total = len(sentences_df)
+	zero_zero = 0
+	zero_one = 0
+	one_zero = 0
+	one_one = 0
+
+	for ind,item in sentences_df.iterrows():
+		x_train = np.array([item['x_train']])
+		res = float(model.predict(x_train)[0][0])
+
+		if ((item['label'] == 1) and (res >= 0.50)):
+			one_one += 1
+		elif((item['label'] == 1) and (res < 0.50)):
+			one_zero += 1
+		elif ((item['label'] == 0) and (res < 0.50)):
+			zero_zero += 1
+		elif ((item['label'] == 0) and (res >= 0.50)):
+			zero_one += 1
+		
+	u.pprint("label 1, res 1: " + str(one_one))
+	u.pprint("label 1, res 0: " + str(one_zero))
+	u.pprint("label 0, res 0: " + str(zero_zero))
+	u.pprint("label 0, res 1: " + str(zero_one))
+
 	cursor.close()
 	conn.close()
 
-	print(final_res)
-			
+if __name__ == "__main__":
+	conn, cursor = pg.return_postgres_cursor()
+	# print(train_data_generator(10, cursor))
+	# train_with_word2vec()
+	parallel_treatment_recategorization_top('model-04.hdf5')
+	# gen_datasets_top()
+	# update_word2vec('model-04.hdf5')
+
+	# input_sentence = input("Enter sentence: ")
+	# term = ann.clean_text(input_sentence)
+	# all_words = ann.get_all_words_list(term)
+	# cache = ann.get_cache(all_words, False, cursor)
+	
+	# annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False)
+	# annotation = ann.acronym_check(annotation)
+	# sentence_tuple = ann.get_sentence_annotation(term, annotation)
+	# u.pprint(sentence_tuple)
+	# print(len(sentence_tuple))
+
+	# condition_ind = int(input("Enter condition index (start or end): "))
+	# print(sentence_tuple[condition_ind])
+
+	# condition_id = sentence_tuple[condition_ind][1]
+
+	# print(condition_id)
+	
+	# sentence_df = pd.DataFrame([[term, sentence_tuple]], columns=['sentence', 'sentence_tuples'])
+	# print(sentence_df)
+
+	# final_res = analyze_sentence(sentence_df, condition_id, cursor)
+	
+	
+	# cursor.close()
+	# conn.close()
+
+	# print(final_res)
+
+	# print_contingency('model-03.hdf5')			
+	
 	

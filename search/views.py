@@ -10,6 +10,8 @@ import utilities.es_utilities as es_util
 import math
 from django.http import JsonResponse
 import numpy as np
+import ml2 as m
+from keras.models import load_model
 # Create your views here.
 
 INDEX_NAME='pubmedx1.5'
@@ -65,6 +67,54 @@ def post_training(request):
 	cursor.close()
 	conn.close()
 	return HttpResponseRedirect(reverse('search:training'))
+
+
+
+def ml(request):
+	return render(request, 'search/ml.html')
+
+def post_ml(request):
+	conn, cursor = pg.return_postgres_cursor()
+	
+	input_sentence = request.POST['sentence']
+
+	term = ann.clean_text(input_sentence)
+	all_words = ann.get_all_words_list(term)
+	cache = ann.get_cache(all_words, False, cursor)
+	
+	annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False)
+	annotation = ann.acronym_check(annotation)
+	sentence_tuple = ann.get_sentence_annotation(term, annotation)
+
+
+	res = None
+	if request.POST['index']:
+		
+		condition_ind = int(request.POST['index'])
+		condition_id = sentence_tuple[condition_ind][1]
+		sentence_df = pd.DataFrame([[term, sentence_tuple]], columns=['sentence', 'sentence_tuples'])
+		res = m.analyze_sentence(sentence_df, condition_id, cursor)
+	# u.pprint(input_sentence)
+	
+	# u.pprint(sentence_tuple)
+	# print(len(sentence_tuple))
+
+	# condition_ind = int(input("Enter condition index (start or end): "))
+	# print(sentence_tuple[condition_ind])
+
+	# condition_id = sentence_tuple[condition_ind][1]
+
+	# print(condition_id)
+	
+	# sentence_df = pd.DataFrame([[term, sentence_tuple]], columns=['sentence', 'sentence_tuples'])
+
+
+	cursor.close()
+	conn.close()
+
+	return render(request, 'search/ml.html', {'sentence_tuple' : sentence_tuple, 'res': res, 'input_sentence' : input_sentence})
+	# return HttpResponseRedirect(reverse('search:ml'))
+
 
 ### CONCEPT OVERRIDE FUNCTIONS
 def concept_override(request):

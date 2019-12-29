@@ -20,6 +20,9 @@ urlpatterns = [
     url(r'^training/post/$', views.post_training, name='post_training'),
     url(r'^training/', views.training, name='training'),
 
+    url(r'^ml/post/$', views.post_ml, name='post_ml'),
+    url(r'^ml/', views.ml, name='ml'),
+
 
     url(r'^vancomycin/$', views.vc_main, name='vc_main'),
     url(r'^vancomycin/cases/(?P<uid>.*)$', views.vc_cases, name='vc_cases'),
