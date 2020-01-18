@@ -140,22 +140,22 @@ def train_data_generator(batch_size, cursor):
 	while True:
 		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from annotation.training_sentences_with_version", \
 			None, ['ver'])['ver'][0])
-		batch_size_0 = int(batch_size*0.80)
-		batch_size_1 = batch_size - batch_size_0
+		# batch_size_0 = int(batch_size*0.80)
+		# batch_size_1 = batch_size - batch_size_0
 
-		query = "select id, x_train, label from annotation.training_sentences_with_version where ver=%s and label=0 order by random() limit %s"
-		train_df_0 = pg.return_df_from_query(cursor, query, (curr_version, batch_size_0), ['id', 'x_train', 'label'])
+		query = "select id, x_train, label from annotation.training_sentences_with_version where ver=%s order by random() limit %s"
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train', 'label'])
 
-		x_train = train_df_0['x_train'].tolist()
-		y_train = train_df_0['label'].tolist()
-		id_df = train_df_0['id'].tolist()
+		x_train = train_df['x_train'].tolist()
+		y_train = train_df['label'].tolist()
+		id_df = train_df['id'].tolist()
 
-		query = "select id, x_train, label from annotation.training_sentences_with_version where label = 1 order by random() limit %s"
-		train_df_1 = pg.return_df_from_query(cursor, query, (batch_size_1,), ['id', 'x_train', 'label'])
+		# query = "select id, x_train, label from annotation.training_sentences_with_version where label = 1 order by random() limit %s"
+		# train_df_1 = pg.return_df_from_query(cursor, query, (batch_size_1,), ['id', 'x_train', 'label'])
 
-		x_train.extend(train_df_1['x_train'].tolist())
-		y_train.extend(train_df_1['label'].tolist())
-		id_df.extend(train_df_1['id'].tolist())
+		# x_train.extend(train_df_1['x_train'].tolist())
+		# y_train.extend(train_df_1['label'].tolist())
+		# id_df.extend(train_df_1['id'].tolist())
 
 		try:
 			new_version = curr_version + 1
@@ -181,7 +181,7 @@ def train_with_word2vec():
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 4
+	num_epochs = 8
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
@@ -199,10 +199,10 @@ def train_with_word2vec():
 	model.compile(loss='binary_crossentropy', 
              optimizer='adam', 
              metrics=['accuracy'])
-	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./m01.16.20-{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1.2, 1:1}, steps_per_epoch =((2810596//batch_size)+1), callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884571//batch_size)+1), callbacks=[checkpointer])
 
 
 	# loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
@@ -224,18 +224,18 @@ def update_word2vec(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 3
+	num_epochs = 4
 	model = load_model(model_name)
 
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
 	
-	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./model010419-{epoch:02d}.hdf5', verbose=1)
 
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1.2, 1:1}, steps_per_epoch =((2810596//batch_size)+1), callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884571//batch_size)+1), callbacks=[checkpointer])
 
 	
 
@@ -527,7 +527,9 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 			sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 			sentences_df['label'] = item['label']
 			sentences_df['ver'] = 0
-			sentences_df.to_sql('training_sentences_with_version', engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train', 'label', 'ver']]
+			sentences_df.to_sql('training_sentences_with_version', engine, schema='annotation', if_exists='append', \
+				index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
 
 def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
@@ -573,7 +575,7 @@ def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, condition
 	return sample
 
 def analyze_sentence(sentence_df, condition_id, cursor):
-	model = load_model('model-04.hdf5')
+	model = load_model('model01.04.19.-01.hdf5')
 
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
@@ -636,10 +638,10 @@ def print_contingency(model_name):
 if __name__ == "__main__":
 	conn, cursor = pg.return_postgres_cursor()
 	# print(train_data_generator(10, cursor))
-	# train_with_word2vec()
-	parallel_treatment_recategorization_top('model-04.hdf5')
+	train_with_word2vec()
+	# parallel_treatment_recategorization_top('model-04.hdf5')
 	# gen_datasets_top()
-	# update_word2vec('model-04.hdf5')
+	# update_word2vec('model.3.hdf5')
 
 	# input_sentence = input("Enter sentence: ")
 	# term = ann.clean_text(input_sentence)
@@ -670,6 +672,7 @@ if __name__ == "__main__":
 
 	# print(final_res)
 
-	# print_contingency('model-03.hdf5')			
-	
+	# print_contingency('model010419-04.hdf5')
+	# print_contingency('alice.2.hdf5')
+	# print_contingency('model-01.hdf5')			
 	

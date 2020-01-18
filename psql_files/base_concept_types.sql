@@ -151,11 +151,19 @@ create table base_concept_types as (
 				when supertypeid = '14766002' then 'diagnostic' -- Aspiration (procedure)
 				when supertypeid = '86273004' then 'diagnostic' -- Biopsy (procedure)
 
-				when supertypeid = '410607006' then 'cause' -- organism
-				when supertypeid = '88878007' then 'cause' -- protein
-				when supertypeid = '106197002' then 'cause' -- Mediator of immune response AND/OR inflammation (substance)
-				when supertypeid = '106192008' then 'cause' -- Complement related substance (substance)
-				when supertypeid = '7120007' then 'cause' --  Antigen (substance)
+				when supertypeid = '419036000' then 'cause' -- Archaea
+				when supertypeid = '409822003' then 'cause' -- Bacteria
+				when supertypeid = '84676004' then 'cause' -- Prion
+				when supertypeid = '49872002' then 'cause' -- Virus
+				when supertypeid = '426785004' then 'cause' -- Kingdom Chromista
+				when supertypeid = '414561005' then 'cause' -- Fungi
+				when supertypeid = '370570004' then 'cause' -- Protoctista
+				when supertypeid = '417396000' then 'cause' -- Protozoa
+				when supertypeid = '417377004' then 'cause' -- Mold
+				-- when supertypeid = '88878007' then 'cause' -- protein
+				-- when supertypeid = '106197002' then 'cause' -- Mediator of immune response AND/OR inflammation (substance)
+				-- when supertypeid = '106192008' then 'cause' -- Complement related substance (substance)
+				-- when supertypeid = '7120007' then 'cause' --  Antigen (substance)
 
 				when supertypeid = '404684003' then 'symptom' -- clinical finding
 				when supertypeid = '4147007' then 'condition' -- Mass

@@ -624,7 +624,6 @@ def returnNewMaintenanceDoseForPatient(case):
 	elif (trough > lowTrough-2):
 		return Dose(dose=priorDose.dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
 	else:
-		print(lowTrough-2)
 		new_dose = priorDose.dose + 250
 		return Dose(dose=new_dose, freqIndex=priorDose.freqIndex, freqString=priorDose.freqString, alert=None)
 
@@ -907,7 +906,7 @@ def concept_search_results(request):
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
-			related_dict, treatment_dict, diagnostic_dict, condition_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
+			related_dict, treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
 
 			primary_cids = query_concepts_df['conceptid'].tolist()
 
@@ -923,7 +922,7 @@ def concept_search_results(request):
 		return render(request, 'search/concept_search_results_page.html', \
 			{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
 			'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}, \
-			'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'condition' : condition_dict})
+			'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict})
 
 def rollups(cids_df, cursor):
 
@@ -1244,11 +1243,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			 """
 
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),tuple(query_concept_list)), ["conceptid"])
-		print(tx_df[tx_df['conceptid'] == '276239002'])
-		print(conceptid_df[conceptid_df['conceptid'] == '276239002'])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['conceptid'])
-		print(conceptid_df[conceptid_df['conceptid'] == '276239002'])
-		print(len(conceptid_df))
 		return conceptid_df
 
 	elif len(dist_concept_list) > 0:
@@ -1365,16 +1360,12 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	if len(title_match_cids_df) > 0:
 		flattened_query_concepts = get_flattened_query_concept_list(query_concept_list)
 		agg_tx = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'treatment')
-		if len(agg_tx) > 0:
-
+		if not agg_tx.empty:
 			# agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
-			print(agg_tx[agg_tx['conceptid'] == '38268001'])
 			# agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
-			print(agg_tx[agg_tx['conceptid'] == '38268001'])
 			agg_tx = ann.add_names(agg_tx)
-			
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
 
 
@@ -1397,11 +1388,12 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			agg_cause = agg_cause.groupby(['conceptid'],  as_index=False)['count'].sum()
 			agg_cause = de_dupe_synonyms_2(agg_cause, cursor)
 			agg_cause = ann.add_names(agg_cause)
-			agg_cause = agg_cause.sort_values(['count'], ascending=False)
+			# sub_dict['cause'] = rollups(agg_cause, cursor)
+			# agg_cause = agg_cause.sort_values(['count'], ascending=False)
 			for index,row in agg_cause.iterrows():
-				item_dict = {'conceptid' : row['conceptid'], 'term' : row['term'], 'count' : row['count']}
+				item_dict = {row['conceptid'] : {'name': row['term'], 'count': row['count'], 'children' : []}}
 				sub_dict['cause'].append(item_dict)
-	
+
 	agg_condition = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'condition')
 	# agg_condition = []
 	if len(agg_condition) > 0:
@@ -1431,7 +1423,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	result_dict[root_cid] = sub_dict
 	
 
-	return result_dict, sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition']
+	return result_dict, sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']
 
 # this function isn't working - see schizophrenia treatment
 def de_dupe_synonyms(df, cursor):
@@ -1642,7 +1634,6 @@ class Case:
 
 		if (self.hd.value != 1):
 			if (self.bl_creatinine.value):
-				print(self.bl_creatinine.value)
 				if ((currCr >= 1.5*self.bl_creatinine.value) or (currCr >= (self.bl_creatinine.value + 0.3))):
 					arfFromBaseline = True
 			

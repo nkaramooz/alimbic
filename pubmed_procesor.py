@@ -60,7 +60,7 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 	# JACC
 	# JACC Heart failure
 	if issn in issn_list:
-	# if issn in ['1533-4406', '0028-4793']:
+	
 		json_str = {}
 		json_str = get_journal_info(elem, json_str)
 
@@ -74,20 +74,6 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 					json_str = get_pmid(elem, json_str)
 					json_str = get_article_ids(elem, json_str)					
 					json_str['citations_pmid'] = get_article_citations(elem)
-
-
-					# title_annotation, title_sentences = get_snomed_annotation(json_str['article_title'], 'title', cursor)
-
-
-					# if title_sentences is not None:
-					# 	title_sentences['pmid'] = json_str['pmid']
-
-					# if title_annotation is not None:
-					# 	json_str['title_conceptids'] = title_annotation['conceptid'].tolist()
-					# 	json_str['title_dids'] = title_annotation['description_id'].tolist()
-					# else:
-					# 	json_str['title_conceptids'] = None
-					# 	json_str['title_dids'] = None
 
 
 					annotation_dict = get_abstract_conceptids_2(json_str, article_text, cursor)

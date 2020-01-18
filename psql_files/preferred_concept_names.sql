@@ -10,9 +10,10 @@ create table preferred_concept_names as (
 		from (
 			select did, conceptid, term, sum(cnt) as cnt
 			from (
-				select tb1.did, tb2.conceptid, tb2.term, tb1.count as cnt
+				select tb2.description_id as did, tb2.conceptid, tb2.term, 
+					case when tb1.count is not null then tb1.count else 0 end as cnt
 				from annotation.description_counts tb1
-				left join annotation.lemmas_3 tb2
+				right join annotation.lemmas_3 tb2
 				on tb1.did = tb2.description_id
 			) tb3
 		group by did, conceptid, term

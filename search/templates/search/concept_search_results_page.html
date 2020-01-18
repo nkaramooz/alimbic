@@ -58,6 +58,23 @@
 					</div>
 				{% endif %}
 
+				{% if cause|length > 0 %}
+	      			<a href="#" data-toggle="collapse" id="causeAccordion" data-target="#cause" aria-expanded="false" aria-controls="cause">
+	      				<h5 class="list-group-item align-items-left">
+	        				Organisms   
+	        				<span class="badge badge-primary badge-pill"> {{cause|length}} </span>
+	        			</h5>
+	        		</a>
+	      			<div id="cause" class="collapse" aria-labelledby="headingOne" data-parent="#causeAccordion">
+						<ul class="list-group-item-text">
+							{% for node in cause %}
+								{% include 'search/nested_view_template.html' with pivot_type='cause' %}
+							{% endfor %}
+						</ul>
+
+					</div>
+				{% endif %}
+
 
 				{% if condition|length > 0 %}
 

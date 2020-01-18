@@ -11,7 +11,7 @@ INDEX_NAME='pubmedx1.5'
 
 def return_es_host():
 	# return {'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}
-	return {'host' : 'localhost', 'port' : 9200}
+	return {'host' : 'localhost', 'port' : 9200, 'request_timeout' : 100000}
 
 def get_es_client():
 	# es = Elasticsearch(hosts=[return_es_host()], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
@@ -91,11 +91,10 @@ class ElasticScroll():
 			return pages
 		else:
 			if self.scroll_size > 0:
-				pages = self.es.scroll(scroll_id = self.sid, scroll='5m')
+				pages = self.es.scroll(scroll_id = self.sid, scroll='5m', request_timeout=100000)
 				self.sid = pages['_scroll_id']
 				self.scroll_size = len(pages['hits']['hits'])
 				self.counter += 1
-				print(self.counter)
 				if self.scroll_size == 0:
 					self.has_next = False
 				# if self.counter > 0:
