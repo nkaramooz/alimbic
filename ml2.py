@@ -114,8 +114,7 @@ def apply_word_counts_to_dict(cursor, sentence_row, all_conditions_set):
 				cursor.connection.rollback()
 
 
-def get_word_index(word):
-	conn,cursor = pg.return_postgres_cursor()
+def get_word_index(word, cursor):
 	query = "select rn from annotation.word_counts_20k where word=%s limit 1"
 	ind_df = pg.return_df_from_query(cursor, query, (word,), ['rn'])
 	
@@ -149,13 +148,6 @@ def train_data_generator(batch_size, cursor):
 		x_train = train_df['x_train'].tolist()
 		y_train = train_df['label'].tolist()
 		id_df = train_df['id'].tolist()
-
-		# query = "select id, x_train, label from annotation.training_sentences_with_version where label = 1 order by random() limit %s"
-		# train_df_1 = pg.return_df_from_query(cursor, query, (batch_size_1,), ['id', 'x_train', 'label'])
-
-		# x_train.extend(train_df_1['x_train'].tolist())
-		# y_train.extend(train_df_1['label'].tolist())
-		# id_df.extend(train_df_1['id'].tolist())
 
 		try:
 			new_version = curr_version + 1
@@ -204,20 +196,6 @@ def train_with_word2vec():
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
 	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884571//batch_size)+1), callbacks=[checkpointer])
 
-
-	# loss, accuracy = model.evaluate(x_train, y_train, verbose=False)
-	# training = "Training Accuracy: {:.4f}".format(accuracy)
-	# print(training)
-	# loss, accuracy = model.evaluate(x_test, y_test, verbose=False)
-	# testing = "Testing Accuracy:  {:.4f}".format(accuracy)
-	# print(testing)
-	# plot_history(history)
-
-	
-	# report.write(training)
-	# report.write('\n')
-	# report.write(testing)
-	# report.write('\n')
 	report.close()
 
 def update_word2vec(model_name):
@@ -309,6 +287,9 @@ def recat_calculate(func, args, engine):
 def apply_get_labelled_data(row, all_conditions_set, all_treatments_set):
 	return get_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
 
+def apply_get_bounded_labelled_data(row, all_conditions_set, all_treatments_set):
+	return get_bounded_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
+
 
 def apply_score(row, model):
 	res = float(model.predict(np.array([row['x_train']]))[0][0])
@@ -323,7 +304,53 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	u.pprint("write")
 
 
+# Uses words for treatment
+def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	final_results = pd.DataFrame()
+
+	sample = [0]*max_words
+	
+	counter=0
+	for index,words in enumerate(sentence['sentence_tuples'][0]):
+
+		## words[1] is the conceptid, words[0] is the word
+		# condition 1 -- word is the condition of interest
+		
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
+			sample[counter] = target_condition_key
+		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
+			sample[counter] = generic_condition_key
+			# - word is generic treatment
+		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
+			sample[counter] = target_treatment_key
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			sample[counter] = generic_treatment_key
+			# Now using conceptid if available
+		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0 and (get_word_index(words[0], cursor) != UNK_ind) and get_word_index(words[0], cursor) != sample[counter-1])\
+			and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0], cursor)
+		else:
+			counter -= 1
+
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
+	cursor.close()
+	conn.close()
+	return sample
+
+# Uses conceptid for treatments
 def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
 	final_results = pd.DataFrame()
 
 	sample = [0]*max_words
@@ -345,13 +372,13 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
 			sample[counter] = generic_treatment_key
 			# Now using conceptid if available
-		elif words[1] != 0 and (get_word_index(words[1]) != UNK_ind) and get_word_index(words[1]) != sample[counter-1]:
-			sample[counter] = get_word_index(words[1])
-		elif (words[1] == 0 and (get_word_index(words[0]) != UNK_ind) and get_word_index(words[0]) != sample[counter-1])\
+		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0 and (get_word_index(words[0], cursor) != UNK_ind) and get_word_index(words[0], cursor) != sample[counter-1])\
 			and words[1] not in conditions_set and words[1] not in all_treatments_set:
-			sample[counter] = get_word_index(words[0])
-		elif (words[1] == 0) and (get_word_index(words[0]) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
-			sample[counter] = get_word_index(words[0])
+			sample[counter] = get_word_index(words[0], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0], cursor)
 		else:
 			counter -= 1
 		
@@ -360,9 +387,51 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 		if counter >= max_words-1:
 			break
 			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
-
+	cursor.close()
+	conn.close()
 	return sample
 
+def get_bounded_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
+	final_results = pd.DataFrame()
+	sample = [0]*max_words
+	counter=0
+	for index,words in enumerate(sentence['sentence_tuples']):
+		## words[1] is the conceptid, words[0] is the word
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
+			sample[counter] = target_condition_key
+		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
+			sample[counter] = generic_condition_key
+		elif (words[1] == tx_id) and (sample[counter-1] != target_treatment_key):
+			sample[counter] = target_treatment_key
+			counter += 1
+			sample[counter] = tx_id
+			counter += 1
+			sample[counter] = target_treatment_key
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			sample[counter] = generic_treatment_key
+			counter += 1
+			sample[counter] = words[1]
+			counter += 1
+			sample[counter] = generic_treatment_key
+			# Now using conceptid if available
+		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0 and (get_word_index(words[0], cursor) != UNK_ind) and get_word_index(words[0], cursor) != sample[counter-1])\
+			and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
+			sample[counter] = get_word_index(words[0], cursor)
+		else:
+			counter -= 1
+		
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+
+	return sample
 
 def gen_datasets_top():
 	conn,cursor = pg.return_postgres_cursor()
@@ -524,55 +593,17 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
 		
 		if len(sentences_df.index) > 0:
-			sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+			## UNCOMMENT FOR FUTURE DATASET CREATION
+			# sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+			sentences_df['x_train'] = []
+			sentences_df['x_train_bounded'] = sentences_df.apply(apply_get_bounded_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 			sentences_df['label'] = item['label']
 			sentences_df['ver'] = 0
-			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train', 'label', 'ver']]
-			sentences_df.to_sql('training_sentences_with_version', engine, schema='annotation', if_exists='append', \
+			sentences_df['ver_bounded'] = 0
+			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train', 'x_train_bounded', 'label', 'ver']]
+			sentences_df.to_sql('training_sentences_with_version_test', engine, schema='annotation', if_exists='append', \
 				index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
-
-def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
-	final_results = pd.DataFrame()
-
-	sample = [0]*max_words
-	
-	counter=0
-	for index,words in enumerate(sentence['sentence_tuples'][0]):
-
-		## words[1] is the conceptid, words[0] is the word
-		# condition 1 -- word is the condition of interest
-		
-		if words[1] == condition_id and sample[counter-1] == target_condition_key:
-			continue
-		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
-			sample[counter] = target_condition_key
-		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
-			sample[counter] = generic_condition_key
-			# - word is generic treatment
-		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
-			sample[counter] = target_treatment_key
-		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
-			u.pprint(words[0])
-			sample[counter] = generic_treatment_key
-			# Now using conceptid if available
-		elif words[1] != 0 and (get_word_index(words[1]) != UNK_ind) and get_word_index(words[1]) != sample[counter-1]:
-			sample[counter] = get_word_index(words[1])
-		elif (words[1] == 0 and (get_word_index(words[0]) != UNK_ind) and get_word_index(words[0]) != sample[counter-1])\
-			and words[1] not in conditions_set and words[1] not in all_treatments_set:
-			sample[counter] = get_word_index(words[0])
-		elif (words[1] == 0) and (get_word_index(words[0]) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
-			sample[counter] = get_word_index(words[0])
-		else:
-			counter -= 1
-
-		counter += 1
-
-		if counter >= max_words-1:
-			break
-			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
-
-	return sample
 
 def analyze_sentence(sentence_df, condition_id, cursor):
 	model = load_model('model01.04.19.-01.hdf5')
