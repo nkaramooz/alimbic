@@ -12,8 +12,9 @@ create table title_treatment_candidates as (
 	from annotation.sentences5 tb1
 	join (select tb2.id, tb2.conceptid 
 			from annotation.sentences5 tb2
-			inner join annotation.concept_types tb3
-			on tb2.conceptid = tb3.root_cid and rel_type in ('condition', 'symptom', 'organism')
+			where conceptid='5ab63799-46d4-4314-b0a2-d04ede84701b'
+			-- inner join annotation.concept_types tb3
+			-- on tb2.conceptid = tb3.root_cid and rel_type in ('condition', 'symptom', 'organism')
 	) tb3 
 	on tb1.id = tb3.id
 	and tb1.conceptid != tb3.conceptid

@@ -25,6 +25,10 @@ from numpy import array
 from keras.layers import GlobalMaxPooling1D
 from keras.layers import Bidirectional
 from keras.layers import TimeDistributed
+from keras.layers import Input
+from keras.layers import Concatenate
+from keras.layers import Activation
+from keras.models import Model
 from keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 from keras.wrappers.scikit_learn import KerasClassifier
@@ -49,6 +53,13 @@ generic_condition_key = vocabulary_size-vocabulary_spacer+1 #1996
 generic_treatment_key = vocabulary_size-vocabulary_spacer #1995
 
 max_words = 60
+
+# bounded
+b_target_treatment_key_start = target_treatment_key # 49997
+b_target_treatment_key_end = vocabulary_size+1 # 50001
+b_generic_treatment_key_start = generic_treatment_key # 4995
+b_generic_treatment_key_stop = vocabulary_size+2 # 50002
+
 
 def get_all_conditions_set():
 	query = "select root_cid from annotation.concept_types where rel_type='condition'"
@@ -87,19 +98,19 @@ def load_word_counts():
 # select union sum word
 # drop tmp count
 
-def apply_word_counts_to_dict(cursor, sentence_row, all_conditions_set):
+def apply_word_counts_to_dict(cursor, sentence_row):
 	last_word = None
 	for index,words in enumerate(sentence_row[0]):
 		word_key = None
 		if words[1] != 0 and last_word != words[1]:
-			if words[1] in all_conditions_set:
+			# if words[1] in all_conditions_set:
 				# update_counts(counts, generic_condition_key)
-				word_key = generic_condition_key
-			else:
+				# word_key = generic_condition_key
+			# else:
 				# update_counts(counts, words[1])
-				word_key = words[1]
+			word_key = words[1]
 			last_word = words[1]
-		elif words[1] == 0 and words[0] != last_word:
+		elif words[1] == 0:
 			word_key = words[0]
 			last_word = words[0]
 
@@ -137,29 +148,31 @@ def get_word_from_ind(index):
 def train_data_generator(batch_size, cursor):
 
 	while True:
-		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from annotation.training_sentences_with_version", \
+		curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from annotation.training_sentences_with_version_v2 where label != 2", \
 			None, ['ver'])['ver'][0])
-		# batch_size_0 = int(batch_size*0.80)
-		# batch_size_1 = batch_size - batch_size_0
 
-		query = "select id, x_train, label from annotation.training_sentences_with_version where ver=%s order by random() limit %s"
-		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train', 'label'])
+		query = "select id, x_train_gen, x_train_spec, label from annotation.training_sentences_with_version_v2 where ver_gen=%s and label != 2 order by random() limit %s"
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'label'])
 
-		x_train = train_df['x_train'].tolist()
+		x_train_gen = train_df['x_train_gen'].tolist()
+		x_train_spec = train_df['x_train_spec'].tolist()
 		y_train = train_df['label'].tolist()
 		id_df = train_df['id'].tolist()
 
 		try:
+		
 			new_version = curr_version + 1
 			query = """
 				set schema 'annotation';
-				UPDATE annotation.training_sentences_with_version
-				SET ver = %s
+				UPDATE annotation.training_sentences_with_version_v2
+				SET ver_gen = %s
 				where id in %s
 			"""
 			cursor.execute(query, (new_version, tuple(id_df)))
 			cursor.connection.commit()
-			yield (np.asarray(x_train), np.asarray(y_train))
+		
+			yield [np.asarray(x_train_gen), np.asarray(x_train_spec)], np.asarray(y_train)
+			# yield np.asarray(x_train_spec), np.asarray(y_train)
 		except:
 			print("update version failed. Rolling back")
 			cursor.connection.rollback()
@@ -173,7 +186,7 @@ def train_with_word2vec():
 	report = open('ml_report.txt', 'w')
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 8
+	num_epochs = 4
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
@@ -191,12 +204,131 @@ def train_with_word2vec():
 	model.compile(loss='binary_crossentropy', 
              optimizer='adam', 
              metrics=['accuracy'])
-	checkpointer = ModelCheckpoint(filepath='./m01.16.20-{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 
-	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884571//batch_size)+1), callbacks=[checkpointer])
+	history = model.fit_generator(train_data_generator(batch_size, cursor),
+	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884713//batch_size)+1),
+	 callbacks=[checkpointer])
 
 	report.close()
+
+def train_with_word2vec_v2():
+	conn,cursor = pg.return_postgres_cursor()
+	# report = open('ml_report.txt', 'w')
+	embedding_size=200
+	batch_size = 128
+	num_epochs = 10
+
+
+	inp1 = Input(shape=(max_words,))
+	first_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp1)
+	first_model = LSTM(100, input_shape=(embedding_size, batch_size))(first_model)
+	# first_model = TimeDistributed(Dense(100))(first_model)
+	# first_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(first_model)
+	# first_model = Dropout(0.3)(first_model)
+	# first_model = Dense(100, activation='relu')(first_model)
+	# first_model = Dense(1, activation='sigmoid')(first_model)
+
+
+	inp2 = Input(shape=(max_words,))
+	second_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp2)
+	second_model = LSTM(100, input_shape=(embedding_size, batch_size))(second_model)
+	# second_model = TimeDistributed(Dense(100))(second_model)
+	# second_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(second_model)
+	# second_model = Dropout(0.3)(second_model)
+	# second_model = Dense(100, activation='relu')(second_model)
+	# second_model = Dense(1, activation='sigmoid')(second_model)
+
+
+	c = Concatenate()(inputs=[first_model, second_model])
+	# out = Embedding(vocabulary_size, embedding_size, trainable=True)(c)
+	# out = Bidirectional(LSTM(100))(c)
+	out = Dense(100, activation='relu')(c)
+	out = Dropout(0.3)(out)
+	out = Dense(20, activation='relu')(out)
+	# out = Flatten()(out)
+	out = Dense(1, activation='sigmoid')(out)
+	model = Model(inputs=[inp1, inp2], outputs=out)
+
+	print(model.summary())
+	# model.summary(print_fn=lambda x: report.write(x + '\n'))
+	# report.write('\n')
+
+	model.compile(loss='binary_crossentropy', 
+             optimizer='adam', 
+             metrics=['accuracy'])
+
+	checkpointer = ModelCheckpoint(filepath='./double-{epoch:02d}.hdf5', verbose=1)
+
+	history = model.fit_generator(train_data_generator(batch_size, cursor), \
+	 epochs=num_epochs, class_weight={0:1, 1:66}, steps_per_epoch =((575014//batch_size)+1),
+	  callbacks=[checkpointer])
+
+
+	# inputA = Input(shape=(max_words,500))
+	# inputB = Input(shape=(max_words,, 500))
+
+	# x = Dense(8, activation="relu")(inputA)
+	# x = Dense(4, activation="relu")(x)
+	# x = Model(inputs=inputA, outputs=x)
+
+	# y = Dense(8, activation="relu")(inputB)
+	# y = Dense(4, activation="relu")(y)
+	# y = Model(inputs=inputB, outputs=y)
+
+	# print(x.output)
+	# print(y.output)
+	
+	# combined = Concatenate(axis=-1)([x.output, y.output])
+	
+	# z = Dense(2, activation="relu")(combined)
+	# z = Dense(1, activation="linear")(z)
+	
+	# model = Model(inputs=train_data_generator(batch_size, cursor), outputs=z)
+	# model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+	# history = model.fit_generator(train_data_generator(batch_size, cursor), epochs=num_epochs,
+	# 	class_weight={0:1, 1:5}, steps_per_epoch =((2884713//batch_size)+1), callbacks=[checkpointer])
+
+	# main_input = Input(shape=(max_words,), dtype='int32', name='main_input')
+	# x = Embedding(output_dim=512, input_dim=vocabulary_size+3, input_length=max_words, trainable=True)(main_input)
+
+	# input is 60,2
+	# x = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)
+	# lstm_out = LSTM(500)(x)
+	# auxilliary_input = Input(shape=(max_words,), name='aux_input')
+	# x = Concatenate(axis=-1)([lstm_out, auxilliary_input])
+	# x = Dense(64, activation='relu')(x)
+	# main_output=Dense(1, activation='sigmoid', name='main_output')(x)
+	# model = Model(inputs=train_data_generator(batch_size,cursor), outputs=[main_output])
+	# model.compile(loss='binary_crossentropy', 
+ #             optimizer='adam', 
+ #             metrics=['accuracy'])
+	# history = model.fit_generator(train_data_generator(batch_size, cursor), epochs=num_epochs,
+	# 	class_weight={0:1, 1:5}, steps_per_epoch =((2884713//batch_size)+1), callbacks=[checkpointer])
+
+	# model=Sequential()
+	# model.add(Input(shape=(max_words, 2), dtype='int32'))
+	# model.add(Embedding(vocabulary_size+3, embedding_size, input_length=max_words, trainable=True))
+	# model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	# model.add(Dropout(0.3))
+	# model.add(TimeDistributed(Dense(500)))
+	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	# model.add(Flatten())
+	# model.add(Dense(1, activation='sigmoid'))
+
+	# print(model.summary())
+	# model.summary(print_fn=lambda x: report.write(x + '\n'))
+	# report.write('\n')
+
+	# model.compile(loss='binary_crossentropy', 
+ #             optimizer='adam', 
+ #             metrics=['accuracy'])
+	# checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
+
+	# history = model.fit_generator(train_data_generator(batch_size, cursor), \
+	#  epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884713//batch_size)+1), callbacks=[checkpointer])
+
+	# report.close()
 
 def update_word2vec(model_name):
 	conn,cursor = pg.return_postgres_cursor()
@@ -285,11 +417,10 @@ def recat_calculate(func, args, engine):
 
 
 def apply_get_labelled_data(row, all_conditions_set, all_treatments_set):
-	return get_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
+	return get_labelled_data_sentence_generic_v2(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
 
 def apply_get_bounded_labelled_data(row, all_conditions_set, all_treatments_set):
-	return get_bounded_labelled_data_sentence(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
-
+	return get_labelled_data_sentence_specific_v2(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
 
 def apply_score(row, model):
 	res = float(model.predict(np.array([row['x_train']]))[0][0])
@@ -304,30 +435,51 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	u.pprint("write")
 
 
-# Uses words for treatment
-def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
+
+
+def get_bounded_labelled_data_sentence_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
 	conn,cursor = pg.return_postgres_cursor()
 	final_results = pd.DataFrame()
-
 	sample = [0]*max_words
-	
 	counter=0
-	for index,words in enumerate(sentence['sentence_tuples'][0]):
 
+	for index,words in enumerate(sentence['sentence_tuples'][0]):
 		## words[1] is the conceptid, words[0] is the word
-		# condition 1 -- word is the condition of interest
-		
+		# print(words)
+		# print(words[1])
+		print(words)
+		print("DASKJHDSA")
 		if words[1] == condition_id and sample[counter-1] == target_condition_key:
 			continue
 		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
 			sample[counter] = target_condition_key
 		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
 			sample[counter] = generic_condition_key
-			# - word is generic treatment
 		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
-			sample[counter] = target_treatment_key
-		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
-			sample[counter] = generic_treatment_key
+			sample[counter] = b_target_treatment_key_start
+			counter += 1
+			if counter >= max_words-1:
+				break
+
+			if words[1] != 0:
+				sample[counter] = get_word_index(words[1], cursor)
+			else:
+				sample[counter] = get_word_index(words[0], cursor)
+
+			counter += 1
+			if counter >= max_words-1:
+				break
+			sample[counter] = b_target_treatment_key_end
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != b_generic_treatment_key_stop):
+			sample[counter] = b_generic_treatment_key_start
+			counter += 1
+			if counter >= max_words-1:
+				break
+			sample[counter] = get_word_index(words[1], cursor)
+			counter += 1
+			if counter >= max_words-1:
+				break
+			sample[counter] = b_generic_treatment_key_stop
 			# Now using conceptid if available
 		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
 			sample[counter] = get_word_index(words[1], cursor)
@@ -338,12 +490,11 @@ def get_labelled_data_sentence_custom(sentence, condition_id, tx_word, condition
 			sample[counter] = get_word_index(words[0], cursor)
 		else:
 			counter -= 1
-
+		
 		counter += 1
 
 		if counter >= max_words-1:
 			break
-			# while going through, see if conceptid associated then add to dataframe with root index and rel_type index
 	cursor.close()
 	conn.close()
 	return sample
@@ -377,7 +528,8 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 		elif (words[1] == 0 and (get_word_index(words[0], cursor) != UNK_ind) and get_word_index(words[0], cursor) != sample[counter-1])\
 			and words[1] not in conditions_set and words[1] not in all_treatments_set:
 			sample[counter] = get_word_index(words[0], cursor)
-		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and words[1] not in conditions_set and words[1] not in all_treatments_set:
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and \
+			words[1] not in conditions_set and words[1] not in all_treatments_set:
 			sample[counter] = get_word_index(words[0], cursor)
 		else:
 			counter -= 1
@@ -391,7 +543,156 @@ def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, al
 	conn.close()
 	return sample
 
+# sample[0] = dict value of item
+# sample[1]: 1=target_condition, 2=target_treatment
+def get_labelled_data_sentence_generic_v2(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	final_results = pd.DataFrame()
+	sample = [0]*max_words
+	counter = 0
+
+	for index,words in enumerate(sentence['sentence_tuples']):
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
+			sample[counter] = target_condition_key
+		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
+			sample[counter] = generic_condition_key
+		elif (words[1] == tx_id) and (sample[counter-1] != target_treatment_key):
+			sample[counter] = target_treatment_key
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			sample[counter] = generic_treatment_key
+		elif (words[1] != 0) and (get_word_index(words[1], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[1], cursor)):
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[0], cursor)):
+			sample[counter] = get_word_index(words[0], cursor)
+		elif ((words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind)) or ((words[1] == 1) \
+			and (get_word_index(words[1], cursor) == UNK_ind)):
+			sample[counter] = UNK_ind
+		else:
+			counter -= 1
+
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+
+	cursor.close()
+	conn.close()
+	return sample
+
+def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_word, conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	final_results = pd.DataFrame()
+	sample = [0]*max_words
+	counter = 0
+
+	for index,words in enumerate(sentence['sentence_tuples'][0]):
+		if words[1] == condition_id and sample[counter-1] == target_condition_key:
+			continue
+		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
+			sample[counter] = target_condition_key
+		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
+			sample[counter] = generic_condition_key
+		elif (words[0] == tx_word) and (sample[counter-1] != target_treatment_key):
+			sample[counter] = target_treatment_key
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
+			sample[counter] = generic_treatment_key
+		elif (words[1] != 0) and (get_word_index(words[1], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[1], cursor)):
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[0], cursor)):
+			sample[counter] = get_word_index(words[0], cursor)
+		elif ((words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind)) or ((words[1] == 1) \
+			and (get_word_index(words[1], cursor) == UNK_ind)):
+			sample[counter] = UNK_ind
+		else:
+			counter -= 1
+
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+
+	cursor.close()
+	conn.close()
+	return sample
+
+
+def get_labelled_data_sentence_specific_v2(sentence, condition_id, tx_id, conditions_set, get_all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	final_results = pd.DataFrame()
+	sample = [0]*max_words
+
+	counter = 0
+
+	for index,words in enumerate(sentence['sentence_tuples']):
+		if words[1] == condition_id and sample[counter-1] == get_word_index(words[1], cursor):
+			continue
+		elif words[1] == condition_id and sample[counter-1] != get_word_index(words[1], cursor):
+			sample[counter] = get_word_index(words[1], cursor)
+
+		elif (words[1] == tx_id) and (sample[counter-1] != get_word_index(words[1], cursor)):
+			sample[counter] = get_word_index(words[1], cursor)
+
+		elif (words[1] != 0) and (get_word_index(words[1], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[1], cursor)):
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[0], cursor)):
+			sample[counter] = get_word_index(words[0], cursor)
+		elif ((words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind)) or ((words[1] == 1) \
+			and (get_word_index(words[1], cursor) == UNK_ind)):
+			sample[counter] = UNK_ind
+		else:
+			counter -= 1
+
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+
+	cursor.close()
+	conn.close()
+
+	return sample
+
+
+def get_labelled_data_sentence_specific_v2_custom(sentence, condition_id, tx_word, conditions_set, get_all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	final_results = pd.DataFrame()
+	sample = [0]*max_words
+
+	counter = 0
+
+	for index,words in enumerate(sentence['sentence_tuples'][0]):
+		if words[1] == condition_id and sample[counter-1] == get_word_index(words[1], cursor):
+			continue
+		elif words[1] == condition_id and sample[counter-1] != get_word_index(words[1], cursor):
+			sample[counter] = get_word_index(words[1], cursor)
+
+		elif (words[0] == tx_word):
+			sample[counter] = get_word_index(words[0], cursor)
+
+		elif (words[1] != 0) and (get_word_index(words[1], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[1], cursor)):
+			sample[counter] = get_word_index(words[1], cursor)
+		elif (words[1] == 0) and (get_word_index(words[0], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[0], cursor)):
+			sample[counter] = get_word_index(words[0], cursor)
+		elif ((words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind)) or ((words[1] == 1) \
+			and (get_word_index(words[1], cursor) == UNK_ind)):
+			sample[counter] = UNK_ind
+		else:
+			counter -= 1
+
+		counter += 1
+
+		if counter >= max_words-1:
+			break
+
+	cursor.close()
+	conn.close()
+
+	return sample
+
 def get_bounded_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
 	final_results = pd.DataFrame()
 	sample = [0]*max_words
 	counter=0
@@ -404,17 +705,25 @@ def get_bounded_labelled_data_sentence(sentence, condition_id, tx_id, conditions
 		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
 			sample[counter] = generic_condition_key
 		elif (words[1] == tx_id) and (sample[counter-1] != target_treatment_key):
-			sample[counter] = target_treatment_key
+			sample[counter] = b_target_treatment_key_start
 			counter += 1
-			sample[counter] = tx_id
+			if counter >= max_words-1:
+				break
+			sample[counter] = get_word_index(words[1], cursor)
 			counter += 1
-			sample[counter] = target_treatment_key
-		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
-			sample[counter] = generic_treatment_key
+			if counter >= max_words-1:
+				break
+			sample[counter] = b_target_treatment_key_end
+		elif (words[1] in all_treatments_set) and (sample[counter-1] != b_generic_treatment_key_stop):
+			sample[counter] = b_generic_treatment_key_start
 			counter += 1
-			sample[counter] = words[1]
+			if counter >= max_words-1:
+				break
+			sample[counter] = get_word_index(words[1], cursor)
 			counter += 1
-			sample[counter] = generic_treatment_key
+			if counter >= max_words-1:
+				break
+			sample[counter] = b_generic_treatment_key_stop
 			# Now using conceptid if available
 		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
 			sample[counter] = get_word_index(words[1], cursor)
@@ -430,25 +739,26 @@ def get_bounded_labelled_data_sentence(sentence, condition_id, tx_id, conditions
 
 		if counter >= max_words-1:
 			break
-
+	cursor.close()
+	conn.close()
 	return sample
 
 def gen_datasets_top():
 	conn,cursor = pg.return_postgres_cursor()
 	engine = pg.return_sql_alchemy_engine()
 
-	query = "select min(ver) as ver from annotation.labelled_treatments t1"
+	query = "select min(ver) as ver from annotation.labelled_treatments t1 where label=0 or label=1"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
 
 
-	query = "select count(*) as cnt from annotation.labelled_treatments"
+	query = "select count(*) as cnt from annotation.labelled_treatments where label=0 or label=1"
 	max_counter = int(pg.return_df_from_query(cursor, query, None, ['cnt'])['cnt'][0])
 
 	query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s limit 1
+			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
 		"""
 	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
 	
@@ -460,7 +770,7 @@ def gen_datasets_top():
 		cursor.connection.commit()
 
 		query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s limit 1
+			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
 		"""
 		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
 		
@@ -593,38 +903,43 @@ def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set
 				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
 		
 		if len(sentences_df.index) > 0:
-			## UNCOMMENT FOR FUTURE DATASET CREATION
-			# sentences_df['x_train'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
-			sentences_df['x_train'] = []
-			sentences_df['x_train_bounded'] = sentences_df.apply(apply_get_bounded_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+			sentences_df['x_train_gen'] = sentences_df.apply(apply_get_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+			sentences_df['x_train_spec'] = sentences_df.apply(apply_get_bounded_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 			sentences_df['label'] = item['label']
-			sentences_df['ver'] = 0
-			sentences_df['ver_bounded'] = 0
-			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train', 'x_train_bounded', 'label', 'ver']]
-			sentences_df.to_sql('training_sentences_with_version_test', engine, schema='annotation', if_exists='append', \
-				index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+			sentences_df['ver_gen'] = 0
+			sentences_df['ver_spec'] = 0
+			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train_gen', 'x_train_spec', 'label', 'ver_gen', 'ver_spec']]
+			sentences_df.to_sql('training_sentences_with_version_v2', engine, schema='annotation', if_exists='append', \
+				index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 
 
 def analyze_sentence(sentence_df, condition_id, cursor):
-	model = load_model('model01.04.19.-01.hdf5')
+	# model = load_model('model01.04.19.-01.hdf5')
+	model = load_model('double-10.hdf5')
 
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
 	final_res = []
+	final_res_bounded = []
 	for ind,word in enumerate(sentence_df['sentence_tuples'][0]):
 
 		if word[1] == condition_id:
 			continue
 		else:
-			labelled_sentence = get_labelled_data_sentence_custom(sentence_df, condition_id, word[0], all_conditions_set, all_treatments_set)
-			labelled_sentence = np.array([labelled_sentence])
-			u.pprint(labelled_sentence)
-			res = float(model.predict(labelled_sentence)[0][0])
+
+			labelled_sentence_gen = get_labelled_data_sentence_generic_v2_custom(sentence_df, condition_id, word[0], \
+				all_conditions_set, all_treatments_set)
+			labelled_sentence_spec = get_labelled_data_sentence_specific_v2_custom(sentence_df, condition_id, word[0], \
+				all_conditions_set, all_treatments_set)
+			u.pprint(labelled_sentence_gen)
+			u.pprint(labelled_sentence_spec)
+			labelled_sentence_gen = np.array([labelled_sentence_gen])
+			labelled_sentence_spec = np.array([labelled_sentence_spec])
+
+			res = float(model.predict([labelled_sentence_gen, labelled_sentence_spec]))
 			final_res.append((word[0], word[1], res))
-			print(labelled_sentence)
-			print(word)
-			print(res)
+
 	return final_res
 
 def print_contingency(model_name):
@@ -636,8 +951,8 @@ def print_contingency(model_name):
 
 	# should be OK to load 10k into memory
 
-	testing_query = "select x_train, label from annotation.test_sentences"
-	sentences_df = pg.return_df_from_query(cursor, testing_query, None, ['x_train', 'label'])
+	testing_query = "select x_train_gen, x_train_spec, label from annotation.test_sentences_v2"
+	sentences_df = pg.return_df_from_query(cursor, testing_query, None, ['x_train_gen', 'x_train_spec', 'label'])
 
 	total = len(sentences_df)
 	zero_zero = 0
@@ -646,8 +961,9 @@ def print_contingency(model_name):
 	one_one = 0
 
 	for ind,item in sentences_df.iterrows():
-		x_train = np.array([item['x_train']])
-		res = float(model.predict(x_train)[0][0])
+		x_train_gen = np.array([item['x_train_gen']])
+		x_train_spec = np.array([item['x_train_spec']])
+		res = float(model.predict([x_train_gen, x_train_spec])[0][0])
 
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
@@ -666,13 +982,42 @@ def print_contingency(model_name):
 	cursor.close()
 	conn.close()
 
+def build_w2v_embedding():
+	conn,cursor = pg.return_postgres_cursor()
+
+	counter = 0
+	max_len = "select count(*) as cnt from annotation.training_sentences_with_version_v2"
+	max_len = pg.return_df_from_query(cursor, max_len, None, ['cnt'])['cnt'].values
+	model = None
+
+	while counter < max_len:
+		print(counter)
+		sent_query = "select x_train_spec from annotation.training_sentences_with_version_v2 limit 10000 offset %s"
+		sentences = pg.return_df_from_query(cursor, sent_query, (counter,), ['x_train_spec'])['x_train_spec'].tolist()
+		
+		for c1,i in enumerate(sentences):
+			for c2,j in enumerate(i):
+				sentences[c1][c2]=str(j)
+		
+		if model == None:
+			model = Word2Vec(sentences, size=200, window=5, min_count=1, negative=15, iter=5, workers=4)
+		else:
+			model.build_vocab(sentences, update=True)
+			model.train(sentences, total_examples=1, epochs=5)
+		counter += 10000
+
+	model.save('embedding_200.02.20.bin')
+
 if __name__ == "__main__":
 	conn, cursor = pg.return_postgres_cursor()
 	# print(train_data_generator(10, cursor))
-	train_with_word2vec()
-	# parallel_treatment_recategorization_top('model-04.hdf5')
+	# train_with_word2vec()
+	parallel_treatment_recategorization_top('alice.2.hdf5')
 	# gen_datasets_top()
 	# update_word2vec('model.3.hdf5')
+	# train_with_word2vec_v2()
+	# build_w2v_embedding()
+
 
 	# input_sentence = input("Enter sentence: ")
 	# term = ann.clean_text(input_sentence)
@@ -703,7 +1048,7 @@ if __name__ == "__main__":
 
 	# print(final_res)
 
-	# print_contingency('model010419-04.hdf5')
-	# print_contingency('alice.2.hdf5')
+	# print_contingency('m01.16.20-08.hdf5')
+	# print_contingency('double-10.hdf5')
 	# print_contingency('model-01.hdf5')			
 	

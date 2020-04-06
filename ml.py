@@ -408,7 +408,7 @@ def build_embedding():
 		sentences_query = "select sentence_tuples from annotation.distinct_sentences limit 100000 offset %s"
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (counter,), ['sentence_tuples'])
 		sentence_vector = get_labelled_data_w2v(sentences_df, all_conditions_set, all_treatments_set, dictionary, reverse_dictionary)
-
+		
 		if model == None:
 			model = Word2Vec(sentence_vector, size=500, window=5, min_count=1, negative=15, iter=10, workers=mp.cpu_count())
 		else:

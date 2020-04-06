@@ -65,7 +65,7 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 		json_str = get_journal_info(elem, json_str)
 
 		if json_str['journal_pub_year'] is not None:
-			if (int(json_str['journal_pub_year']) >= 2000):
+			if (int(json_str['journal_pub_year']) >= 2020):
 				json_str, article_text = get_article_info_2(elem, json_str)
 		
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
@@ -167,7 +167,7 @@ def load_pubmed_local_2(start_file):
 		p.start()
 
 	conn, cursor = pg.return_postgres_cursor()
-	issn_query = "select issn from pubmed.additional_journals"
+	issn_query = "select issn from pubmed.journals"
 	issn_list = pg.return_df_from_query(cursor, issn_query, None, ['issn'])['issn'].tolist()
 	cursor.close()
 	conn.close()
@@ -215,7 +215,7 @@ def load_pubmed_local_2(start_file):
 		es.indices.create(index=INDEX_NAME, body=settings)
 		
 
-	folder_arr = ['resources/baseline']
+	folder_arr = ['resources/updatefiles']
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -227,8 +227,7 @@ def load_pubmed_local_2(start_file):
 
 			abstract_counter = 0
 			file_path = folder_path + '/' + filename
-
-			file_num = int(re.findall('pubmed19n(.*).xml', filename)[0])
+			file_num = int(re.findall('pubmed20n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
 				print(filename)
@@ -828,8 +827,8 @@ if __name__ == "__main__":
 	# c.stop()
 
 
-	start_file = 1
-	while (start_file < 973):
+	start_file = 1016
+	while (start_file < 1132):
 		print(start_file)
 		load_pubmed_local_2(start_file)
 		start_file += 10

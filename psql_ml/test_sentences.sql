@@ -1,16 +1,16 @@
 set schema 'annotation';
-drop table if exists test_sentences;
+drop table if exists test_sentences_v2;
 
 
-create table test_sentences as (
+create table test_sentences_v2 as (
     select *
-    from annotation.training_sentences_with_version
+    from annotation.training_sentences_with_version_v2
     order by random()
     limit 10000
 );
 
-create index if not exists condition_id_test on test_sentences(condition_id);
-create index if not exists treatment_id_test on test_sentences(treatment_id);
-create index if not exists label_test on test_sentences(label);
-create index if not exists ver_test on test_sentences(ver);
-create index if not exists id_test on test_sentences(id);
+create index if not exists condition_id_test_v2 on test_sentences_v2(condition_id);
+create index if not exists treatment_id_test_v2 on test_sentences_v2(treatment_id);
+create index if not exists label_test_v2 on test_sentences_v2(label);
+create index if not exists ver_test_v2 on test_sentences_v2(ver);
+create index if not exists id_test_v2 on test_sentences_v2(id);

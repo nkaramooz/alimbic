@@ -702,19 +702,19 @@ if __name__ == "__main__":
 	query51="protein kinase C"
 	query52="Renal replacement therapy"
 	query53="Methotrexate can improve joint pain in rheumatoid arthritis" ## NEED TO FIX THIS. NOT ANNOTATING CORRECTLY
-
+	query54="coronavirus disease 2019"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query52
+		term = query54
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False, cursor)
 		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
-		u.pprint(res)
+		# u.pprint(res)
 		res = acronym_check(res)
 		u.pprint(res)
 		
