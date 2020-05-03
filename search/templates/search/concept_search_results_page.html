@@ -1,14 +1,11 @@
 {% load app_filters %}
 {% load staticfiles  %}
+<script src="{% static "js/collapsible.js" %}"></script>
 
-{% include 'search/main_header.html' with css='css/search.css' search_active='active' vanc_active='' %}
-{% url 'search:concept_search' as concept_search %}
-{% url 'search:pivot_search' as pivot %}
-{% include 'search/search_bar_template.html' with action=concept_search %}
-<script src="{% static "js/search-results.js" %}"></script>
-
-<div class="body">
-
+<div class="container">
+	<div class="row">
+	<div class="col s1"></div>
+	<div class="col s11">
 	<div class="query-display">
 		<h5>
 			{% for concept in concepts %}
@@ -18,84 +15,96 @@
 	</div>
 
 
-	<div class="glance">
-		
-		<ul class="list-group">
-			<div class="glance_topic">
+	{% if treatment|length > 0 or diagnostic|length > 0 or cause|length > 0 or condition|length > 0 or calcs|length > 0 %}
+		<div class="glance">
+			
+			<ul class="collapsible">
+				
+
 				{% if treatment|length > 0 %}
-					<a href="#" data-toggle="collapse" id="treatmentAccordion" data-target="#treatments" aria-expanded="false" aria-controls="treatments">
-		        		<h5 class="list-group-item align-items-left">
-		        			Interventions / Drugs    
-		        			<span class="badge badge-primary badge-pill"> {{treatment|length}} </span>
-		        		</h5>
-		        	</a>
-
-		      		<div id="treatments" class="collapse" aria-labelledby="headingOne" data-parent="#treatmentAccordion">
-						<ul class="list-group-item-text">
-							{% for node in treatment %}
-								{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
-							{% endfor %}
-						</ul>
-					</div>						
+					<li>
+						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption="topics">{{treatment|length}}</span></div>
+						<div class="collapsible-body">
+							<ul class="">
+								{% for node in treatment %}
+									{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
+								{% endfor %}
+							</ul>
+						</div>
+					</li>						
 				{% endif %}
-
-
+				
 
 				{% if diagnostic|length > 0 %}
-	      			<a href="#" data-toggle="collapse" id="diagnosticAccordion" data-target="#diagnostic" aria-expanded="false" aria-controls="diagnostic">
-	      				<h5 class="list-group-item align-items-left">
-	        				Diagnostics   
-	        				<span class="badge badge-primary badge-pill"> {{diagnostic|length}} </span>
-	        			</h5>
-	        		</a>
-	      			<div id="diagnostic" class="collapse" aria-labelledby="headingOne" data-parent="#diagnosticAccordion">
-						<ul class="list-group-item-text">
-							{% for node in diagnostic %}
-								{% include 'search/nested_view_template.html' with pivot_type='diagnostic' %}
-							{% endfor %}
-						</ul>
+					<li>
+						<div class="collapsible-header"> Diagnostics <span class="new badge" data-badge-caption="topics">{{diagnostic|length}}</span></div>
+						<div class="collapsible-body">
+							<ul class="">
+								{% for node in diagnostic %}
+									{% include 'search/nested_view_template.html' with pivot_type='diagnostic' %}
+								{% endfor %}
+							</ul>
 
-					</div>
+						</div>
+					</li>
 				{% endif %}
 
 				{% if cause|length > 0 %}
-	      			<a href="#" data-toggle="collapse" id="causeAccordion" data-target="#cause" aria-expanded="false" aria-controls="cause">
-	      				<h5 class="list-group-item align-items-left">
-	        				Organisms   
-	        				<span class="badge badge-primary badge-pill"> {{cause|length}} </span>
-	        			</h5>
-	        		</a>
-	      			<div id="cause" class="collapse" aria-labelledby="headingOne" data-parent="#causeAccordion">
-						<ul class="list-group-item-text">
-							{% for node in cause %}
-								{% include 'search/nested_view_template.html' with pivot_type='cause' %}
-							{% endfor %}
-						</ul>
+		      		<li>
+		      			<div class="collapsible-header"> Organisms <span class="new badge" data-badge-caption="topics">{{cause|length}}</span></div>
+		      			<div class="collapsible-body">
+		      				<ul class="">
+								{% for node in cause %}
+									{% include 'search/nested_view_template.html' with pivot_type='cause' %}
+								{% endfor %}
+							</ul>
 
-					</div>
+						</div>
+					</li>
 				{% endif %}
 
 
 				{% if condition|length > 0 %}
+					<li>
+		      			<div class="collapsible-header"> Conditions <span class="new badge" data-badge-caption="topics">{{condition|length}}</span></div>
+		      			<div class="collapsible-body">
+		      				<ul class="">
+								{% for node in condition %}
+									{% include 'search/nested_view_template.html' with pivot_type='condition' %}
+								{% endfor %}
+							</ul>
 
-					<a href="#" data-toggle="collapse" id="conditionAccordion" data-target="#condition" aria-expanded="false" aria-controls="condition">
-	      				<h5 class="list-group-item align-items-left">
-	        				Conditions    
-	        				<span class="badge badge-primary badge-pill"> {{condition|length}} </span>
-	        			</h5>
-	      			</a>			
-	      			<div id="condition" class="collapse" aria-labelledby="headingOne" data-parent="#conditionAccordion">
-						<ul>
-							{% for node in condition %}
-								{% include 'search/nested_view_template.html' with pivot_type='condition' %}
-							{% endfor %}
-						</ul>
-					</div>
-			</div>
+						</div>
+					</li>
+						
+				{% endif %}
 
-		{% endif %}
-		</ul>
-	</div>
+				{% if calcs|length > 0 %}
+					<li>
+		      			<div class="collapsible-header"> Calculators <span class="new badge" data-badge-caption="calculators">{{calcs|length}}</span></div>
+		      			<div class="collapsible-body">
+		      				<ul class="">
+								{% for c in calcs %}
+									<li>
+										<form class="inline-form" action=# method="get">
+											{% csrf_token %}
+											<a target="_blank" href="https://{{c.url}}" class=""> {{c.title}}</a> <br>
+											{{c.desc}}
+										</form>
+									</li>
+								{% endfor %}
+							</ul>
+
+						</div>
+					</li>
+		
+				{% endif %}
+			
+
+			
+			</ul>
+		</div>
+	{% endif %}
 <!-- 			{% for k1,v1 in at_a_glance.related.items %}
 
 				{% for k2,v2 in v1.items %} -->
@@ -395,6 +404,8 @@
 			<!-- {% endfor %} -->
 		<!-- </div> -->
 
-	
+	<br>
+	<br>
+	<br>
 	{% include 'search/sr_template.html' with sr_payload=sr_payload %}
-</div>
+</div></div></div>

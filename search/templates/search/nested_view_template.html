@@ -1,12 +1,11 @@
 {% for key,item in node.items %}
-<li> 
-	<form class="inline-form" action=# method="get"> 
+<li style="list-style-type:circle"> 
+	<form action=# method="get"> 
 		{% csrf_token %}
 		<input type="hidden" name="pivot_cid" value="{{key}}">
 		<input type="hidden" name="term1" value="{{concepts.0.term}}">
 		<input type="hidden" name="term2" value="{{item.name}}">
 		<input type="hidden" name="query_type" value="pivot">
-		<input type="hidden" name="pivot_type" value="{{pivot_type}}">
 		<input type="hidden" id="start_year" name="start_year" value={{start_year}}>
 		<input type="hidden" id="end_year" name="end_year" value={{end_year}}>
 		<input type="hidden" name="query" value="{{query}}">
@@ -18,10 +17,11 @@
 			<input type="hidden" name="journals[]" value="{{j}}">
 		{% endfor %}
 
-		<input type="submit" value="{{item.name}} ({{item.count}} papers)" class="btn btn-link btn-sm">
-		<input type="submit" name="-" value="-" class="btn btn-link btn-sm">
-		<input type="submit" name="+" value="+" class="btn btn-link btn-sm">
-		<input type="submit" name="na" value="na" class="btn btn-link btn-sm">
+			<input type="submit" value="{{item.name}} ({{item.count}} papers)" class="waves-effect waves-teal btn-flat">
+			<input type="submit" name="-" value="-" class="btn-small">
+			<input type="submit" name="+" value="+" class="btn-small">
+			<input type="submit" name="na" value="na" class="btn-small">
+
 	</form>
 	{% if item.children|length > 0 %}
 		<ul>

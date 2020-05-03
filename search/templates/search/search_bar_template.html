@@ -1,58 +1,81 @@
 {% load app_filters %}
 {% load staticfiles  %}
 
-<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script>
+
+
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script> -->
+
+
+<!-- <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" /> -->
 <script src="{% static "js/search-bar.js" %}"></script>
 
 
-<div class="search-bar">
-	
-	<form action="{{ action }}" method="get"> 
+<div class="container">
+	<form action="/post_search_text/" method="POST" id="post_search_text"> 
 		{% csrf_token %}
 
-		<div class="form-row">
-			<div class="form-group col-md-2">
+		<div class="row">
+			<div class="col s2">
 			</div>
-			<div class="form-group col-md-8">
-				<label class="sr-only">search field</label>
-				<input type="text" name="query" class="search-field form-control" value="{{query}}">
+			<div class="input-field col s8">
+				<input type="text" name="query" class="search-box browser-default" value="{{query}}" id="search_box">
 			</div>
-			<div class="form-group col-md-2">
+			<div class="input-field col s2">
 				<input type="hidden" name="query_type" value="keyword">
-				<input type="submit" value="search" class="btn btn-primary">
+				<button type="submit" value="search" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+			
+		</div>
+		<div class="row filter-item">
+			<div class="col s2"></div>
+			<div class="col s8 left-align">
+				<!-- <div class="filter-button"> -->
+					<btn id="expand_filters">Filters<div class="col s2"></div><i class="tiny material-icons chevron">chevron_right</i></btn>
+				<!-- </div> -->
 			</div>
 		</div>
-		<div class="form-row filters">
-			<div class="form-group col-md-6">
-      			<label for="journal_filter">Journals</label>
-      			<select class="form-control js-example-basic-multiple" name="journals[]" multiple="multiple" id="journal_filter">  			
-			  			<option value="Am Fam Physician" {% if 'Am Fam Physician' in journals %} selected="selected" {% endif %}>Am Fam Physician</option>
-			  			<option value="Am. J. Hypertens." {% if 'Am. J. Hypertens.' in journals %} selected="selected" {% endif %} >Am. J. Hypertens.</option>
-			  			<option value="Ann. Intern. Med" {% if 'Ann. Intern. Med' in journals %} selected="selected" {% endif %}>Ann. Intern. Med</option>
-			  			<option value="BMJ" {% if 'BMJ' in journals %} selected="selected" {% endif %}>BMJ</option>
-			  			<option value="Circulation" {% if 'Circulation' in journals %} selected="selected" {% endif %}>Circulation</option>
-			  			<option value="Circ Heart Fail" {% if 'Circ Heart Fail' in journals %} selected="selected" {% endif %}>Circ Heart Fail</option>
-			  			<option value="Cochrane Database Syst Rev" {% if 'Cochrane Database Syst Rev' in journals %} selected="selected" {% endif %}>Cochrane Database Syst Rev</option>
-			  			<option value="Cochrane Libr" {% if 'Cochrane Libr' in journals %} selected="selected" {% endif %}>Cochrane Libr</option>
-			  			<option value="Hypertension" {% if 'Hypertension' in journals %} selected="selected" {% endif %}>Hypertension</option>
-			  			<option value="JAMA" {% if 'JAMA' in journals %} selected="selected" {% endif %}>JAMA</option>
-			  			<option value="Lancet" {% if 'Lancet' in journals %} selected="selected" {% endif %}>Lancet</option>
-			  			<option value="Lung" {% if 'Lung' in journals %} selected="selected" {% endif %}>Lung</option>
-			  			<option value="N. Engl. J. Med." {% if 'N. Engl. J. Med.' in journals %} selected="selected" {% endif %}>N. Engl. J. Med.</option>
-				</select>
-    		</div>
-    		<div class="col-md-2"></div>
-    		<div class="form-group col-md-2">
-      			<label for="start_year">Start year</label>
-      			<input type="number" class="form-control" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
-    		</div>
-    		<div class="form-group col-md-2">
-    			<label for="end_year">End year</label>
-    			<input type="number" class="form-control" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
-    		</div>
+		<div class="filters" id="filters">
+			<div class="row filter-item">
+				<div class="col s2"></div>
+				<div class="col s8">
+					<div class="chips chips-autocomplete input-field inline"></div>
+				</div>
+				<div class="col s2"></div>
+			</div>
+
+
+			<div class="row filter-item">
+				<div class="col s2"></div>
+	    		<div class="input-field col s2">
+	      			<input type="number" class="validate" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
+	      			<label for="start_year">Start year</label>
+	    		</div>
+	    		<div class="col s2"></div>
+
+	    		<div class="input-field col s2">
+	    			<input type="number" class="validate" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
+	    			<label for="end_year">End year</label>
+	    		</div>
+	    		
+			</div>
 		</div>
 	</form>
-
-	
+	<div class="row">
+		<div class="col s4"></div>
+		<div class="col s4 center-align">
+	<div class="preloader-wrapper big inactive" id="loader">
+    <div class="spinner-layer spinner-blue-only">
+      <div class="circle-clipper left">
+        <div class="circle"></div>
+      </div><div class="gap-patch">
+        <div class="circle"></div>
+      </div><div class="circle-clipper right">
+        <div class="circle"></div>
+      </div>
+    </div>
+  </div>
 </div>
+</div>
+</div>
+
+

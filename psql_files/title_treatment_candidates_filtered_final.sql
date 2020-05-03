@@ -3,7 +3,7 @@ drop table if exists title_treatment_candidates_filtered_final;
 
 create table title_treatment_candidates_filtered_final as (
 	select distinct on (condition_id, treatment_id, sentence) *
-	from annotation.title_treatment_candidates t1
+	from annotation.title_treatment_candidates_filtered t1
 
 );
 

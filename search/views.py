@@ -9,6 +9,7 @@ import pandas as pd
 import utilities.es_utilities as es_util
 import math
 from django.http import JsonResponse
+import json
 import numpy as np
 import ml2 as m
 from keras.models import load_model
@@ -690,6 +691,14 @@ def returnTroughTarget(request):
 
 ### ELASTIC SEARCH
 
+def getJournals(request):
+	conn,cursor = pg.return_postgres_cursor()
+	query = "select iso_abbrev from pubmed.journals"
+	journals = pg.return_df_from_query(cursor, query, (None,), ['journals'])
+	data = {"journals" : journals['journals'].tolist()}
+	
+	return JsonResponse(data)
+
 
 def elastic_search_home_page(request):
 	return render(request, 'search/elastic_home_page.html')
@@ -710,8 +719,47 @@ def elastic_search_results(request, query):
 
 ### CONCEPT SEARCH
 
+
 def concept_search_home_page(request):
-	return render(request, 'search/concept_search_home_page.html')
+	print('blah')
+	return render(request, 'search/concept_search_home_page.html', 
+			{'sr_payload' : None, 'query' : '', 'concepts' : None, 'primary_cids' : None,
+				'journals': None, 'start_year' : None, 'end_year' : None, 'at_a_glance' : {'related' : None}, \
+				'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
+				'calcs' : None}
+			)
+
+
+
+def get_query_filters(data):
+
+	filters = {}
+	try:
+		filters['journals'] = []
+		for item in data['journals']:
+			filters['journals'].append(item["tag"])
+	except:
+		filters['journals'] = []
+
+	try:
+		if data['start_year'] == '':
+			filters['start_year'] = None
+		else:
+			filters['start_year'] = data['start_year']
+		
+	except:
+		filters['start_year'] = None
+
+	try:
+		if data['end_year'] == '':
+			filters['end_year'] = None 
+		else:
+			filters['end_year'] = data['end_year']
+	except:
+		filters['end_year'] = None
+
+	return filters
+
 
 def post_concept_search(request):
 	params = {}
@@ -744,8 +792,7 @@ def post_concept_search(request):
 	return HttpResponseRedirect(reverse('search:concept_search_results', kwargs=params))
 
 ### query contains conceptids instead of text
-def conceptid_search_results(request, query, pivot_cids, pivot_type, journals, start_year, end_year):
-
+def conceptid_search_results(request, query, pivot_cids, journals, start_year, end_year):
 	query_concepts_df = pd.DataFrame(pivot_cids, columns=['conceptid'])
 
 	es = es_util.get_es_client()
@@ -759,15 +806,162 @@ def conceptid_search_results(request, query, pivot_cids, pivot_type, journals, s
 				 "size" : 500, \
 				 "query": get_query(full_query_concepts_list, None, journals, start_year, end_year, ["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
-	sr = es.search(index=INDEX_NAME, body=es_query)
+	sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 	sr_payload = get_sr_payload(sr['hits']['hits'])
 	return {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
 		'at_a_glance' : {'related' : None}}
 	
+def post_search_text(request):
+	data = json.loads(request.body)
 
+
+	
+	# if request.method =='POST':
+	# 	search_text = request.POST.get('query')
+	# 	print(search_text)
+	# 	return HttpResponse(
+	# 		json.dumps("response_data"),
+	# 		content_type="application/json"
+	# 		)
+	# else:
+	# 	return HttpResponse(
+	# 		json.dumps({"Nothing" : "nothing"}),
+	# 		content_type="application/json"
+	# 		)
+
+
+	if request.method == 'GET': 
+		return render(request, 'search/concept_search_home_page.html', 
+			{'sr_payload' : None, 'query' : '', 'concepts' : None, 'primary_cids' : None,
+				'journals': None, 'start_year' : None, 'end_year' : None, 'at_a_glance' : {'related' : None}, \
+				'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
+				'calcs' : None}
+			)
+	elif request.method == 'POST':
+		conn, cursor = pg.return_postgres_cursor()
+		es = es_util.get_es_client()
+
+		filters = get_query_filters(data)
+
+		if data['query_type'] == 'pivot':
+			primary_cids = data.getlist('primary_cids')
+			pivot_cid = data['pivot_cid']
+			primary_cids.append(pivot_cid)
+			term1 = data['term1']
+			term2 = data['term2']
+			query = term1 + " " + term2
+			params = filters
+			query_concepts_df = pd.DataFrame(pivot_cids, columns=['conceptid'])
+			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+
+			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+
+			es_query = {"from" : 0, \
+				 "size" : 500, \
+				 "query": get_query(full_query_concepts_list, None, filters['journals'], filters['start_year'], filters['end_year'], \
+				 	["title_conceptids^5", "abstract_conceptids.*"], cursor)}
+
+			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+
+			sr_payload = get_sr_payload(sr['hits']['hits'])
+			params.update({'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
+				'at_a_glance' : {'related' : None}})
+			cursor.close()
+			conn.close()
+			return render(request, 'search/search_bar_template.html.html', params)
+
+		elif data['query_type'] == 'keyword':
+			query = data['query']
+			query = ann.clean_text(query)
+			if query.upper() != query:
+				query = query.lower()
+
+			j = u.Timer("get initial concepts")
+			raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
+			query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
+			
+			if len(query_concepts_df.index) == 1:
+				u.pprint(query_concepts_df)
+				print("DIRECT MATCH")
+
+			if (len(query_concepts_df.index) != 0):
+				query_concepts_df['term_start_index'] = 0
+				query_concepts_df['term_end_index'] = len(query.split(' '))-1
+
+			elif (len(query_concepts_df.index) == 0):
+				all_words = ann.get_all_words_list(query)
+				cache = ann.get_cache(all_words, True, cursor)
+				query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
+			j.stop()
+
+			sr = dict()
+			related_dict = dict()
+			query_concepts_dict = dict()
+			primary_cids = None
+			related_dict = {}
+			treatment_dict = {}
+			condition_dict = {}
+			diagnostic_dict = {}
+			cause_dict = {}
+			
+			if not query_concepts_df.empty:
+				unmatched_terms = get_unmatched_terms(query, query_concepts_df)
+
+				full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+
+				flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
+
+				query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
+				symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
+
+				condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
+				query_concept_count = len(query_concepts_df.index)
+
+				query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+
+				c = u.Timer("primary_search")
+				es_query = {"from" : 0, \
+						 "size" : 300, \
+						 "query": get_query(full_query_concepts_list, unmatched_terms, \
+						 	filters['journals'], filters['start_year'], filters['end_year']\
+						 	,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
+
+				sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+				c.stop()
+
+				e = u.Timer("related_concepts")
+				related_dict, treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
+					symptom_count, unmatched_terms, filters['journals'], filters['start_year'], filters['end_year'], cursor, 'condition')
+				e.stop()
+				primary_cids = query_concepts_df['conceptid'].tolist()
+
+			###UPDATE QUERY BELOW FOR FILTERS
+			else:
+				es_query = get_text_query(query)
+				sr = es.search(index=INDEX_NAME, body=es_query)
+
+			sr_payload = get_sr_payload(sr['hits']['hits'])
+
+			calcs_json = get_calcs(query_concepts_df, cursor)
+			cursor.close()
+			conn.close()
+			html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
+				'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], 'at_a_glance' : {'related' : related_dict}, \
+				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+				'calcs' : calcs_json})
+			print(html)
+			return html
+			# print(html_rendered)
+			# return JsonResponse({'html' : html_rendered})
+			# return render(request, 'search/concept_search_results_page.html', \
+			# 	{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
+			# 	'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], 'at_a_glance' : {'related' : related_dict}, \
+			# 	'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+			# 	'calcs' : calcs_json})
 
 def concept_search_results(request):
+
 	conn, cursor = pg.return_postgres_cursor()
 	if request.method == "POST":
 		if "concept_type_override" in request.POST:
@@ -808,7 +1002,6 @@ def concept_search_results(request):
 	if request.GET['query_type'] == 'pivot' and '+' not in request.GET and '-' not in request.GET and 'na' not in request.GET:
 		primary_cids = request.GET.getlist('primary_cids[]')
 		pivot_cid = request.GET['pivot_cid']
-		pivot_type = request.GET['pivot_type']
 		primary_cids.append(pivot_cid)
 		term1 = request.GET['term1']
 		term2 = request.GET['term2']
@@ -834,7 +1027,7 @@ def concept_search_results(request):
 		except:
 			params['end_year'] = None
 	
-		res = conceptid_search_results(request, query, primary_cids, pivot_type, params['journals'], params['start_year'], params['end_year'])
+		res = conceptid_search_results(request, query, primary_cids, params['journals'], params['start_year'], params['end_year'])
 		params.update(res)
 
 		return render(request, 'search/concept_search_results_page.html', params)
@@ -864,9 +1057,14 @@ def concept_search_results(request):
 		query = ann.clean_text(query)
 		if query.upper() != query:
 			query = query.lower()
+
+		j = u.Timer("get initial concepts")
 		raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
 		
+		if len(query_concepts_df.index) == 1:
+			u.pprint(query_concepts_df)
+			print("DIRECT MATCH")
 
 		if (len(query_concepts_df.index) != 0):
 			query_concepts_df['term_start_index'] = 0
@@ -874,9 +1072,10 @@ def concept_search_results(request):
 
 		elif (len(query_concepts_df.index) == 0):
 			all_words = ann.get_all_words_list(query)
-			cache = ann.get_cache(all_words, False, cursor)
+			cache = ann.get_cache(all_words, True, cursor)
 			query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
-		
+		j.stop()
+
 		sr = dict()
 		related_dict = dict()
 		query_concepts_dict = dict()
@@ -886,9 +1085,9 @@ def concept_search_results(request):
 		condition_dict = {}
 		diagnostic_dict = {}
 		cause_dict = {}
-		print(get_unmatched_terms(query, query_concepts_df))
+		
 		if not query_concepts_df.empty:
-			print(query_concepts_df)
+			
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 
 			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
@@ -902,15 +1101,19 @@ def concept_search_results(request):
 			query_concept_count = len(query_concepts_df.index)
 
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+
+			c = u.Timer("primary_search")
 			es_query = {"from" : 0, \
 					 "size" : 300, \
 					 "query": get_query(full_query_concepts_list, unmatched_terms, journals, start_year, end_year,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+			c.stop()
 
+			e = u.Timer("related_concepts")
 			related_dict, treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
 				symptom_count, unmatched_terms, journals, start_year, end_year, cursor, 'condition')
-
+			e.stop()
 			primary_cids = query_concepts_df['conceptid'].tolist()
 
 		###UPDATE QUERY BELOW FOR FILTERS
@@ -921,19 +1124,33 @@ def concept_search_results(request):
 
 		sr_payload = get_sr_payload(sr['hits']['hits'])
 
-
+		calcs_json = get_calcs(query_concepts_df, cursor)
+		cursor.close()
+		conn.close()
 		return render(request, 'search/concept_search_results_page.html', \
 			{'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, 'primary_cids' : primary_cids,
 			'journals': journals, 'start_year' : start_year, 'end_year' : end_year, 'at_a_glance' : {'related' : related_dict}, \
-			'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict})
+			'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+			'calcs' : calcs_json})
+
+def get_calcs(query_concepts_df, cursor):
+	concepts = query_concepts_df['conceptid'].tolist()
+
+	query = "select distinct on (title, t1.desc, url) title, t1.desc, url from annotation.mdc_staging t1 where conceptid in %s"
+	calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
+
+	calc_json = []
+	for ind,item in calcs.iterrows():
+		calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
+
+	return calc_json
 
 def rollups(cids_df, cursor):
 
 	params = (tuple(cids_df['conceptid']), tuple(cids_df['conceptid']))
-	s = u.Timer('rollup query')
+
 	query = "select subtypeid, supertypeid from snomed.curr_transitive_closure_f where subtypeid in %s and supertypeid in %s"
 	parents_df = pg.return_df_from_query(cursor, query, params, ["subtypeid", "supertypeid"])
-	s.stop()
 
 	parents_df['parent_count'] = 1
 	parent_count_df = parents_df.groupby(['subtypeid'], as_index=False)['parent_count'].sum()
@@ -1306,10 +1523,6 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		# return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
 def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, journals, start_year, end_year, cursor, query_type):
-	print("test")
-	print(query_concept_list)
-	print(type(query_concept_list))
-	print("end")
 	result_dict = dict()
 	es = es_util.get_es_client()
 	root_concept_name = ""
@@ -1330,10 +1543,6 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			root_concept_name = u.get_conceptid_name(query_concept_list[0], cursor)
 			root_cid = query_concept_list[0]
 
-
-	# es_query = {"from" : 0, \
-	# 				 "size" : 100, \
-	# 				 "query": get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)}
 	es_query = get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)
 
 
@@ -1363,7 +1572,7 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 			# agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
 			agg_tx['count'] = 1
 			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
-			# agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
+			agg_tx = de_dupe_synonyms_2(agg_tx, cursor)
 			agg_tx = ann.add_names(agg_tx)
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
 
@@ -1397,7 +1606,6 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, j
 	agg_condition = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'condition')
 	# agg_condition = []
 	if len(agg_condition) > 0:
-		u.pprint(agg_condition)
 		agg_condition = agg_condition.drop_duplicates(subset=['conceptid', 'pmid'])
 		agg_condition['count'] = 1
 		agg_condition = agg_condition.groupby(['conceptid'],  as_index=False)['count'].sum()
@@ -1432,6 +1640,7 @@ def de_dupe_synonyms(df, cursor):
 	return df 		
 
 def de_dupe_synonyms_2(df, cursor):
+
 	if len(df) > 0:
 
 		synonym_query = """
@@ -1454,7 +1663,6 @@ def de_dupe_synonyms_2(df, cursor):
 		) t4
 		"""
 		synonyms = pg.return_df_from_query(cursor, synonym_query, (tuple(df['conceptid'].tolist()),), ['reference_conceptid', 'synonym_conceptid'])
-
 
 		# synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
 		results_df = pd.DataFrame()		
