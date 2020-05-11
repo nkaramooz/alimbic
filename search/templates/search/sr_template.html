@@ -1,32 +1,35 @@
-
+{% load app_filters %}
+{% load staticfiles  %}
+<script src="{% static "js/search-results.js" %}"></script>
 
 {% for a in sr_payload %}
 		<div class="abstract">
 			<div class="abstract-body">
-				<div class="row fixed-height">
-					<div class="col-sm-10"> <h2>{{a.article_title}} </h2> </div>
+				<div class="row">
+					<div class="col s10"> <h3>{{a.article_title}} </h3> </div>
 					{% if a.abstract_hide != None or a.abstract_show.1|length > 470 %}
-						<div class="col-sm-2 expand-btn"><button id="expando" class="btn btn-light">Expand</button></div>
+						<div class="col s2 expand-btn"><button id="expando" class="btn btn-light">Expand</button></div>
 					{% else %}
-						<div class="col-md-2 col-md-offset-2"> </div>
+						<div class="col s2"> </div>
 					{% endif %}
 				</div>
 
 				<div class="abstract-metadata">
-					<div class="row fixed-height">
-						<div class="col-sm-2">
+					<div class="row">
+						<div class="col s2">
 							<div class="pub-year">
 								<h5>{{a.journal_pub_year}}</h5>
 							</div>
 						</div>
-						<div class="col-sm-2">
+						<div class="col s2" style="text-align: center;">
 							<h5><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">pubmed</a></h5>
 						</div>
+						<div class="col s2"></div>
 						
-						<div class="col-sm-2">
+						<div class="col s2" style="text-align: center;">
 							<h5><a target="_blank" href="http://localhost:9200/pubmedx1.5/abstract/{{a.id}}?pretty"> source </a> </h5>
 						</div>
-						<div class="col-sm-6">
+						<div class="col s4">
 							<div class="journal-title">
 								<h5> {{a.journal_title}} </h5>
 							</div>
@@ -36,20 +39,20 @@
 				{% if a.abstract_show is not None %}
 					<div class="preview-ellipsis">
 						{% if a.abstract_show.0 == 'unlabelled' %}
-							<h4>abstract</h4>
+							<h5>abstract</h5>
 						{% else %}
-							<h4>{{a.abstract_show.0}}</h4>
+							<h5>{{a.abstract_show.0}}</h5>
 						{% endif %}
-						<h4>{{a.abstract_show.1}}</h4><br>
+						<h5>{{a.abstract_show.1}}</h5><br>
 					</div>
 				{% endif %}
 				{% if a.abstract_hide is not None %}
 					<div class="expanded">
 						{% for item in a.abstract_hide %}
 							{% if item.0 != "text" %}
-								<h4>{{item.0}}</h4>
+								<h5>{{item.0}}</h5>
 							{% endif %}
-							<h4>{{item.1}}</h4> <br>
+							<h5>{{item.1}}</h5> <br>
 						{% endfor %}
 					</div>
 				{% endif %}

@@ -151,11 +151,11 @@ def train_data_generator(batch_size, cursor):
 		curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from annotation.training_sentences", \
 			None, ['ver'])['ver'][0])
 
-		query = "select id, x_train_gen, x_train_spec, label from annotation.training_sentences where ver_gen=%s order by random() limit %s"
-		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'label'])
+		query = "select id, x_train_gen, label from annotation.training_sentences where ver_gen=%s order by random() limit %s"
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'label'])
 
 		x_train_gen = train_df['x_train_gen'].tolist()
-		x_train_spec = train_df['x_train_spec'].tolist()
+		# x_train_spec = train_df['x_train_spec'].tolist()
 		y_train = train_df['label'].tolist()
 		id_df = train_df['id'].tolist()
 
@@ -171,8 +171,9 @@ def train_data_generator(batch_size, cursor):
 			cursor.execute(query, (new_version, tuple(id_df)))
 			cursor.connection.commit()
 		
-			yield [np.asarray(x_train_gen), np.asarray(x_train_spec)], np.asarray(y_train)
-			# yield np.asarray(x_train_spec), np.asarray(y_train)
+			# yield [np.asarray(x_train_gen), np.asarray(x_train_spec)], np.asarray(y_train)
+			
+			yield (np.asarray(x_train_gen), np.asarray(y_train))
 		except:
 			print("update version failed. Rolling back")
 			cursor.connection.rollback()
@@ -207,7 +208,7 @@ def train_with_word2vec():
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor),
-	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884713//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((3165664//batch_size)+1),
 	 callbacks=[checkpointer])
 
 	report.close()
@@ -215,40 +216,65 @@ def train_with_word2vec():
 def train_with_word2vec_v2():
 	conn,cursor = pg.return_postgres_cursor()
 	# report = open('ml_report.txt', 'w')
-	embedding_size=200
-	batch_size = 128
+	embedding_size=100
+	batch_size = 500
 	num_epochs = 10
 
+	model=Sequential()
+	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
+	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	# model.add(LSTM(500, return_sequences=True))
+	# model.add(LSTM(400, return_sequences=True))
+	model.add(Dropout(0.3))
+	model.add(TimeDistributed(Dense(500)))
+	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	model.add(Flatten())
+	model.add(Dense(1, activation='sigmoid'))
 
-	inp1 = Input(shape=(max_words,))
-	first_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True, mask_zero=True)(inp1)
-	first_model = LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size))(first_model)
-	first_model = TimeDistributed(Dense(100))(first_model)
-	first_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(first_model)
-	first_model = Dropout(0.3)(first_model)
-	first_model = Dense(100, activation='relu')(first_model)
+
+	# inp1 = Input(shape=(max_words,))
+	# first_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp1)
+	# first_model = Bidirectional(LSTM(128, dropout=0.7, recurrent_dropout=0.7, return_sequences=True, input_shape=(embedding_size, batch_size)))(first_model)
+	# first_model = TimeDistributed(Dense(50))(first_model)
+	# first_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(first_model)
+	# first_model = Dropout(0.3)(first_model)
+	# first_model = Dense(50, activation='relu')(first_model)
+	# first_model = Dropout(0.3)(first_model)
+	# first_model = Dense(10, activation='relu')(first_model)
+	# first_model = Flatten()(first_model)
 	# first_model = Dense(1, activation='sigmoid')(first_model)
+	# first_model = Model(inputs=[inp1], outputs=first_model)
 
 
-	inp2 = Input(shape=(max_words,))
-	second_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True, mask_zero=True)(inp2)
-	second_model = LSTM(100, return_sequences=True, input_shape=(embedding_size, batch_size))(second_model)
-	second_model = TimeDistributed(Dense(100))(second_model)
-	second_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(second_model)
-	second_model = Dropout(0.3)(second_model)
-	second_model = Dense(100, activation='relu')(second_model)
-	# second_model = Dense(1, activation='sigmoid')(second_model)
+	# inp1 = Input(shape=(max_words,))
+	# first_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp1)
+	# first_model = LSTM(50, return_sequences=True, input_shape=(embedding_size, batch_size))(first_model)
+
+	# first_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(first_model)
+	# first_model = Dropout(0.3)(first_model)
+	# first_model = Dense(25, activation='relu')(first_model)
 
 
-	c = Concatenate()(inputs=[first_model, second_model])
+
+	# inp2 = Input(shape=(max_words,))
+	# second_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp2)
+	# second_model = LSTM(50, return_sequences=True, input_shape=(embedding_size, batch_size))(second_model)
+
+	# second_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(second_model)
+	# second_model = Dropout(0.3)(second_model)
+	# second_model = Dense(25, activation='relu')(second_model)
+
+
+
+	# c = Concatenate()(inputs=[first_model, second_model])
 	# out = Embedding(vocabulary_size, embedding_size, trainable=True)(c)
 	# out = Bidirectional(LSTM(100))(c)
-	out = Dense(100, activation='relu')(c)
-	out = Dropout(0.3)(out)
-	out = Dense(20, activation='relu')(out)
-	out = Flatten()(out)
-	out = Dense(1, activation='sigmoid')(out)
-	model = Model(inputs=[inp1, inp2], outputs=out)
+	# out = Dense(25, activation='relu')(c)
+	# out = Dropout(0.3)(out)
+	# out = Dense(10, activation='relu')(out)
+	# out = Flatten()(out)
+	# out = Dense(1, activation='sigmoid')(out)
+	# model = Model(inputs=[inp1, inp2], outputs=out)
 
 	print(model.summary())
 	# model.summary(print_fn=lambda x: report.write(x + '\n'))
@@ -260,8 +286,9 @@ def train_with_word2vec_v2():
 
 	checkpointer = ModelCheckpoint(filepath='./double-{epoch:02d}.hdf5', verbose=1)
 
+	# try decreasing class weigth to 20
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:66}, steps_per_epoch =((2509455//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:20}, steps_per_epoch =((3620302//batch_size)+1),
 	  callbacks=[checkpointer])
 
 
@@ -920,7 +947,7 @@ def print_contingency(model_name):
 
 	# should be OK to load 10k into memory
 
-	testing_query = "select sentence, condition_id, treatment_id, x_train_gen, x_train_spec, label from annotation.test_sentences_v2"
+	testing_query = "select sentence, condition_id, treatment_id, x_train_gen, x_train_spec, label from annotation.test_sentences_v2 limit 200"
 	sentences_df = pg.return_df_from_query(cursor, testing_query, None, \
 		['sentence', 'condition_id', 'treatment_id', 'x_train_gen', 'x_train_spec', 'label'])
 
@@ -932,14 +959,16 @@ def print_contingency(model_name):
 
 	for ind,item in sentences_df.iterrows():
 		x_train_gen = np.array([item['x_train_gen']])
-		x_train_spec = np.array([item['x_train_spec']])
-		res = float(model.predict([x_train_gen, x_train_spec])[0][0])
+		# x_train_spec = np.array([item['x_train_spec']])
+		# res = float(model.predict([x_train_gen, x_train_spec])[0][0])
+		res = float(model.predict([x_train_gen])[0][0])
 
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
 		elif((item['label'] == 1) and (res < 0.50)):
 			one_zero += 1
 			print("label one, model zero")
+			print(res)
 			print(item['sentence'])
 			print(item['condition_id'])
 			print(item['treatment_id'])
@@ -949,6 +978,7 @@ def print_contingency(model_name):
 		elif ((item['label'] == 0) and (res >= 0.50)):
 			zero_one += 1
 			print("label zero, model one")
+			print(res)
 			print(item['sentence'])
 			print(item['condition_id'])
 			print(item['treatment_id'])
@@ -994,10 +1024,12 @@ if __name__ == "__main__":
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
 	# parallel_treatment_recategorization_top('double-01.hdf5')
-	gen_datasets_top('gen')
+	# gen_datasets_top('gen')
 	# update_word2vec('model.3.hdf5')
-	# train_with_word2vec_v2()
-	# build_w2v_embedding()
+
+
+	train_with_word2vec_v2()
+	
 
 	# load_word_counts()
 	# input_sentence = input("Enter sentence: ")
@@ -1031,5 +1063,5 @@ if __name__ == "__main__":
 
 	# print_contingency('m01.16.20-08.hdf5')
 	# print_contingency('double-10.hdf5')
-	# print_contingency('double-01.hdf5')			
-	
+	# print_contingency('double-02.hdf5')			
+

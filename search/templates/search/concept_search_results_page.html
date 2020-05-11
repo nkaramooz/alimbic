@@ -1,6 +1,8 @@
 {% load app_filters %}
 {% load staticfiles  %}
+
 <script src="{% static "js/collapsible.js" %}"></script>
+<script src="{% static "js/pivot.js" %}"></script>
 
 <div class="container">
 	<div class="row">
@@ -12,6 +14,11 @@
 				<i> {{concept.conceptid}} : {{concept.term}} </i>
 			{% endfor %} 
 		</h5>
+
+		{% for i in query_annotation %}
+			<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
+		{% endfor %}
+		<input type="hidden" name="unmatched_terms" id="unmatched_terms" value="{{unmatched_terms}}">
 	</div>
 
 
@@ -25,7 +32,7 @@
 					<li>
 						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption="topics">{{treatment|length}}</span></div>
 						<div class="collapsible-body">
-							<ul class="">
+							<ul class="default-browser">
 								{% for node in treatment %}
 									{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
 								{% endfor %}

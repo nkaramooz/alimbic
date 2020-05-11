@@ -5,7 +5,7 @@ var chip = {
 
 document.addEventListener('DOMContentLoaded', function() {
     var elems = document.querySelectorAll('.chips');
-    var instances = M.Chips.init(elems, options);
+    var instances = M.Chips.init(elems, {});
   });
 
 
@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 $(document).ready(function() {
     $('#expand_filters').click(function() {
-      console.log("test");
       var icon = this.querySelector('.chevron');
  
       if (icon.className.includes('rotate-down')) {
@@ -29,7 +28,6 @@ $(document).ready(function() {
     });
     $('#post_search_text').on('submit', function(event) {
       event.preventDefault();
-      console.log("form submitted");
       post_search_text();
     });
 
@@ -300,7 +298,10 @@ $(document).ready(function() {
     })
 });
 
+
+
 function post_search_text() {
+  $('#results').hide();
   $('#loader').removeClass("inactive");
   $('#loader').addClass("active");
   var chipInstance = M.Chips.getInstance($(".chips"));
@@ -309,9 +310,10 @@ function post_search_text() {
          start_year : $('#start_year').val(),
         end_year : $('#end_year').val(),
         journals : chipInstance.chipsData,
-        query_type : "keyword"
+        query_type : "keyword",
+        query_annotation : $('#query_annotation').val(),
+        unmatched_terms : $('#unmatched_terms').val(),
   }
-  console.log(data);
 
   $.ajax({
     url : "post_search_text/",
@@ -323,6 +325,7 @@ function post_search_text() {
       $('#loader').removeClass("active");
       $('#loader').addClass("inactive");
       $("#results").html(json);
+      $('#results').show();
     },
 
     error : function(xhr, errmsf, err) {

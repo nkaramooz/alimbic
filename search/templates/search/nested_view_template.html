@@ -1,27 +1,28 @@
 {% for key,item in node.items %}
-<li style="list-style-type:circle"> 
-	<form action=# method="get"> 
+<li style="list-style-type:circle !important"> 
+	<form action=# method="POST" class="pivot-form"> 
 		{% csrf_token %}
-		<input type="hidden" name="pivot_cid" value="{{key}}">
-		<input type="hidden" name="term1" value="{{concepts.0.term}}">
-		<input type="hidden" name="term2" value="{{item.name}}">
-		<input type="hidden" name="query_type" value="pivot">
-		<input type="hidden" id="start_year" name="start_year" value={{start_year}}>
-		<input type="hidden" id="end_year" name="end_year" value={{end_year}}>
-		<input type="hidden" name="query" value="{{query}}">
-	
-		{% for c in primary_cids %}
-			<input type="hidden" name="primary_cids[]" value="{{c}}">
-		{% endfor %}
-		{% for j in journals %}
-			<input type="hidden" name="journals[]" value="{{j}}">
-		{% endfor %}
+		<ul>
 
-			<input type="submit" value="{{item.name}} ({{item.count}} papers)" class="waves-effect waves-teal btn-flat">
-			<input type="submit" name="-" value="-" class="btn-small">
-			<input type="submit" name="+" value="+" class="btn-small">
-			<input type="submit" name="na" value="na" class="btn-small">
-
+			<div class="row valign-wrapper">
+				<div class="col s8 pivot-item">
+					<button type="submit" class="pivot-button" id="{{key}}"> {{item.name}} ({{item.count}} papers)</button>
+					<input type="hidden" id="pivot_cid" value="{{key}}">
+					<input type="hidden" id="pivot_term" value="{{item.name}}">
+					
+				</div>
+				<div class="col s1"></div>
+				<div class="col s1">
+					<a href="#"> - </a>
+				</div>
+				<div class="col s1">
+					<a href="#"> + </a>
+				</div>
+				<div class="col s1">
+					<a href="#"> n/a </a>
+				</div>
+			</div>
+		</ul>
 	</form>
 	{% if item.children|length > 0 %}
 		<ul>

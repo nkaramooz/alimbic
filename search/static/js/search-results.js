@@ -1,7 +1,7 @@
 $(document).ready(function() {
 
 	$('.expand-btn').on('click', function() {
-
+		console.log("clicked");
 		var prev = $(this).parent().parent().find(".preview-ellipsis")
 
 		if (prev.length > 0) {

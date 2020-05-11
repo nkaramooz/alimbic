@@ -2,11 +2,6 @@
 {% load staticfiles  %}
 
 
-
-<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/js/select2.min.js"></script> -->
-
-
-<!-- <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.6-rc.0/css/select2.min.css" rel="stylesheet" /> -->
 <script src="{% static "js/search-bar.js" %}"></script>
 
 
@@ -14,48 +9,42 @@
 	<form action="/post_search_text/" method="POST" id="post_search_text"> 
 		{% csrf_token %}
 
-		<div class="row">
+		<div class="row form-row">
 			<div class="col s2">
 			</div>
 			<div class="input-field col s8">
 				<input type="text" name="query" class="search-box browser-default" value="{{query}}" id="search_box">
 			</div>
 			<div class="input-field col s2">
-				<input type="hidden" name="query_type" value="keyword">
-				<button type="submit" value="search" class="waves-effect waves-light btn search-btn">Submit</button>
+				<button type="submit" value="search" class="waves-effect waves-light btn search-btn">Search</button>
 			</div>
 			
 		</div>
 		<div class="row filter-item">
 			<div class="col s2"></div>
-			<div class="col s8 left-align">
+			<div class="col s8 right-align">
 				<!-- <div class="filter-button"> -->
-					<btn id="expand_filters">Filters<div class="col s2"></div><i class="tiny material-icons chevron">chevron_right</i></btn>
+					<btn id="expand_filters" class="right-align">Filters<div class="col s2"></div><i class="tiny material-icons chevron">chevron_right</i></btn>
 				<!-- </div> -->
 			</div>
 		</div>
 		<div class="filters" id="filters">
 			<div class="row filter-item">
 				<div class="col s2"></div>
-				<div class="col s8">
+				<div class="col s6">
 					<div class="chips chips-autocomplete input-field inline"></div>
 				</div>
-				<div class="col s2"></div>
-			</div>
-
-
-			<div class="row filter-item">
-				<div class="col s2"></div>
-	    		<div class="input-field col s2">
+				
+	    		<div class="input-field col s1">
 	      			<input type="number" class="validate" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
 	      			<label for="start_year">Start year</label>
 	    		</div>
-	    		<div class="col s2"></div>
 
-	    		<div class="input-field col s2">
+	    		<div class="input-field col s1">
 	    			<input type="number" class="validate" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
 	    			<label for="end_year">End year</label>
 	    		</div>
+	    		<div class="col s2"></div>
 	    		
 			</div>
 		</div>
