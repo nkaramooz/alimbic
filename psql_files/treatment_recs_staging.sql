@@ -5,12 +5,12 @@ create table treatment_recs_staging as (
 
 	select condition_id, treatment_id, avg(score) as score
 	from (
-		select condition_id, treatment_id, avg(score) as score
+		select condition_id, treatment_id, avg(score) as score, count(*) as cnt
 		from annotation.raw_treatment_recs_staging_5
-		group by condition_id, treatment_id, pmid
+		group by condition_id, treatment_id
 	) tb1
 	group by condition_id, treatment_id
-	having avg(score) >= 0.50
+	having avg(score) >= 0.50 and sum(cnt) > 1
 );
 
 create index tx_recs_staging_cid on treatment_recs_staging(condition_id);

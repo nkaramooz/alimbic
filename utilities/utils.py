@@ -29,6 +29,50 @@ def write_sentences(s_df, cursor):
 	s_df.to_sql('sentences5', \
 		engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
+def de_dupe_synonyms(df, cursor):
+	if len(df) > 0:
+		synonym_query = """
+			select 
+			distinct reference_conceptid, synonym_conceptid
+			from (
+				select
+				t3.reference_conceptid
+				,case when t3.reference_rank < t3.synonym_rank then t3.reference_conceptid
+				when t3.reference_rank >= t3.synonym_rank then t3.synonym_conceptid 
+				end as synonym_conceptid
+			from (
+				select t1.reference_conceptid, t1.reference_term, min(t1.synonym_rank) as mini
+				from annotation.concept_terms_synonyms t1
+				where t1.reference_conceptid in %s
+				group by t1.reference_conceptid, t1.reference_term
+			) t2
+			join annotation.concept_terms_synonyms t3
+			on t2.reference_conceptid = t3.reference_conceptid and t2.mini = t3.synonym_rank
+		) t4
+		"""
+		synonyms = pg.return_df_from_query(cursor, synonym_query, (tuple(df['conceptid'].tolist()),), ['reference_conceptid', 'synonym_conceptid'])
+
+		results_df = pd.DataFrame()		
+		for ind,t in df.iterrows():
+
+			synonym_cid = synonyms[synonyms['reference_conceptid'] == t['conceptid']]['synonym_conceptid'].values
+
+			if len(synonym_cid) > 0:
+				synonym_cid = synonym_cid[0]
+
+				# u.pprint(t['conceptid'])
+				if t['conceptid'] not in synonym_cid:
+					results_df = results_df.append(pd.DataFrame([[synonym_cid]], columns=['conceptid']))
+				else:
+					results_df = results_df.append(t)
+			else:
+				results_df = results_df.append(t)
+
+
+		return results_df 
+	else:
+		return None
+
 def get_conceptid_name(conceptid, cursor):
 	search_query = """
 		select 

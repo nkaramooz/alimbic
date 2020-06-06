@@ -10,14 +10,9 @@ create table title_treatment_candidates as (
 		tb1.id,
 		tb1.section
 	from annotation.sentences5 tb1
-	join (select tb2.id, tb2.conceptid 
-			from annotation.sentences5 tb2
-			where conceptid='37796009'
-			-- inner join annotation.concept_types tb3
-			-- on tb2.conceptid = tb3.root_cid and rel_type in ('condition', 'symptom', 'organism')
-	) tb3 
-	on tb1.id = tb3.id
-	and tb1.conceptid != tb3.conceptid
+	join annotation.cso tb3
+		on tb1.id = tb3.id
+		and tb1.conceptid != tb3.conceptid
 );
 
 create index title_condition_id on title_treatment_candidates(condition_id);

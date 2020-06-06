@@ -21,20 +21,38 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 	new_candidate_query = ""
 
 	if case_sensitive:
-		new_candidate_query = "select description_id, conceptid, term, word, word_ord, term_length, is_acronym \
-			from annotation.lemmas_3 where \
-			description_id in \
-			(select description_id from annotation.lemmas_3 where word in %s and \
-				(word_ord = 1))"
+		new_candidate_query = """
+			select 
+				description_id
+				,conceptid
+				,term
+				,tb1.word
+				,word_ord
+				,term_length
+				,is_acronym
+			from annotation.lemmas_3 tb1
+			join annotation.first_word tb2
+			  on tb1.description_id = ANY(tb2.did_agg)
+			where tb2.word in %s
+		"""
 	else:
 		for i,v in enumerate(word):
 			word[i] = word[i].lower()
 
-		new_candidate_query = "select description_id, conceptid, term, lower(word), word_ord, term_length, is_acronym \
-			from annotation.lemmas_3 t1 where \
-			description_id in \
-			(select description_id from annotation.lemmas_3 where lower(word) in %s and \
-				(word_ord = 1))"
+		new_candidate_query = """
+			select 
+				description_id
+				,conceptid
+				,term
+				,lower(tb1.word) as word
+				,word_ord
+				,term_length
+				,is_acronym
+			from annotation.lemmas_3 tb1
+			join annotation.first_word tb2
+			  on tb1.description_id = ANY(tb2.did_agg)
+			where lower(tb2.word) in %s
+		"""
 
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
@@ -710,7 +728,7 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query55
+		term = query50
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False, cursor)
