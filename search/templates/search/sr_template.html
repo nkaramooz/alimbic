@@ -3,61 +3,59 @@
 <script src="{% static "js/search-results.js" %}"></script>
 
 {% for a in sr_payload %}
-		<div class="abstract">
-			<div class="abstract-body">
-				<div class="row">
-					<div class="col s10"> <h3>{{a.article_title}} </h3> </div>
-					{% if a.abstract_hide != None or a.abstract_show.1|length > 470 %}
-						<div class="col s2 expand-btn"><button id="expando" class="btn btn-light">Expand</button></div>
-					{% else %}
-						<div class="col s2"> </div>
-					{% endif %}
-				</div>
+	<div class="row">
+		<div class="col s12">
+			<div class="card">
+				<div class="card-content">
+					<span class="card-title"><b>{{a.article_title}}</b></span>
 
-				<div class="abstract-metadata">
-					<div class="row">
+					<div class="row valign-wrapper">
 						<div class="col s2">
-							<div class="pub-year">
-								<h5>{{a.journal_pub_year}}</h5>
-							</div>
+							<h6 class="pub-year">{{a.journal_pub_year}}</h6>
 						</div>
 						<div class="col s2" style="text-align: center;">
-							<h5><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">pubmed</a></h5>
+							<h6><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">pubmed</a></h6>
 						</div>
 						<div class="col s2"></div>
 						
 						<div class="col s2" style="text-align: center;">
-							<h5><a target="_blank" href="http://localhost:9200/pubmedx1.5/abstract/{{a.id}}?pretty"> source </a> </h5>
+							<h6><a target="_blank" href="http://localhost:9200/pubmedx1.5/abstract/{{a.id}}?pretty"> source </a> </h6>
 						</div>
-						<div class="col s4">
-							<div class="journal-title">
-								<h5> {{a.journal_title}} </h5>
-							</div>
+						<div class="col s4 right-align">
+							<h6 class="journal-title"> {{a.journal_title}} </h6>
 						</div>
 					</div>
-				</div>
+			
 				{% if a.abstract_show is not None %}
-					<div class="preview-ellipsis">
+					<div class="preview-ellipsis" id="preview-ellipsis">
 						{% if a.abstract_show.0 == 'unlabelled' %}
 							<h5>abstract</h5>
 						{% else %}
-							<h5>{{a.abstract_show.0}}</h5>
+							<p>{{a.abstract_show.0}}</p>
 						{% endif %}
-						<h5>{{a.abstract_show.1}}</h5><br>
+						<p>{{a.abstract_show.1}}</p><br>
 					</div>
 				{% endif %}
 				{% if a.abstract_hide is not None %}
-					<div class="expanded">
+					<div class="expanded" id="expanded">
 						{% for item in a.abstract_hide %}
 							{% if item.0 != "text" %}
-								<h5>{{item.0}}</h5>
+								<p>{{item.0}}</p>
 							{% endif %}
-							<h5>{{item.1}}</h5> <br>
+							<p>{{item.1}}</p> <br>
 						{% endfor %}
 					</div>
 				{% endif %}
-			</div>
 			
+				<div class="row center-align expand_btn">
+					{% if a.abstract_hide != None or a.abstract_show.1|length > 470 %}
+						<a class="btn-floating btn-large waves-effect waves-light white exp_more" id="expando">
+							<i class="material-icons icon-blue" id="expand_icon">expand_more</i>
+						</a>					
+					{% endif %}
+				</div>
+				</div>
+			</div>
 		</div>
-		<hr>
-	{% endfor %}
+	</div>
+{% endfor %}

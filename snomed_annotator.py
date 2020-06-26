@@ -722,13 +722,14 @@ if __name__ == "__main__":
 	query53="Methotrexate can improve joint pain in rheumatoid arthritis" ## NEED TO FIX THIS. NOT ANNOTATING CORRECTLY
 	query54="coronavirus disease 2019"
 	query55="glycoside hydrolase (GH) family"
+	query56="Vitamin C sepsis"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query50
+		term = query56
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False, cursor)
