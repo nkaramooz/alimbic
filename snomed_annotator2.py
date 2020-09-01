@@ -22,16 +22,16 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 	if case_sensitive:
 		new_candidate_query = """
 			select 
-				description_id
-				,conceptid
+				adid
+				,acid
 				,term
 				,tb1.word
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation.lemmas_3 tb1
-			join annotation.first_word tb2
-			  on tb1.description_id = ANY(tb2.did_agg)
+			from annotation2.lemmas tb1
+			join annotation2.first_word tb2
+			  on tb1.adid = ANY(tb2.adid_agg)
 			where tb2.word in %s
 		"""
 	else:
@@ -40,29 +40,29 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 
 		new_candidate_query = """
 			select 
-				description_id
-				,conceptid
+				adid
+				,acid
 				,term
 				,lower(tb1.word) as word
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation.lemmas_3 tb1
-			join annotation.first_word tb2
-			  on tb1.description_id = ANY(tb2.did_agg)
+			from annotation2.lemmas tb1
+			join annotation2.first_word tb2
+			  on tb1.adid = ANY(tb2.adid_agg)
 			where lower(tb2.word) in %s
 		"""
 
 
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
-	 ["description_id", "conceptid", "term", "word", "word_ord", "term_length", "is_acronym"])
+	 ["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
 
 	# new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
 	return new_candidate_df
 
 def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
 
-	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'conceptid', 'is_acronym']
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
 
@@ -90,12 +90,11 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 		# if not active_match:
-
 		new_candidate_df = cache[cache.word == word]
 
 		if len(new_candidate_df.index) > 0:
-			new_candidate_ids = new_candidate_df[new_candidate_df.word_ord == 1]['description_id']
-			new_candidate_df = cache[cache.description_id.isin(new_candidate_ids)].copy()
+			new_candidate_ids = new_candidate_df[new_candidate_df.word_ord == 1]['adid']
+			new_candidate_df = cache[cache.adid.isin(new_candidate_ids)].copy()
 			new_candidate_df['l_dist'] = -1.0
 			new_candidate_df.loc[new_candidate_df.word == word, 'l_dist'] = 1
 
@@ -114,12 +113,12 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
 			results_df['description_start_index'] + 1)).abs()
 
-		order_score = order_score[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
-			['conceptid', 'description_id', 'description_start_index'], as_index=False)['order_score'].sum()
+		order_score = order_score[['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
+			['acid', 'adid', 'description_start_index'], as_index=False)['order_score'].sum()
 	
-		distinct_results = results_df[['conceptid', 'description_id', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
+		distinct_results = results_df[['acid', 'adid', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
 	
-		results_group = results_df.groupby(['conceptid', 'description_id', 'description_start_index'], as_index=False)
+		results_group = results_df.groupby(['acid', 'adid', 'description_start_index'], as_index=False)
 
 		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
 		sum_scores = sum_scores[sum_scores['sum_score'] >= (threshold/100.0)]
@@ -127,11 +126,11 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
 		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
 
-		joined_results = distinct_results.merge(sum_scores, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = distinct_results.merge(sum_scores, on=['acid', 'adid', 'description_start_index'])
 
-		joined_results = joined_results.merge(start_indexes, on=['conceptid', 'description_id', 'description_start_index'])
-		joined_results = joined_results.merge(end_indexes, on=['conceptid', 'description_id', 'description_start_index'])
-		joined_results = joined_results.merge(order_score, on=['conceptid', 'description_id', 'description_start_index'])
+		joined_results = joined_results.merge(start_indexes, on=['acid', 'adid', 'description_start_index'])
+		joined_results = joined_results.merge(end_indexes, on=['acid', 'adid', 'description_start_index'])
+		joined_results = joined_results.merge(order_score, on=['acid', 'adid', 'description_start_index'])
 		
 		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
 		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
@@ -140,7 +139,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 
 		final_results = prune_results_v2(joined_results, joined_results)
-		final_results['is_acronym'] = final_results.merge(results_df, on=['description_id'])['is_acronym']
+		final_results['is_acronym'] = final_results.merge(results_df, on=['adid'])['is_acronym']
 
 		if len(final_results.index) > 0:
 			final_results['line'] = line
@@ -154,11 +153,11 @@ def get_results(candidate_df_arr, end_index):
 	new_candidate_df_arr = []
 	results_df = pd.DataFrame()
 	for index,df in enumerate(candidate_df_arr):
-		exclusion_series = df[df['l_dist'] == -1.0]['description_id'].tolist()
-		new_results = df[~df['description_id'].isin(exclusion_series)].copy()
+		exclusion_series = df[df['l_dist'] == -1.0]['adid'].tolist()
+		new_results = df[~df['adid'].isin(exclusion_series)].copy()
 		new_results['description_end_index'] = end_index
 		
-		remaining_candidates = df[df['description_id'].isin(exclusion_series)]
+		remaining_candidates = df[df['adid'].isin(exclusion_series)]
 		if len(remaining_candidates.index) > 0:
 			new_candidate_df_arr.append(remaining_candidates)
 		results_df = results_df.append(new_results, sort=False)
@@ -169,11 +168,11 @@ def get_results(candidate_df_arr, end_index):
 def acronym_check(results_df):
 	non_acronyms_df = results_df[results_df['is_acronym'] == 0].copy()
 	
-	cid_counts = non_acronyms_df['conceptid'].value_counts()
-	cid_cnt_df = pd.DataFrame({'conceptid':cid_counts.index, 'count':cid_counts.values})
+	cid_counts = non_acronyms_df['acid'].value_counts()
+	cid_cnt_df = pd.DataFrame({'acid':cid_counts.index, 'count':cid_counts.values})
 
 	acronym_df = results_df[results_df['is_acronym'] == True].copy()
-	acronym_df = acronym_df.merge(cid_cnt_df, on=['conceptid'],how='left')
+	acronym_df = acronym_df.merge(cid_cnt_df, on=['acid'],how='left')
 	approved_acronyms = acronym_df[acronym_df['count'] >= 1]
 	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
@@ -209,14 +208,14 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	active_match = False
 
 	for index, new_df in enumerate(new_candidate_df_arr):
-		new_df_description_score = new_df.groupby(['description_id'], as_index=False)['l_dist'].sum()
-		old_df_description_score = candidate_df_arr[index].groupby(['description_id'], as_index=False)['l_dist'].sum()
+		new_df_description_score = new_df.groupby(['adid'], as_index=False)['l_dist'].sum()
+		old_df_description_score = candidate_df_arr[index].groupby(['adid'], as_index=False)['l_dist'].sum()
 
 
 
 		if len(old_df_description_score.index) > 0 and len(new_df_description_score.index) > 0:
 			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
-			filtered_candidates = new_df[new_df['description_id'].isin(candidate_descriptions['description_id'])]
+			filtered_candidates = new_df[new_df['adid'].isin(candidate_descriptions['adid'])]
 			if len(filtered_candidates.index) != 0:
 				final_candidate_df_arr.append(filtered_candidates)
 				active_match = True
@@ -289,60 +288,67 @@ def prune_results_v2(scores_df, og_results):
 # will defer fixing this till later
 def resolve_conflicts(results_df, cursor):
 	results_df['index_count'] = 1
-	counts_df = results_df.groupby(['term_start_index', 'ln_number'], as_index=False)['index_count'].sum()
-	
+	counts_df = results_df.groupby(['term_start_index','section_ind', 'ln_num'], as_index=False)['index_count'].sum()
+
 	conflicted_indices = counts_df[counts_df['index_count'] > 1]
 	conflict_free_df = results_df[~((results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
-		(results_df['ln_number'].isin(conflicted_indices['ln_number'])))].copy()
+		(results_df['ln_num'].isin(conflicted_indices['ln_num'])) &\
+		(results_df['section_ind'].isin(conflicted_indices['section_ind'])))].copy()
 	conflicted_df = results_df[(results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
-		(results_df['ln_number'].isin(conflicted_indices['ln_number']))].copy()
+		(results_df['ln_num'].isin(conflicted_indices['ln_num'])) & \
+		(results_df['section_ind'].isin(conflicted_indices['section_ind']))].copy()
 
 	final_results = conflict_free_df.copy()
 
 	if len(conflict_free_df.index) > 0:
 		
 		conflict_free_df['concept_count'] = 1
-		concept_weights = conflict_free_df.groupby(['conceptid'], as_index=False)['concept_count'].sum()
+		concept_weights = conflict_free_df.groupby(['acid'], as_index=False)['concept_count'].sum()
 
-		join_weights = conflicted_df.merge(concept_weights, on=['conceptid'],how='left')
+		join_weights = conflicted_df.merge(concept_weights, on=['acid'],how='left')
 
 		#set below to negative 10 and drop all rows with negative value
 		join_weights['concept_count'].fillna(0, inplace=True)
 		join_weights['final_score'] = join_weights['final_score'] + join_weights['concept_count']
-		join_weights = join_weights.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
+		join_weights = join_weights.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
 
 		last_term_start_index = None
-		last_ln_number = None
-
+		last_ln_num = None
+		last_section_ind = None
 		for index,row in join_weights.iterrows():
-			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
+			if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
+				last_section_ind != row['section_ind']:
 				final_results = final_results.append(row, sort=False)
 				last_term_start_index = row['term_start_index']
-				last_ln_number = row['ln_number']
+				last_ln_num = row['ln_num']
+				last_section_ind = row['section_ind']
 
 	# Really should only want below for query annotation. Not document annotation
 	 #first try and choose most common concept. If not choose randomly
 	else:
-		conc_count_query = "select conceptid, count from annotation.concept_counts where conceptid in %s"
-		params = (tuple(conflicted_df['conceptid']),)
-		cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['conceptid', 'cnt'])
+		conc_count_query = "select acid, count from annotation2.concept_counts where acid in %s"
+		params = (tuple(conflicted_df['acid']),)
+		cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
 
 
-		conflicted_df = conflicted_df.merge(cid_cnt_df, on=['conceptid'], how='left')
+		conflicted_df = conflicted_df.merge(cid_cnt_df, on=['acid'], how='left')
 		conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
 
 		conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
 
-		conflicted_df = conflicted_df.sort_values(['ln_number', 'term_start_index', 'final_score'], ascending=False)
+		conflicted_df = conflicted_df.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
 
 		last_term_start_index = None
-		last_ln_number = None
-
+		last_ln_num = None
+		last_section_ind = None
 		for index,row in conflicted_df.iterrows():
-			if last_term_start_index != row['term_start_index'] or last_ln_number != row['ln_number']:
+			if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
+				last_section_ind != row['last_section_ind']:
 				final_results = final_results.append(row, sort=False)
 				last_term_start_index = row['term_start_index']
-				last_ln_number = row['ln_number']
+				last_ln_num = row['ln_num']
+				last_section_ind = row['section_ind']
+
 	return final_results
 
 
@@ -356,7 +362,7 @@ def add_names(results_df):
 		search_query = "select conceptid, term from annotation.preferred_concept_names \
 			where conceptid in %s"
 
-		params = (tuple(results_df['conceptid']),)
+		params = (tuple(results_df['acid']),)
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
 
 		results_df = results_df.merge(names_df, on='conceptid')
@@ -365,23 +371,24 @@ def add_names(results_df):
 		return results_df
 
 
-def annotate_line_v2(line, ln_number, cursor, case_sensitive, cache):
-
+def annotate_line_v2(sentence_df, cursor, case_sensitive, cache):
 	
-	line = clean_text(line)
+	line = clean_text(sentence_df['line'])
 	annotation = return_line_snomed_annotation_v2(cursor, line, 93, case_sensitive, cache)
 	if annotation is not None:
-		annotation['ln_number'] = ln_number
-		
+		annotation['ln_num'] = sentence_df['ln_num']
+		annotation['section'] = sentence_df['section']
+		annotation['section_ind'] = sentence_df['section_ind']
+
 	return annotation
 
-def get_sentence_annotation(line, c_df):
+def get_annotated_tuple(c_df):
 	c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
 	if len(c_df) >= 1:
 		c_res = pd.DataFrame()
 		sentence_arr = []
+		line = c_df['line'].values[0]
 
-		line = clean_text(line)
 		ln_words = line.split()
 		concept_counter = 0
 		concept_len = len(c_df)
@@ -390,7 +397,7 @@ def get_sentence_annotation(line, c_df):
 			added = False
 			while (concept_counter < concept_len):
 				if ((ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
-					sentence_arr.append((word, c_df.iloc[concept_counter]['conceptid']))
+					sentence_arr.append((word, c_df.iloc[concept_counter]['acid']))
 					added = True
 					if ((ind1 == c_df.iloc[concept_counter]['description_end_index'])):
 						concept_counter +=1
@@ -524,7 +531,7 @@ def get_all_words_list(text):
 	tokenized = nltk.sent_tokenize(text)
 	all_words = []
 	lmtzr = WordNetLemmatizer()
-	for ln_number, line in enumerate(tokenized):
+	for ln_num, line in enumerate(tokenized):
 		words = line.split()
 		for index,w in enumerate(words):
 			if w.upper() != w:
@@ -541,49 +548,46 @@ def get_cache(all_words_list, case_sensitive, cursor):
 	cache['points'] = 0
 
 	cache.loc[cache.word.isin(all_words_list), 'points'] = 1
-	csf = cache[['description_id', 'term_length', 'points']].groupby(['description_id', 'term_length'], as_index=False)['points'].sum()
+	csf = cache[['adid', 'term_length', 'points']].groupby(['adid', 'term_length'], as_index=False)['points'].sum()
 
-	candidate_dids = csf[csf['term_length'] == csf['points']]['description_id'].tolist()
+	candidate_dids = csf[csf['term_length'] == csf['points']]['adid'].tolist()
 	
-	cache = cache[cache['description_id'].isin(candidate_dids)].copy()
+	cache = cache[cache['adid'].isin(candidate_dids)].copy()
 	cache = cache.drop(['points'], axis=1)
 	return cache
 
-def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
-
-	tokenized = nltk.sent_tokenize(text)
+def annotate_text_not_parallel(sentences_df, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
 	ann_df = pd.DataFrame()
-	sentence_df = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples'])
+	sentence_df = pd.DataFrame()
 
-	for ln_number, line in enumerate(tokenized):
-		res_df = annotate_line_v2(line, ln_number, cursor, case_sensitive, cache)
+	for ind,item in sentences_df.iterrows():
+		res_df = annotate_line_v2(item, cursor, case_sensitive, cache)
 		ann_df = ann_df.append(res_df, sort=False)
-
-
-	if len(ann_df.index) > 0:
-		# No significant time sink below
-		ann_df = resolve_conflicts(ann_df, cursor)
-		
-		if write_sentences:
-
-			for ln_number, line in enumerate(tokenized):
-				ln_df =  ann_df[ann_df['ln_number'] == ln_number].copy()
-				concept_arr = list(set(ln_df['conceptid'].tolist()))
-				print('concept_arr')
-				print(concept_arr)
-				print('line below')
-				print(line)
-				u = str(uuid.uuid1())
-				s_arr = get_sentence_annotation(line, ln_df)
-				print('s_arr')
-				print(s_arr)
-				for cid in concept_arr:
-					sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
-							columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
 	
-				print('final sentence_df')
-				print(sentence_df)
-	sys.exit(0)
+	if len(ann_df.index) > 0:
+		ann_df = resolve_conflicts(ann_df, cursor)
+		ann_df = acronym_check(ann_df)
+		
+		section_arr = np.sort(ann_df['section_ind'].unique())
+		section_len = len(section_arr)
+		if write_sentences:	
+			for i in range(section_len):
+				section_df = ann_df[ann_df['section_ind'] == section_arr[i]].copy()
+				
+				ln_arr = np.sort(section_df['ln_num'].unique())
+				ln_len = len(ln_arr)
+
+				for j in range(ln_len):
+					ln_df =  section_df[section_df['ln_num'] == ln_arr[j]].copy()
+					concept_arr = list(set(ln_df['acid'].tolist()))
+					u = str(uuid.uuid1())
+				
+					s_arr = get_annotated_tuple(ln_df)
+
+					for cid in concept_arr:
+						sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, ln_df['section'][0], i, j, ln_df['line'][0], s_arr]], 
+								columns=['id', 'acid', 'concept_arr', 'section', 'section_ind', 'line_num', 'line', 'sentence_tuples']), sort=False)
+
 	return ann_df, sentence_df
 
 
@@ -727,17 +731,19 @@ if __name__ == "__main__":
 	query55="glycoside hydrolase (GH) family"
 	query56="Vitamin C sepsis"
 	query57="hungry bone syndrome"
+	query58="Prospective observational cohort study"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query57
+		term = query58
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False, cursor)
-		res, sentences = annotate_text_not_parallel(term, 'title', cache, cursor, False, True, False)
+		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+		res, sentences = annotate_text_not_parallel(item, cache, cursor, False, True, False)
 		# u.pprint(res)
 		# res = acronym_check(res)
 		u.pprint(res)
@@ -745,20 +751,4 @@ if __name__ == "__main__":
 		d.stop()
 		counter += 1
 	
-	# cursor.close()
-	# u.pprint("=============================")
-	# u.pprint(res)
-	# u.pprint(sentences)
-	# check_timer.stop()
-	# u.pprint(get_children('387458008', cursor))
-	# labeled_set = [['418285008','387458008', '1']]
-	# labelled_set = pd.DataFrame()
-	# for index,item in enumerate(labeled_set):
-		
-	# 	root_cids = [item[0]]
-	# 	root_cids.extend(get_children(item[0], cursor))
-	# 	print(root_cids)
-
-	# u.pprint("*****************************")
-	# unittest.main()
 	
