@@ -22,3 +22,4 @@ all_sentences_*
 *.bin
 *.hdf5
 *.tsv
+*.txt
