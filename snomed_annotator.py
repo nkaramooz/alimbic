@@ -569,21 +569,12 @@ def annotate_text_not_parallel(text, section, cache, cursor, case_sensitive, boo
 			for ln_number, line in enumerate(tokenized):
 				ln_df =  ann_df[ann_df['ln_number'] == ln_number].copy()
 				concept_arr = list(set(ln_df['conceptid'].tolist()))
-				print('concept_arr')
-				print(concept_arr)
-				print('line below')
-				print(line)
 				u = str(uuid.uuid1())
 				s_arr = get_sentence_annotation(line, ln_df)
-				print('s_arr')
-				print(s_arr)
 				for cid in concept_arr:
 					sentence_df = sentence_df.append(pd.DataFrame([[u, cid, concept_arr, section, ln_number, line, s_arr]], 
 							columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples']), sort=False)
-	
-				print('final sentence_df')
-				print(sentence_df)
-	sys.exit(0)
+
 	return ann_df, sentence_df
 
 

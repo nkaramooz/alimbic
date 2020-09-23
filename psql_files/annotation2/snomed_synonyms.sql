@@ -32,5 +32,5 @@ insert into snomed_synonyms
 	on t2.cid = t4.subtypeid and t4.supertypeid in ('123037004', '404684003', '308916002',
 		'272379006', '363787002', '410607006', '373873005', '78621006', '260787004',
 		'71388002', '362981000', '105590001', '254291000', '123038009', '370115009', '48176007')
-	where t1.did not in (select did from annotation2.acronym_override)
+	where t1.did not in (select t5.did from annotation2.acronym_override t4 join annotation2.upstream_root_did t5 on t4.adid=t5.adid::varchar(36))
 ;

@@ -18,7 +18,7 @@ $(document).ready(function() {
 
 	var chipInstance = M.Chips.getInstance($(".chips"));
 	console.log($('#query_annotation').val())
-	var data = { query : $('#search_box').val(),
+	var data1 = { query : $('#search_box').val(),
 			start_year : $('#start_year').val(),
 			end_year : $('#end_year').val(),
 			journals : chipInstance.chipsData,
@@ -30,10 +30,10 @@ $(document).ready(function() {
   		}
 
 	$.ajax({
-		url : "post_search_text/",
+		url : "search/",
 		type : "POST",
 		contentType: 'application/json',
-		data : JSON.stringify(data),
+		data : JSON.stringify(data1),
 
 		success : function(json) {
 			$('#loader').removeClass("active");
@@ -41,6 +41,10 @@ $(document).ready(function() {
 			$('#search_box').val($('#search_box').val() + ' ' + form.find('#pivot_term').val());
 			$("#results").html(json);
 			$('#results').show();
+			var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
+			console.log(jQuery.param(data1));
+			history.replaceState(data1, null, f);
+      		history.pushState(data1, null, f);
 		},
 
 		error : function(xhr, errmsf, err) {

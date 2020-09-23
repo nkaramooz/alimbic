@@ -1,0 +1,19 @@
+<table>
+	<thead>
+		<tr>
+			{% for key,value in payload_item.0.items %}
+				<th>{{key}}</th>
+			{% endfor %}
+		</tr>
+	</thead>
+
+	<tbody>
+	{% for a in payload_item %}
+	<tr>
+		{% for key,value in a.items %}
+		 <td>{{value}}</td>
+		{% endfor %}
+	</tr>
+	{% endfor %}
+	</tbody>
+</table>

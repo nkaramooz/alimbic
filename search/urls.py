@@ -7,7 +7,7 @@ from . import views
 app_name = 'search'
 urlpatterns = [
     url(r'^$', views.concept_search_home_page, name='concept_search_home_page'),
-
+    # url(r'^search/', views.concept_search_home_page, name='concept_search_home_page'),
     # url(r'^pivot/$', views.post_pivot_search, name='pivot_search'),
 
     # url(r'^results/$', views.concept_search_results,  name='concept_search_results'),
@@ -15,7 +15,7 @@ urlpatterns = [
     url(r'^concept_override/', views.concept_override, name='concept_override'),
     url(r'^training/post/$', views.post_training, name='post_training'),
     url(r'^training/', views.training, name='training'),
-    url(r'^post_search_text/', views.post_search_text, name='post_search_text'),
+    url(r'^search/', views.post_search_text, name='post_search_text'),
 
     url(r'^ml/post/$', views.post_ml, name='post_ml'),
     url(r'^ml/', views.ml, name='ml'),

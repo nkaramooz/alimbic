@@ -5,7 +5,7 @@ insert into cleaned_selected_descriptions_de_duped
 		did
 		,cid
 		,term
-		,now() as effectivetime
+		,'1900-09-08 19:58:14.190442' as effectivetime
 	from (
 		select 
 			tb1.did
@@ -20,3 +20,5 @@ insert into cleaned_selected_descriptions_de_duped
 	) tb4
 	where tb4.keep = 1
 	ON CONFLICT DO NOTHING;
+
+-- default time is set to old so that manual overrides aren't replaced everytime SNOMED is updated.

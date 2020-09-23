@@ -3,19 +3,19 @@ set schema 'annotation2';
 
 drop table if exists add_adid_acronym;
 create table add_adid_acronym (
-	adid integer not null
-    ,acid integer not null
+	adid varchar(36) not null
+    ,acid varchar(36) not null
 	,term varchar(400) not null
 	,word varchar(100) not null
 	,word_ord integer not null
 	,term_length integer not null
 	,is_acronym boolean
 );
-create index concurrently add_adid_acronym_acid_ind on add_adid_acronym(acid);
-create index concurrently add_adid_acronym_adid_ind on add_adid_acronym(adid);
-create index concurrently add_term_acronym_term_ind on add_adid_acronym(term);
-create index concurrently add_term_acronym_word_ind on add_adid_acronym(word);
-create index concurrently add_term_acronym_word_ord_ind on add_adid_acronym(word_ord);
+create index add_adid_acronym_acid_ind on add_adid_acronym(acid);
+create index add_adid_acronym_adid_ind on add_adid_acronym(adid);
+create index add_term_acronym_term_ind on add_adid_acronym(term);
+create index add_term_acronym_word_ind on add_adid_acronym(word);
+create index add_term_acronym_word_ord_ind on add_adid_acronym(word_ord);
 
 
 insert into add_adid_acronym
@@ -26,7 +26,10 @@ insert into add_adid_acronym
         ,concept_table.word
         ,concept_table.word_ord 
         ,len_tb.term_length
-        ,case when acr.is_acronym is not NULL then acr.is_acronym else concept_table.is_acronym end as is_acronym 
+        ,case when term ~ '^\d+(\.\d+)?$' then 'f' 
+            when term ~ '[0-9\."]+$' then 'f'
+            when acr.is_acronym is not NULL then acr.is_acronym 
+            else concept_table.is_acronym end as is_acronym 
     from (
         select 
             adid
@@ -49,7 +52,7 @@ insert into add_adid_acronym
                     ,term
                     ,active
                     ,row_number () over (partition by adid order by effectivetime desc) as row_num 
-                from annotation2.root_did
+                from annotation2.downstream_root_did
                 ) tb, unnest(string_to_array(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '-', ' '), ',', ''), '''', ''), ' '))
                 with ordinality as f(word)
             where row_num = 1 and active = '1'
@@ -78,7 +81,7 @@ insert into add_adid_acronym
                         ,term
                         ,active
                         ,row_number () over (partition by adid order by effectivetime desc) as row_num 
-                    from annotation2.root_did
+                    from annotation2.downstream_root_did
                     ) tb
                 where row_num = 1 and active = '1'
                 ) nm
@@ -86,7 +89,17 @@ insert into add_adid_acronym
         group by tmp.adid
         ) len_tb
       on concept_table.adid = len_tb.adid
-    left join (select t2.adid, t1.is_acronym from annotation2.acronym_override t1 
-    		join annotation2.root_did t2 
-    		on t1.did = t2.did) acr
+    left join (
+            select 
+                tb3.adid, tb1.is_acronym
+            from annotation2.acronym_override tb1
+            join (
+                    select id, row_number() over (partition by adid order by effectivetime desc) as rn_num
+                    from annotation2.acronym_override group by id
+                ) tb2 
+            on tb1.id = tb2.id
+            join annotation2.downstream_root_did tb3
+            on tb1.adid = tb3.adid
+            where tb2.rn_num = 1
+        ) acr
       on concept_table.adid = acr.adid;

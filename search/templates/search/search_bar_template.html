@@ -6,6 +6,15 @@
 
 
 <div class="container">
+	<!-- <div class="row"> -->
+		<div class="col s6">
+		</div>
+		<div class="col s6 center">
+			<h1 class="name_header"> alimbic </h1>
+		</div>
+		<div class="col s3">
+		</div>
+	<!-- </div> -->
 	<form action="/post_search_text/" method="POST" id="post_search_text"> 
 		{% csrf_token %}
 
@@ -31,20 +40,20 @@
 		<div class="filters" id="filters">
 			<div class="row filter-item">
 				<div class="col s2"></div>
-				<div class="col s6">
-					<div class="chips chips-autocomplete input-field inline"></div>
+				<div class="col s5" id="journals2">
+					<div class="chips chips-autocomplete input-field inline" id="journals"></div>
 				</div>
 				
-	    		<div class="input-field col s1">
+	    		<div class="input-field col s2">
 	      			<input type="number" class="validate" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
 	      			<label for="start_year">Start year</label>
 	    		</div>
 
-	    		<div class="input-field col s1">
+	    		<div class="input-field col s2">
 	    			<input type="number" class="validate" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
 	    			<label for="end_year">End year</label>
 	    		</div>
-	    		<div class="col s2"></div>
+	    		<div class="col s1"></div>
 	    		
 			</div>
 		</div>

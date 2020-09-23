@@ -151,7 +151,7 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 
 def load_pubmed_local_2(start_file):
 	es = u.get_es_client()
-	number_of_processes = 8
+	number_of_processes = 1
 
 	cursors = []
 	for i in range(number_of_processes):
@@ -556,6 +556,8 @@ def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	cache = ann.get_cache(all_words, True, cursor)
 
 	res, new_sentences = get_snomed_annotation(abstract_dict['article_title'], 'title', cache, cursor)
+	print(new_sentences)
+	sys.exit(0)
 	if res is not None:
 		result_dict['title'] = {'cids' : res['conceptid'].tolist(), 'dids' : res['description_id'].tolist(), 'sentences' : new_sentences}
 	else:

@@ -15,6 +15,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import sys
 
+
 INDEX_NAME = 'pubmedx1.6'
 
 def doc_worker(input, conn,cursor):
@@ -46,76 +47,59 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 					json_str = get_pmid(elem, json_str)
 					json_str = get_article_ids(elem, json_str)					
 					json_str['citations_pmid'] = get_article_citations(elem)
+				
+					annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text, cursor)
 
-					annotation_dict = get_abstract_conceptids_2(json_str, article_text, cursor)
+					if annotation_dict['abstract'] is not None:
+						json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
+						json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
 
-					# abstract_sentences = None
-					# if annotation_dict['abstract'] is not None:
-					# 	json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
-					# 	json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
-					# 	abstract_sentences = annotation_dict['abstract']['sentences']
-					# else:
-					# 	json_str['abstract_conceptids'] = None
-					# 	json_str['abstract_dids'] = None
+					else:
+						json_str['abstract_conceptids'] = None
+						json_str['abstract_dids'] = None
 					
-					# if annotation_dict['title'] is not None:
-					# 	title_sentences = annotation_dict['title']['sentences']
-					# 	title_cids = annotation_dict['title']['cids']
-					# 	title_dids = annotation_dict['title']['dids']
-					# else:
-					# 	title_sentences = None
-					# 	title_cids = None
-					# 	title_dids = None
+					if annotation_dict['title'] is not None:
+						title_cids = annotation_dict['title']['cids']
+						title_dids = annotation_dict['title']['dids']
+					else:
+						title_cids = None
+						title_dids = None
 
-					# if title_sentences is not None:
-					# 	title_sentences['pmid'] = json_str['pmid']
-
-					# if title_cids is not None:
-					# 	json_str['title_conceptids'] = title_cids
-					# 	json_str['title_dids'] = title_dids
-					# else:
-					# 	json_str['title_conceptids'] = None
-					# 	json_str['title_dids'] = None
-
-				
-					# s = pd.DataFrame(columns=['id', 'conceptid', 'concept_arr', 'section', 'line_num', 'sentence', 'sentence_tuples', 'section_index', 'pmid'])
-					# if title_sentences is not None:
-					# 	s = s.append(title_sentences, sort=False)
-					# if abstract_sentences is not None:
-					# 	abstract_sentences['pmid'] = json_str['pmid']
-					# 	s = s.append(abstract_sentences, sort=False)
-					# if len(s) > 0:
-					# 	s = s[['id', 'pmid', 'conceptid', 'concept_arr', 'section', 'section_index', 'line_num', 'sentence', 'sentence_tuples']]
-					# 	u.write_sentences(s, cursor)
+					if title_cids is not None:
+						json_str['title_conceptids'] = title_cids
+						json_str['title_dids'] = title_dids
+					else:
+						json_str['title_conceptids'] = None
+						json_str['title_dids'] = None
 
 
-					# json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-				
-
-					# json_str['filename'] = filename
-					# pmid = json_str['pmid']
+					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+					json_str['filename'] = filename
+					pmid = json_str['pmid']
 					
 					
-					# json_str =json.dumps(json_str)
-					# json_obj = json.loads(json_str)
+					json_str =json.dumps(json_str)
+					json_obj = json.loads(json_str)
 				
 
-					# es = u.get_es_client()
-					# get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
+					es = u.get_es_client()
+					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 
-					# query_result = es.search(index=INDEX_NAME, body=get_article_query)
+					query_result = es.search(index=INDEX_NAME, body=get_article_query)
 
-					# if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
-					# 	try:
-					# 		es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
-					# 	except:
-					# 		raise ValueError('incompatible json obj')
-						
-						
-					# elif query_result['hits']['total'] == 1:
-					# 	article_id = query_result['hits']['hits'][0]['_id']
-					# 	es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
+					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
+						try:
+							es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+						except:
+							raise ValueError('incompatible json obj')						
+					elif query_result['hits']['total'] == 1:
+						article_id = query_result['hits']['hits'][0]['_id']
+						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
 
+
+	# 					engine = pg.return_sql_alchemy_engine()
+	# s_df.to_sql('sentences5', \
+	# 	engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
 
 
 
@@ -146,14 +130,11 @@ def load_pubmed_local_2(start_file):
 	if not index_exists:
 		settings = {"mappings" : {"abstract" : {"properties" : {
 			"journal_issn" : {"type" : "keyword"}
-			,"journal_issn_type" : {
-				"properties" : {"IssnType" : {"type" : "keyword"}}
-				}
+			,"journal_issn_type" : {"type" : "keyword"}
 			,"journal_title" : {"type" : "text"}
 			,"journal_iso_abbrev" : {"type" : "keyword"}
 			,"journal_volume" : {"type" : "text"}
 			,"journal_issue" : {"type" : "text"}
-			,"journal_pub_date" : {"type" : "date", "format" : "yyyy-MM-dd"}
 			,"journal_pub_year" : {"type" : "integer"}
 			,"journal_pub_month" : {"type" : "keyword"}
 			,"journal_pub_day" : {"type" : "keyword"}
@@ -179,7 +160,7 @@ def load_pubmed_local_2(start_file):
 				"objective_did" : {"type" : "keyword"},
 				"results_did" : {"type" : "keyword"}}}
 			,"article_type_id" : {"type" : "keyword"}
-			,"article_type" : {"type" : "keyword"}
+			,"article_type" : {"type" : "keyword"} 
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
 			,"filename" : {"type" : "keyword"}
 		}}}}
@@ -238,22 +219,33 @@ def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
 	cleaned_text = ann2.clean_text(article_text)
 	all_words = ann2.get_all_words_list(cleaned_text)
 	
-	# True = case_sensitive
 	cache = ann2.get_cache(all_words, True, cursor)
 	
-	res, sentences = get_snomed_annotation(abstract_dict, cache, cursor)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache, cursor)
+	sentence_annotations_df['pmid'] = abstract_dict['pmid']
+	sentence_tuples_df['pmid'] = abstract_dict['pmid']
+	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
 
-	return None, None
+	title_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
+	title_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
 
-	# print(res)
-	# print(sentences)
-	# sys.exit(0)
-	# if res is not None:
+	result_dict['title'] = {'cids' : title_cids, 'dids' : title_dids}
 
 
-	# result_dict['abstract'] = None
-	# return result_dict
-	
+	if abstract_dict['article_abstract'] is not None:
+		for index,k1 in enumerate(abstract_dict['article_abstract']):
+			k1_cid = str(k1) + "_cid"
+			k1_did = str(k1) + "_did"
+
+			cid_dict[k1_cid] = sentence_annotations_df[(sentence_annotations_df['section']== k1) & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
+			did_dict[k1_did] = sentence_annotations_df[(sentence_annotations_df['section']== k1) & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
+
+		result_dict['abstract'] = {'cid_dict' : cid_dict, 'did_dict' : did_dict}
+
+		return result_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
+	else:
+		result_dict['abstract'] = None
+		return result_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 def get_deleted_pmid(elem):
 	delete_pmid_arr = []
@@ -328,7 +320,6 @@ def get_journal_info(elem, json_str):
 		journal_elem = j_list[0]
 	except:
 		json_str['journal_title'] = None
-		json_str['journal_pub_date'] = None
 		json_str['journal_pub_year'] = None
 		json_str['journal_pub_month'] = None
 		json_str['journal_pub_day'] = None
@@ -338,10 +329,11 @@ def get_journal_info(elem, json_str):
 		json_str['journal_iso_abbrev'] = None
 		return json_str
 	
+	
 	try:
-		issn_elem = str(journal_elem.findall('./ISSN')[0])
-		json_str['journal_issn'] = str(issn_elem.text)
-		json_str['journal_issn_type'] = str(issn_elem.attrib)
+		issn_elem = journal_elem.findall('./ISSN')[0]
+		json_str['journal_issn'] = issn_elem.text
+		json_str['journal_issn_type'] = issn_elem.attrib['IssnType']
 	except:
 		json_str['journal_issn'] = None
 		json_str['journal_issn_type'] = None
@@ -382,17 +374,12 @@ def get_journal_info(elem, json_str):
 	except:
 		json_str['journal_pub_month'] = None
 
-	try:
+	
+	try: 
 		day_elem = journal_elem.findall('./JournalIssue/PubDate/Day')[0]
-		day_str['journal_pub_month'] = str(day_elem.text)
+		json_str['journal_pub_day'] = day_elem.text
 	except:
 		json_str['journal_pub_day'] = None
-
-	try:
-		json_str['journal_pub_date'] = str(json_str['journal_pub_year']) + "-" + str(json_str['journal_pub_month']) \
-			+ "-" + str(json_str['journal_pub_day'])
-	except:
-		json_str['journal_pub_date'] = None
 
 	return json_str
 
@@ -401,6 +388,7 @@ def get_article_info_2(elem, json_str):
 	article_text = ""
 	try:
 		article_elem = elem.find('./MedlineCitation/Article')
+		print(article_elem)
 	except:
 		json_str['article_title'] = None
 		json_str['article_abstract'] = None
@@ -410,6 +398,7 @@ def get_article_info_2(elem, json_str):
 	try:
 		title_elem = article_elem.find('./ArticleTitle')
 		json_str['article_title'] = str(title_elem.text)
+		print(json_str['article_title'])
 		article_text += str(title_elem.text)
 	except:
 		json_str['article_title'] = None
@@ -471,7 +460,6 @@ def get_article_info_2(elem, json_str):
 	return json_str, article_text
 
 def get_snomed_annotation(text_dict, cache, cursor):
-	
 	sentences_df = pd.DataFrame()
 	sentences_df = return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
 
@@ -479,15 +467,9 @@ def get_snomed_annotation(text_dict, cache, cursor):
 		for ind,k1 in enumerate(text_dict['article_abstract']):
 			sentences_df = return_section_sentences(text_dict['article_abstract'][k1], str(k1), ind+1, sentences_df)
 
-	
-	ann_df,sentences = ann2.annotate_text_not_parallel(sentences_df, cache, cursor, True, True, True)
-	
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, cursor, True, True, True)
 
-	return None,None
-	# if not ann_df.empty:
-	# 	return ann_df, sentences
-	# else:
-	# 	return None, None
+	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 
 

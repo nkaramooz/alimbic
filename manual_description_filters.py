@@ -20,11 +20,14 @@ def extract_value(term):
 			greater = True
 		elif char == '<' and prev_char != ' ' and prev_char != '=':
 			less = True
+		elif char =='^':
+			trim=True
 		elif char == ' ':
 			greater = False
 			less = False
 			res.append(char)
 		else:
+			# trim = False
 			res.append(char)
 
 		if greater and less:

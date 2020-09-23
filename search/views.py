@@ -5,12 +5,16 @@ import snomed_annotator as ann
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
+import utilities.utils2 as u2
 import pandas as pd
 import utilities.es_utilities as es_util
 import math
 from django.http import JsonResponse
 import json
 import numpy as np
+import urllib.parse as urlparse
+from urllib.parse import parse_qs
+# import psql_files.annotation2.lemmatizer as lem
 # import ml2 as m
 # from keras.models import load_model
 # Create your views here.
@@ -121,27 +125,188 @@ def post_ml(request):
 def concept_override(request):
 	return render(request, 'search/concept_override.html')
 
+def get_df_dict(df):
+	cols = df.columns.tolist()
+	print(cols)
+	res_arr = []
+	for i,t in df.iterrows():
+		res_dict = {}
+		for j in cols:
+			res_dict[j] = t[j]
+		res_arr.append(res_dict)
+	return res_arr
+
 def post_concept_override(request):
 	conn,cursor = pg.return_postgres_cursor()
-	conceptid = request.POST['conceptid']
-	description_id = request.POST['description_id']
-	description = request.POST['description_text']
-	if request.POST['action_type'] == 'add_description':
-		u.add_description(conceptid, description, cursor)
-	elif request.POST['action_type'] == 'deactivate_description_id':
-		u.deactivate_description_id(description_id, cursor)
-	elif request.POST['action_type'] == 'activate_description_id':
-		u.activate_description_id(description_id, cursor)
-	elif request.POST['action_type'] == 'add_concept':
-		u.add_concept(description, cursor)
-	elif request.POST['action_type'] == 'is_acronym':
-		u.acronym_override(description_id, 1, cursor)
-	elif request.POST['action_type'] == 'is_not_acronym':
-		u.acronym_override(description_id, 0, cursor)
+	payload_dict = {}
+	adid = ""
+	acid = "" 
+	if 'acid' in request.POST:
+		acid = request.POST['acid']
+		query = """
+			select
+				t1.adid
+				,t1.acid
+				,t2.cid
+				,t1.term
+				,t1.term_lower
+				,t1.word
+				,t1.word_ord
+				,t1.is_acronym
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
+			on t1.acid = t2.acid
+			where t1.acid = %s
+		"""
+		df = pg.return_df_from_query(cursor, query, (acid,), \
+	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
+		payload_dict['acid'] = get_df_dict(df)
+	elif 'adid' in request.POST:
+		adid = request.POST['adid']
+		query = """
+			select
+				t1.adid
+				,t1.acid
+				,t2.cid
+				,t1.term
+				,t1.term_lower
+				,t1.word
+				,t1.word_ord
+				,t1.is_acronym
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
+			on t1.acid = t2.acid
+			where adid = %s
+		"""
+		df = pg.return_df_from_query(cursor, query, (adid,), \
+	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
+		payload_dict['adid'] = get_df_dict(df)
+	elif 'term' in request.POST:
+		term = request.POST['term']
+		query = """
+			select 
+				t1.adid
+				,t1.acid
+				,t2.cid
+				,t1.term
+				,t1.term_lower
+				,t1.word
+				,t1.word_ord
+				,t1.is_acronym
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
+			on t1.acid = t2.acid
+			where term_lower = lower(%s)
+		"""
+		df = pg.return_df_from_query(cursor, query, (term,), \
+	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
+		payload_dict['term'] = get_df_dict(df)
+	elif 'acid_relationship' in request.POST:
+		acid = request.POST['acid_relationship']
+		message = ""
+		query = """
+			select
+				source_acid as item
+				,t3.term as item_name
+				,destination_acid as parent
+				,t2.term as parent_name
+			from snomed2.full_relationship_acid t1
+			join annotation2.downstream_root_did t2
+			on t1.destination_acid = t2.acid
+			join annotation2.downstream_root_did t3
+			on t1.source_acid = t3.acid
+			where source_acid = %s
+		"""
+		df = pg.return_df_from_query(cursor, query, (acid,), ['item', 'item_name', 'parent', 'parent_name'])
+		if len(df.index) == 0:
+			message = "No parents found."
+		else:
+			payload_dict['acid_relationship_parent'] = get_df_dict(df)
+
+		query = """
+			select
+				source_acid as child
+				,t3.term as child_name
+				,destination_acid as item
+				,t2.term as item_name
+			from snomed2.full_relationship_acid t1
+			join annotation2.downstream_root_did t2
+			on t1.destination_acid = t2.acid
+			join annotation2.downstream_root_did t3
+			on t1.source_acid = t3.acid
+			where destination_acid = %s
+		"""
+		df = pg.return_df_from_query(cursor, query, (acid,), ['child', 'child_name', 'item', 'item_name'])
+
+		if len(df.index) == 0:
+			message += " No children found"
+		else:
+			payload_dict['acid_relationship_child'] = get_df_dict(df)
+		payload_dict['relationship_lookup_message'] = message
+	elif 'child_acid' in request.POST: 
+		child_acid = request.POST['child_acid']
+		parent_acid = request.POST['parent_acid']
+		if request.POST['rel_action_type'] == 'add':
+			error,message = u2.change_relationship(child_acid, parent_acid, '1', cursor)
+		elif request.POST['rel_action_type'] == 'del':
+			error,message = u2.change_relationship(child_acid, parent_acid, '0', cursor)
+		else:
+			error = True
+			message = "Action type inappropriately entered"
+		payload_dict['change_relationship_error'] = error
+		payload_dict['change_relationship_message'] = message
+	elif 'new_concept' in request.POST:
+		concept_name = request.POST['new_concept']
+		error, message, conflict_df = u2.add_new_concept(concept_name, cursor)
+		payload_dict['new_concept_message'] = message
+		payload_dict['new_concept_success'] = error
+		if error:
+			payload_dict['new_concept_success'] = False
+			payload_dict['new_concept'] = get_df_dict(conflict_df)
+		else:
+			payload_dict['new_concept_success'] = True
+	elif 'remove_acid' in request.POST:
+		acid = request.POST['remove_acid']
+		error = u2.remove_concept(acid, cursor)
+		payload_dict['remove_concept'] = error
+	elif 'new_description' in request.POST:
+		acid = request.POST['new_description_acid']
+		new_description = request.POST['new_description']
+		error, message = u2.add_new_description(acid, new_description, cursor)
+		payload_dict['add_description_message'] = message
+	elif 'remove_adid' in request.POST:
+		adid = request.POST['remove_adid']
+		error = u2.remove_adid(adid, cursor)
+		payload_dict['remove_adid'] = error
+		
+	# 
+	# conceptid = request.POST['conceptid']
+	# description_id = request.POST['description_id']
+	# description = request.POST['description_text']
+	# if request.POST['action_type'] == 'add_description':
+	# 	u.add_description(conceptid, description, cursor)
+	# elif request.POST['action_type'] == 'deactivate_description_id':
+	# 	u.deactivate_description_id(description_id, cursor)
+	# elif request.POST['action_type'] == 'activate_description_id':
+	# 	u.activate_description_id(description_id, cursor)
+	# elif request.POST['action_type'] == 'add_concept':
+	# 	u.add_concept(description, cursor)
+	# elif request.POST['action_type'] == 'is_acronym':
+	# 	u.acronym_override(description_id, 1, cursor)
+	# elif request.POST['action_type'] == 'is_not_acronym':
+	# 	u.acronym_override(description_id, 0, cursor)
 
 	cursor.close()
 	conn.close()
-	return HttpResponseRedirect(reverse('search:concept_override'))
+
+	return render(request, 'search/concept_override.html', {'payload' : payload_dict, 'acid' : acid, 'adid' : adid})
+	# return render(request, 'search/concept_search_home_page.html', 
+	# 		{'sr_payload' : None, 'query' : '', 'query_annotation' : None, 'unmatched_terms' : None, 'concepts' : None, 'primary_cids' : None,
+	# 			'journals': None, 'start_year' : '', 'end_year' : '', 'at_a_glance' : {'related' : None}, \
+	# 			'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
+	# 			'calcs' : None}
+	# 		)
+	# return HttpResponseRedirect(reverse('search:concept_override', kwargs=payload_dict))
 
 ############################## VC LOADING DOSE ##############################
 def loading_form(request, cid):
@@ -158,7 +323,7 @@ def loading_form(request, cid):
 		case = Case(cid=cid, cursor=cursor)
 		case.addWt(new_wt)
 		case.save(cid, cursor)
-		return HttpResponseRedirect(reverse('search:loading_rec', kwargs={'cid' : cid}))
+		return HttpResponseRedirect(reverse('search:loading_rec', args={'cid' : cid}))
 
 def loading_rec(request, cid):
 	conn,cursor = pg.return_postgres_cursor()
@@ -712,14 +877,13 @@ def concept_search_home_page(request):
 			)
 
 
-
 def get_query_filters(data):
-
 	filters = {}
 	try:
 		filters['journals'] = []
 		for item in data['journals']:
 			filters['journals'].append(item["tag"])
+		
 	except:
 		filters['journals'] = []
 
@@ -766,144 +930,198 @@ def conceptid_search_results(request, query, pivot_cids, journals, start_year, e
 		'at_a_glance' : {'related' : None}}
 	
 def post_search_text(request):
-	data = json.loads(request.body)
-
+	conn, cursor = pg.return_postgres_cursor()
+	es = es_util.get_es_client()
+	pivot_cid = None
+	unmatched_terms = None
+	query_type = ''
+	primary_cids = None
+	query = ''
+	filters = {}
 	if request.method == 'GET': 
-		return render(request, 'search/concept_search_home_page.html', 
-			{'sr_payload' : None, 'query' : '', 'concepts' : None, 'query_annoation' : None, 'unmatched_terms' : None,
-				'journals': None, 'start_year' : '', 'end_year' : '', 'at_a_glance' : {'related' : None}, \
-				'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
-				'calcs' : None}
-			)
+		parsed = urlparse.urlparse(request.path)
+		print(parsed.path)
+		print(parse_qs(parsed.path))
+		parsed = parse_qs(parsed.path)
+		# query = parse_qs(parsed.path)['/search/query'][0]
+		# return render(request, 'search/concept_search_home_page.html', 
+		# 	{'sr_payload' : None, 'query' : '', 'concepts' : None, 'query_annoation' : None, 'unmatched_terms' : None,
+		# 		'journals': None, 'start_year' : '', 'end_year' : '', 'at_a_glance' : {'related' : None}, \
+		# 		'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
+		# 		'calcs' : None}
+		# 	)
+		query = parsed['/search/query'][0]
+
+		if 'query_annotation[]' in parsed:
+			primary_cids = parsed['query_annotation[]']
+		
+		if unmatched_terms in parsed:
+			unmatched_terms = parsed['unmatched_terms'][0]
+		
+		if 'pivot_cid' in parsed:
+			primary_cids.append(['pivot_cid'])
+
+		if 'start_year' in parsed:
+			filters['start_year'] = int(parsed['start_year'][0])
+		else:
+			filters['start_year'] = ''
+
+		if 'end_year' in parsed:
+			filters['end_year'] = int(parsed['end_year'][0])
+		else:
+			filters['end_year'] = ''
+
+		filters['journals'] = []
+		for key,value in parsed.items():
+			if key.startswith('journals['):
+				filters['journals'].append(value[0])
+
+
+		if 'query_type' in parsed:
+			query_type = parsed['query_type'][0]
+
 	elif request.method == 'POST':
-		conn, cursor = pg.return_postgres_cursor()
-		es = es_util.get_es_client()
-
+		data = json.loads(request.body)
+		query = data['query']
 		filters = get_query_filters(data)
-
-		if data['query_type'] == 'pivot':
-			
-
+		query_type = data['query_type']
+		if 'query_annotation' in data:
 			primary_cids = data['query_annotation']
+
+		if 'pivot_cid' in data:
 			primary_cids.append(data['pivot_cid'])
+		# html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_annotation, \
+		# 		'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
+		# 		'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
+		# 		'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+		# 		'calcs' : calcs_json})
+		
 
-			query_concepts_df = pd.DataFrame(primary_cids, columns=['conceptid'])
-			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+	if query_type == 'pivot':
+		query_concepts_df = pd.DataFrame(primary_cids, columns=['conceptid'])
+		full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
-			unmatched_terms = data['unmatched_terms']
+		unmatched_terms = data['unmatched_terms']
 
 			
-			pivot_term = data['pivot_term']
-			query = data['query'] + ' ' + pivot_term
-			params = filters
+		pivot_term = data['pivot_term']
+		query = data['query'] + ' ' + pivot_term
+		params = filters
 
 
-			flattened_query_concepts_list = get_flattened_query_concept_list(query_concepts_df)
-			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+		flattened_query_concepts_list = get_flattened_query_concept_list(query_concepts_df)
+		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
-			es_query = {"from" : 0, \
+		es_query = {"from" : 0, \
 				 "size" : 500, \
 				 "query": get_query(full_query_concepts_list, None, filters['journals'], filters['start_year'], filters['end_year'], \
 				 	["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
-			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
-			sr_payload = get_sr_payload(sr['hits']['hits'])
+		sr_payload = get_sr_payload(sr['hits']['hits'])
 
-			params.update({'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : flattened_query_concepts_list,\
+		params.update({'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : flattened_query_concepts_list,\
 				'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
 				'at_a_glance' : {'related' : None}})
-			cursor.close()
-			conn.close()
-			return render(request, 'search/concept_search_results_page.html', params)
+		cursor.close()
+		conn.close()
+		return render(request, 'search/concept_search_results_page.html', params)
 
-		elif data['query_type'] == 'keyword':
-			query = data['query']
-			query = ann.clean_text(query)
-			if query.upper() != query:
-				query = query.lower()
+	elif query_type == 'keyword':
+		query = ann.clean_text(query)
 
-			j = u.Timer("get initial concepts")
-			raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
-			query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
+		if query.upper() != query:
+			query = query.lower()
+
+		j = u.Timer("get initial concepts")
+		raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
+		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
 			
-			if len(query_concepts_df.index) == 1:
-				u.pprint(query_concepts_df)
-				print("DIRECT MATCH")
+		if len(query_concepts_df.index) == 1:
+			u.pprint(query_concepts_df)
+			print("DIRECT MATCH")
 
-			if (len(query_concepts_df.index) != 0):
-				query_concepts_df['term_start_index'] = 0
-				query_concepts_df['term_end_index'] = len(query.split(' '))-1
+		if (len(query_concepts_df.index) != 0):
+			query_concepts_df['term_start_index'] = 0
+			query_concepts_df['term_end_index'] = len(query.split(' '))-1
 
-			elif (len(query_concepts_df.index) == 0):
-				all_words = ann.get_all_words_list(query)
-				cache = ann.get_cache(all_words, True, cursor)
-				query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
-			j.stop()
+		elif (len(query_concepts_df.index) == 0):
+			all_words = ann.get_all_words_list(query)
+			cache = ann.get_cache(all_words, True, cursor)
+			query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
+		j.stop()
 
-			sr = dict()
-			related_dict = dict()
-			query_concepts_dict = dict()
-			primary_cids = None
-			related_dict = {}
-			treatment_dict = {}
-			condition_dict = {}
-			diagnostic_dict = {}
-			cause_dict = {}
-			unmatched_terms = None
-			flattened_query = None
+		sr = dict()
+		related_dict = dict()
+		query_concepts_dict = dict()
+		primary_cids = None
+		related_dict = {}
+		treatment_dict = {}
+		condition_dict = {}
+		diagnostic_dict = {}
+		cause_dict = {}
+		unmatched_terms = None
+		flattened_query = None
 			
-			if not query_concepts_df.empty:
-				unmatched_terms = get_unmatched_terms(query, query_concepts_df)
+		if not query_concepts_df.empty:
+			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 
-				full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
 
-				flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
+			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 
-				query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
-				symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
+			query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
+			symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
 
-				condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
-				query_concept_count = len(query_concepts_df.index)
+			condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
+			query_concept_count = len(query_concepts_df.index)
 
-				query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
+			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
-				c = u.Timer("primary_search")
-				es_query = {"from" : 0, \
+			c = u.Timer("primary_search")
+			es_query = {"from" : 0, \
 						 "size" : 300, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, \
-						 	filters['journals'], filters['start_year'], filters['end_year']\
+						 	filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_conceptids^5", "abstract_conceptids.*"], cursor)}
 
-				sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
-				c.stop()
+			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+			c.stop()
 
-				e = u.Timer("related_concepts")
-				print(filters['start_year'])
-				treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
+			e = u.Timer("related_concepts")
+
+			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
 					symptom_count, unmatched_terms, filters, cursor)
-				e.stop()
-				primary_cids = query_concepts_df['conceptid'].tolist()
+			e.stop()
+			primary_cids = query_concepts_df['conceptid'].tolist()
 
 			###UPDATE QUERY BELOW FOR FILTERS
-			else:
-				unmatched_terms = query
-				es_query = get_text_query(query)
-				sr = es.search(index=INDEX_NAME, body=es_query)
+		else:
+			unmatched_terms = query
+			es_query = get_text_query(query)
+			sr = es.search(index=INDEX_NAME, body=es_query)
 
-			sr_payload = get_sr_payload(sr['hits']['hits'])
+		sr_payload = get_sr_payload(sr['hits']['hits'])
 
-			calcs_json = get_calcs(query_concepts_df, cursor)
-			cursor.close()
-			conn.close()
+		calcs_json = get_calcs(query_concepts_df, cursor)
+		cursor.close()
+		conn.close()
 
+		if request.method == 'POST':
 			html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['conceptid'].tolist(), \
-				'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
-				'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
-				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
-				'calcs' : calcs_json})
+					'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
+					'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
+					'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+					'calcs' : calcs_json})
 
 			return html
+		elif request.method == 'GET':
+			return render(request, 'search/concept_search_home_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['conceptid'].tolist(), \
+					'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
+					'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
+					'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
+					'calcs' : calcs_json})
 
 def get_calcs(query_concepts_df, cursor):
 	concepts = query_concepts_df['conceptid'].tolist()

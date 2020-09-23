@@ -12,6 +12,7 @@ create table labelled_treatments_seed (
 
 INSERT INTO annotation.labelled_treatments_seed(condition_id, treatment_id, label)
 	VALUES
+	('450886002', '231249005', 0),
 	('31996006', '103514009', 0),
 	('65275009', '442031002', 0),
 	('3238004', '414805007', 0),

@@ -3,12 +3,6 @@ var chip = {
     image: '', //optional
   };
 
-document.addEventListener('DOMContentLoaded', function() {
-    var elems = document.querySelectorAll('.chips');
-    var instances = M.Chips.init(elems, {});
-  });
-
-
 
 
 $(document).ready(function() {
@@ -33,19 +27,6 @@ $(document).ready(function() {
 
     $('.collapsible').collapsible();
     $('.chips').chips();
-    $('.chips-initial').chips({
-      data: [{
-        tag: 'Apple',
-      }, {
-        tag: 'Microsoft',
-      }, {
-        tag: 'Google',
-      }],
-    });
-    $('.chips-placeholder').chips({
-      placeholder: 'Enter journals',
-      secondaryPlaceholder: '',
-    });
     $('.chips-autocomplete').chips({
       placeholder: 'Enter journals',
       autocompleteOptions: {
@@ -298,15 +279,21 @@ $(document).ready(function() {
     })
 });
 
-
+// window.addEventListener('popstate', function(e) {
+//   console.log("test 123");
+//   console.log(JSON.stringify(event.state));
+// });
 
 function post_search_text() {
+  document.getElementById('search_box').disabled = true;
+  document.getElementById('start_year').disabled = true;
+  document.getElementById('end_year').disabled = true;
   $('#results').hide();
   $('#loader').removeClass("inactive");
   $('#loader').addClass("active");
-  var chipInstance = M.Chips.getInstance($(".chips"));
-
-  var data = { query : $('#search_box').val(),
+  var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
+  console.log(chipInstance.chipsData);
+  var data1 = { query : $('#search_box').val(),
          start_year : $('#start_year').val(),
         end_year : $('#end_year').val(),
         journals : chipInstance.chipsData,
@@ -314,18 +301,29 @@ function post_search_text() {
         query_annotation : $('#query_annotation').val(),
         unmatched_terms : $('#unmatched_terms').val(),
   }
-
+  console.log(data1);
   $.ajax({
-    url : "post_search_text/",
+    url : "search/",
     type : "POST",
     contentType: 'application/json',
-    data : JSON.stringify(data),
+    data : JSON.stringify(data1),
 
     success : function(json) {
+      document.getElementById('search_box').disabled = false;
+      document.getElementById('start_year').disabled = false;
+      document.getElementById('end_year').disabled = false;
+      document.getElementById('journals').disabled = false;
       $('#loader').removeClass("active");
       $('#loader').addClass("inactive");
       $("#results").html(json);
       $('#results').show();
+      var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
+      console.log(jQuery.param(data1));
+      console.log(data1['journals'][0]);
+      console.log(chipInstance.chipsData);
+      // history.pushState(data, null, 'http://127.0.0.1:8000/');
+      history.replaceState(data1, null, f);
+      history.pushState(data1, null, f);
     },
 
     error : function(xhr, errmsf, err) {

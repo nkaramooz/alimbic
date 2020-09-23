@@ -1,19 +1,299 @@
-<head> 
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
-</head>
+{% include 'search/main_header.html' with css='css/search.css' %}
 
-<h1> Concept override </h1>
-<form action="{% url 'search:post_concept_override' %}" method="post"> 
-{% csrf_token %}
-	<h3> Conceptid: <input type="text" name="conceptid"> </h3> <br> 
-	<h3> Descriptionid: <input type="text" name="description_id"> </h3> <br>
-	<input type="radio" name="action_type" value="add_description"> add description <br>
-	<input type="radio" name="action_type" value="activate_description_id"> activate description id <br>
-	<input type="radio" name="action_type" value="deactivate_description_id"> deactivate description id <br>
-	<input type="radio" name="action_type" value="add_concept"> add concept <br>
-	<input type="radio" name="action_type" value="is_acronym"> description IS acronym <br>
-	<input type="radio" name="action_type" value="is_not_acronym"> description IS NOT acronym <br>
-	<h3> Description text: <input type="text" name="description_text"> </h3>
-	<input type="submit" value="submit">
-</form>
+<div class="row center">
+	<h1> Concept override </h1>
+</div>
+
+
+<div class="row center">
+	<h3> Concept lookup </h3>
+</div>
+
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" name="acid" value="{{acid}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="acid_submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="acid_results">
+	{% if payload.acid|length > 0 %}
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.acid %}
+	{% endif %}
+</div>
+<br>
+<br>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ADID: <input type="text" name="adid" value="{{adid}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="adid_submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="adid_results">
+	{% if payload.adid|length > 0 %}
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.adid %}
+	{% endif %}
+</div>
+<br>
+<br>
+<br>
+
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				TERM: <input type="text" name="term" value="{{term}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="term_submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+<div class="container" id="adid_results">
+	{% if payload.term|length > 0 %}
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.term %}
+	{% endif %}
+</div>
+<br>
+<br>
+<br>
+
+
+<div class="row center">
+	<h3> Relationship lookup </h3>
+</div>
+
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" name="acid_relationship" value="{{acid}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="acid_relationship_submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="acid_relationship_results">
+	{{payload.relationship_lookup_message}}
+	{% if payload.acid_relationship_parent|length > 0 %}
+		<h5> Parent </h5>
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.acid_relationship_parent %}
+	{% endif %}
+
+	{% if payload.acid_relationship_child|length > 0 %}
+		<h5> Child </h5>
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.acid_relationship_child %}
+	{% endif %}
+</div>
+<br>
+<br>
+
+
+
+
+
+
+<div class="row center">
+	<h3> Add new concept </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				Concept name <input type="text" name="new_concept"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="new_concept_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="new_concept_results">
+	{{payload.message}}
+	{% if payload.new_concept_success is False %}
+	<h5> {{payload.new_concept_message}} </h5>
+		{% include 'search/concept_override_table_template.html' with payload_item=payload.new_concept %}
+	
+	{% else %}
+		{{payload.new_concept_success}}
+	{% endif %}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center">
+	<h3> Remove concept </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID <input type="text" name="remove_acid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="remove_acid_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="remove_concept_results">
+	{{payload.remove_concept}}
+</div>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center">
+	<h3> Add new description </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				Description: <input type="text" name="new_description"> <br> 
+			</div>
+			<div class="input-field col s8">
+				ACID: <input type="text" name="new_description_acid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="new_description_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="add_description_results">
+	{{payload.add_description_message}}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center">
+	<h3> Remove description </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ADID: <input type="text" name="remove_adid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" value="remove_adid_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="remove_adid_results">
+	{{payload.remove_adid}}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center">
+	<h3> Change relationship </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				CHILD ACID: <input type="text" name="child_acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<div class="input-field col s8">
+				PARENT ACID: <input type="text" name="parent_acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<div class="input-field col s8">
+				Action type ("add" or "del"): <input type="text" name="rel_action_type"> <br> 
+			</div>
+		</div>
+		<div class="input-field col s2">
+			<button type="submit" value="change_rel_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="change_relationship_results">
+	{{payload.change_relationship.error}}
+	{{payload.change_relationship.message}}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+
+<!-- 
+		<h3> Descriptionid: <input type="text" name="description_id"> </h3> <br>
+		<input type="radio" name="action_type" value="add_description"> add description <br>
+		<input type="radio" name="action_type" value="activate_description_id"> activate description id <br>
+		<input type="radio" name="action_type" value="deactivate_description_id"> deactivate description id <br>
+		<input type="radio" name="action_type" value="add_concept"> add concept <br>
+		<input type="radio" name="action_type" value="is_acronym"> description IS acronym <br>
+		<input type="radio" name="action_type" value="is_not_acronym"> description IS NOT acronym <br>
+		<h3> Description text: <input type="text" name="description_text"> </h3>
+		<input type="submit" value="submit">
+	</form>
+</div>
+ -->
