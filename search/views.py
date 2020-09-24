@@ -379,7 +379,7 @@ def maintenance_rec(request, cid):
 		
 		if d_obj.dose == 0 and d_obj.freqString != None:
 			d_obj.alert = "Discuss with pharmacy"
-		elif case.returnARF() and case.hd.value is not 1 and case.crrt.value is not 1:
+		elif case.returnARF() and case.hd.value != 1 and case.crrt.value != 1:
 			d_obj.alert = "Patient may be in acute renal failure. Trough should be drawn before the 3rd dose"
 		elif d_obj.freqString == "q8":
 			d_obj.alert = "Trough should be drawn before the 5th dose. Consider checking BMPs twice daily."

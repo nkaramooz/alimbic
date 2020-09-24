@@ -142,8 +142,13 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 
 
 		final_results = prune_results_v2(joined_results, joined_results)
-		final_results['is_acronym'] = final_results.merge(results_df, on=['adid'])['is_acronym']
-		
+	
+		final_results = final_results.merge(results_df, on=['adid'])
+		final_results = final_results[['acid_x', 'adid', 'description_start_index_x', 'description_end_index_x', 'term_x', 'sum_score', 'term_start_index', \
+			'term_end_index', 'order_score_x', 'final_score', 'term_length_x', 'is_acronym']]
+		final_results.columns = ['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'sum_score', 'term_start_index', \
+			'term_end_index', 'order_score', 'final_score', 'term_length', 'is_acronym']
+	
 	words_df['line'] = line
 
 	return words_df, final_results
@@ -574,11 +579,14 @@ def annotate_text_not_parallel(sentences_df, cache, cursor, case_sensitive, bool
 		line_words_df, res_df = annotate_line_v2(item, cursor, case_sensitive, cache)
 		concepts_df = concepts_df.append(res_df, sort=False)
 		words_df = words_df.append(line_words_df, sort=False)
+	u.pprint("pre_acronym")
+	u.pprint(concepts_df)
 
 	if len(concepts_df.index) > 0:
 		concepts_df = resolve_conflicts(concepts_df, cursor)
 		concepts_df = acronym_check(concepts_df)
-	
+	u.pprint("post_acronym")
+	u.pprint(concepts_df)
 	conn = sqlite3.connect(':memory:')
 	words_df.to_sql('words_df', conn, index=False)
 	concepts_df.to_sql('final_results', conn, index=False, if_exists='replace')
@@ -797,13 +805,14 @@ if __name__ == "__main__":
 	query57="hungry bone syndrome"
 	query58="Prospective observational cohort study"
 	query59="Inhaled nitric oxide NO"
+	query60="intraoperative floppy iris syndrome"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query59
+		term = query38
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		print(all_words)
@@ -811,7 +820,8 @@ if __name__ == "__main__":
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 		print(item)
 		res = annotate_text_not_parallel(item, cache, cursor, False, True, False)
-		u.pprint(res)
+		u.pprint(res.columns)
+		u.pprint(res[['term', 'acid']])
 		
 		d.stop()
 		counter += 1

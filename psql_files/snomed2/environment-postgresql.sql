@@ -81,8 +81,8 @@ create table curr_langrefset_f(
   PRIMARY KEY(id, effectivetime)
 );
 
-drop table if exists curr_associationrefset_f cascade;
-create table curr_associationrefset_f(
+drop table if exists curr_associationrefset_d cascade;
+create table curr_associationrefset_d(
   id uuid not null,
   effectivetime char(8) not null,
   active char(1) not null,

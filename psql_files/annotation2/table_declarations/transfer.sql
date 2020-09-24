@@ -1,18 +1,19 @@
 set schema 'annotation2';
 
 -- migrate new_concepts
-insert into annotation2.new_concepts
-	select conceptid as cid, description_id as did, description as term, effectivetime from annotation.new_concepts
-;
+-- insert into annotation2.new_concepts
+-- 	select conceptid as cid, description_id as did, description as term, effectivetime from annotation.new_concepts
+-- ;
 
 
--- insert manual_snomed_cid_ignore
-insert into annotation2.manual_snomed_ignore
-	select 
-		subtypeid
-	from snomed2.curr_transitive_closure_f
-	where supertypeid = '422096002'
-;
+-- manual_snomed_cid_ignore
+-- insert into annotation2.manual_snomed_ignore
+-- 	select 
+-- 		subtypeid
+-- 		,now()
+-- 	from snomed2.curr_transitive_closure_f
+-- 	where supertypeid = '422096002'
+-- ;
 
 
 
@@ -44,7 +45,6 @@ insert into annotation2.manual_snomed_ignore
 -- select
 -- 	t5.adid
 -- 	,t3.term
--- 	,t3.cid
 -- 	,'t' as active
 -- 	,now()
 -- 	from (
@@ -64,17 +64,17 @@ insert into annotation2.manual_snomed_ignore
 -- ;
 
 -- migrate acronym_override
--- insert into annotation2.acronym_override
+insert into annotation2.acronym_override
 
--- 	select
--- 		t1.id
--- 		,t2.adid
--- 		,t1.is_acronym
--- 		,t1.effectivetime
--- 	from annotation.acronym_override t1
--- 	join annotation2.upstream_root_did t2
--- 	on t1.description_id = t2.did
-
+	select
+		t1.id
+		,t2.adid
+		,case when t1.is_acronym = 0 then false else true end as is_acronym
+		,t1.effectivetime
+	from annotation.acronym_override t1
+	join annotation2.upstream_root_did t2
+	on t1.description_id = t2.did
+;
 
 -- make sure to rerun update
 

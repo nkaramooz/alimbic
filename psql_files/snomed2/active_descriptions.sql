@@ -16,7 +16,7 @@ insert into active_descriptions
             ,active
             ,conceptid as cid
             ,typeid    
-        from snomed.curr_description_f
+        from snomed2.curr_description_f
       ) tb
     where row_num = 1 and active='1'
     ON CONFLICT (did) DO NOTHING;

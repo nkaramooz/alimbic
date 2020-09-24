@@ -27,5 +27,5 @@ insert into upstream_root_did
 			) t1
 		where row_num = 1
 	) t2
-	ON CONFLICT (did, term) DO NOTHING
+	ON CONFLICT (acid, term) DO NOTHING
 ;

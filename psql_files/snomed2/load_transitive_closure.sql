@@ -7,5 +7,5 @@ create table curr_transitive_closure_f(
 );
 
 COPY curr_transitive_closure_f(subtypeId, supertypeId)
-FROM '/Users/LilNimster/Documents/cascade/resources/snomed_files/transitive_closure.txt' 
+FROM '/home/nkaramooz/Documents/alimbic/resources/snomed_files/transitive_closure.txt' 
 WITH (FORMAT csv, HEADER false, DELIMITER '	', QUOTE E'\b');
