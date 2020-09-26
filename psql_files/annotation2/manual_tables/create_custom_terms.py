@@ -40,5 +40,8 @@ def create_custom_terms():
 		cursor.execute(query, (key, value))
 		cursor.connection.commit()
 
+# below will only work on descendants of treatments
+# Need relationship by acid built first
+
 if __name__ == "__main__":
 	create_custom_terms()

@@ -18,50 +18,50 @@ set schema 'annotation2';
 
 
 -- migrate description_whitelist
--- insert into annotation2.root_new_desc
--- 	select
--- 	did
--- 	,t4.acid
--- 	,term
--- 	,'t' as active
--- 	,now()
--- 	from (
--- 		select 
--- 		t1.description_id as did
--- 		,case when syn_rank < ref_rank then syn_cid when syn_rank=ref_rank and syn_cid < ref_cid then syn_cid else t1.conceptid end as cid 
--- 		,t1.term
--- 		from annotation.description_whitelist t1
--- 		left join (select distinct on (ref_cid, ref_rank, syn_cid, syn_rank) ref_cid, ref_rank, syn_cid, syn_rank from annotation2.snomed_synonyms) t2
--- 		on t1.conceptid = t2.ref_cid
--- 		) t3
--- 	left join annotation2.upstream_root_cid t4
--- 	on t3.cid = t4.cid
--- 	where acid is not null
--- ;
+insert into annotation2.root_new_desc
+	select
+	did
+	,t4.acid
+	,term
+	,'t' as active
+	,now()
+	from (
+		select 
+		t1.description_id as did
+		,case when syn_rank < ref_rank then syn_cid when syn_rank=ref_rank and syn_cid < ref_cid then syn_cid else t1.conceptid end as cid 
+		,t1.term
+		from annotation.description_whitelist t1
+		left join (select distinct on (ref_cid, ref_rank, syn_cid, syn_rank) ref_cid, ref_rank, syn_cid, syn_rank from annotation2.snomed_synonyms) t2
+		on t1.conceptid = t2.ref_cid
+		) t3
+	left join annotation2.upstream_root_cid t4
+	on t3.cid = t4.cid
+	where acid is not null
+;
 
 
 -- migrate description_blacklist
--- insert into annotation2.root_desc_inactive
--- select
--- 	t5.adid
--- 	,t3.term
--- 	,'t' as active
--- 	,now()
--- 	from (
--- 		select 
--- 		t1.description_id as did
--- 		,case when syn_rank < ref_rank then syn_cid when syn_rank=ref_rank and syn_cid < ref_cid then syn_cid else t1.conceptid end as cid 
--- 		,t1.term
--- 		from annotation.description_blacklist t1
--- 		left join (select distinct on (ref_cid, ref_rank, syn_cid, syn_rank) ref_cid, ref_rank, syn_cid, syn_rank from annotation2.snomed_synonyms) t2
--- 		on t1.conceptid = t2.ref_cid
--- 		) t3
--- 	left join annotation2.upstream_root_cid t4
--- 		on t3.cid = t4.cid
--- 	left join annotation2.upstream_root_did t5
--- 	on t3.did = t5.did
--- 	where adid is not null
--- ;
+insert into annotation2.root_desc_inactive
+select
+	t5.adid
+	,t3.term
+	,'t' as active
+	,now()
+	from (
+		select 
+		t1.description_id as did
+		,case when syn_rank < ref_rank then syn_cid when syn_rank=ref_rank and syn_cid < ref_cid then syn_cid else t1.conceptid end as cid 
+		,t1.term
+		from annotation.description_blacklist t1
+		left join (select distinct on (ref_cid, ref_rank, syn_cid, syn_rank) ref_cid, ref_rank, syn_cid, syn_rank from annotation2.snomed_synonyms) t2
+		on t1.conceptid = t2.ref_cid
+		) t3
+	left join annotation2.upstream_root_cid t4
+		on t3.cid = t4.cid
+	left join annotation2.upstream_root_did t5
+	on t3.did = t5.did
+	where adid is not null
+;
 
 -- migrate acronym_override
 insert into annotation2.acronym_override

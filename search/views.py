@@ -2,6 +2,7 @@ from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
 import snomed_annotator as ann
+import snomed_annotator2 as ann2
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils as u
@@ -14,12 +15,14 @@ import json
 import numpy as np
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
+from nltk.stem.wordnet import WordNetLemmatizer
+import nltk.data
 # import psql_files.annotation2.lemmatizer as lem
 # import ml2 as m
 # from keras.models import load_model
 # Create your views here.
 
-INDEX_NAME='pubmedx1.5'
+INDEX_NAME='pubmedx1.6'
 
 
 lowDoseArr = [15,12,12,12,12,7,10]
@@ -928,6 +931,17 @@ def conceptid_search_results(request, query, pivot_cids, journals, start_year, e
 	sr_payload = get_sr_payload(sr['hits']['hits'])
 	return {'sr_payload' : sr_payload, 'query' : query, 'concepts' : query_concepts_dict, \
 		'at_a_glance' : {'related' : None}}
+
+def return_section_sentences(text, section, section_index, sentences_df):
+	text = text.replace('...', '.')
+	text = text.replace('. . .', '.')
+	tokenized = nltk.sent_tokenize(text)
+
+	for ln_num, line in enumerate(tokenized):
+		sentences_df = sentences_df.append(pd.DataFrame([[line, section, section_index, ln_num]],
+			columns=['line', 'section', 'section_ind', 'ln_num']), sort=False)
+
+	return sentences_df
 	
 def post_search_text(request):
 	conn, cursor = pg.return_postgres_cursor()
@@ -1029,14 +1043,14 @@ def post_search_text(request):
 		return render(request, 'search/concept_search_results_page.html', params)
 
 	elif query_type == 'keyword':
-		query = ann.clean_text(query)
+		query = ann2.clean_text(query)
 
 		if query.upper() != query:
 			query = query.lower()
 
 		j = u.Timer("get initial concepts")
-		raw_query = "select conceptid from annotation.lemmas_3 where term_lower=%s limit 1"
-		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["conceptid"])
+		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
+		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["acid"])
 			
 		if len(query_concepts_df.index) == 1:
 			u.pprint(query_concepts_df)
@@ -1047,9 +1061,12 @@ def post_search_text(request):
 			query_concepts_df['term_end_index'] = len(query.split(' '))-1
 
 		elif (len(query_concepts_df.index) == 0):
-			all_words = ann.get_all_words_list(query)
-			cache = ann.get_cache(all_words, True, cursor)
-			query_concepts_df,sentences = ann.annotate_text_not_parallel(query, 'query', cache, cursor, False, False, False)
+			all_words = ann2.get_all_words_list(query)
+			cache = ann2.get_cache(all_words, True)
+			
+			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
+			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, False, False)
+
 		j.stop()
 
 		sr = dict()
@@ -1065,18 +1082,13 @@ def post_search_text(request):
 		flattened_query = None
 			
 		if not query_concepts_df.empty:
+			u.pprint(query_concepts_df)
+			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].copy()
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
-
-			full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
-
+			u.pprint(unmatched_terms)
+			full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
-
-			query_concepts = get_query_concept_types_df(query_concepts_df['conceptid'].tolist(), cursor)
-			symptom_count = len(query_concepts[query_concepts['concept_type'] == 'symptom'].index)
-
-			condition_count =len(query_concepts[query_concepts['concept_type'] == 'condition'].index)
 			query_concept_count = len(query_concepts_df.index)
-
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 			c = u.Timer("primary_search")
@@ -1091,10 +1103,10 @@ def post_search_text(request):
 
 			e = u.Timer("related_concepts")
 
-			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
-					symptom_count, unmatched_terms, filters, cursor)
+			# treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
+			# 		symptom_count, unmatched_terms, filters, cursor)
 			e.stop()
-			primary_cids = query_concepts_df['conceptid'].tolist()
+			primary_cids = query_concepts_df['acid'].tolist()
 
 			###UPDATE QUERY BELOW FOR FILTERS
 		else:
@@ -1103,13 +1115,13 @@ def post_search_text(request):
 			sr = es.search(index=INDEX_NAME, body=es_query)
 
 		sr_payload = get_sr_payload(sr['hits']['hits'])
-
-		calcs_json = get_calcs(query_concepts_df, cursor)
+		calcs_json = {}
+		# calcs_json = get_calcs(query_concepts_df, cursor)
 		cursor.close()
 		conn.close()
 
 		if request.method == 'POST':
-			html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['conceptid'].tolist(), \
+			html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['acid'].tolist(), \
 					'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
 					'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
 					'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
@@ -1117,14 +1129,14 @@ def post_search_text(request):
 
 			return html
 		elif request.method == 'GET':
-			return render(request, 'search/concept_search_home_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['conceptid'].tolist(), \
+			return render(request, 'search/concept_search_home_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_concepts_df['acid'].tolist(), \
 					'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
 					'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
 					'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
 					'calcs' : calcs_json})
 
 def get_calcs(query_concepts_df, cursor):
-	concepts = query_concepts_df['conceptid'].tolist()
+	concepts = query_concepts_df['acid'].tolist()
 
 	query = "select distinct on (title, t1.desc, url) title, t1.desc, url from annotation.mdc_staging t1 where conceptid in %s"
 	calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
@@ -1319,6 +1331,7 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 	return es_query
 
 def get_concept_query_string(full_conceptid_list, cursor):
+	print(full_conceptid_list)
 	query_string = ""
 	for item in full_conceptid_list:
 		if type(item) == list:
@@ -1359,15 +1372,15 @@ def get_query_arr_dict(query_concept_list):
 	for item in query_concept_list:
 		if type(item) == list:
 			for concept in item:
-				flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[concept]], columns=['conceptid']))
+				flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[concept]], columns=['acid']))
 		else:
-			flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[item]], columns=['conceptid']))
+			flattened_concept_df = flattened_concept_df.append(pd.DataFrame([[item]], columns=['acid']))
 
-	flattened_concept_df = ann.add_names(flattened_concept_df)
+	flattened_concept_df = ann2.add_names(flattened_concept_df)
 
 	dict_arr = []
 	for index,row in flattened_concept_df.iterrows():
-		concept_dict = {'conceptid' : row['conceptid'], 'term' : row['term']}
+		concept_dict = {'acid' : row['acid'], 'term' : row['term']}
 		dict_arr.append(concept_dict)
 	if len(dict_arr) == 0:
 		return None

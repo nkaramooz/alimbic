@@ -2,6 +2,8 @@ from lxml import etree as ET
 import json
 import codecs
 import snomed_annotator2 as ann2
+import psycopg2
+from psycopg2 import pool
 import pandas as pd
 import multiprocessing as mp
 import utilities.utils as u, utilities.pglib as pg
@@ -14,20 +16,20 @@ import io
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import sys
-
+import sqlalchemy as sqla
 
 INDEX_NAME = 'pubmedx1.6'
 
-def doc_worker(input, conn,cursor):
+def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
-		doc_calculate(func, args, conn,cursor)
+		doc_calculate(func, args)
 
 
-def doc_calculate(func, args, conn, cursor):
-	func(*args, conn, cursor)
+def doc_calculate(func, args):
+	func(*args)
 
 
-def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
+def index_doc_from_elem(elem, filename, issn_list):
 
 	elem = ET.parse(io.BytesIO(elem))
 		
@@ -40,15 +42,17 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 
 		if json_str['journal_pub_year'] is not None:
 			if (int(json_str['journal_pub_year']) >= 1990):
+				
+				# cursor = conn.cursor()
 				json_str, article_text = get_article_info_2(elem, json_str)
-		
+				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
 					
 					json_str = get_pmid(elem, json_str)
 					json_str = get_article_ids(elem, json_str)					
 					json_str['citations_pmid'] = get_article_citations(elem)
 				
-					annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text, cursor)
+					annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
 
 					if annotation_dict['abstract'] is not None:
 						json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
@@ -86,37 +90,43 @@ def index_doc_from_elem(elem, filename, issn_list, conn, cursor):
 					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
-
-					if query_result['hits']['total'] == 0 or query_result['hits']['total'] > 1:
+					
+					if query_result['hits']['total']['value'] == 0 or query_result['hits']['total']['value'] > 1:
 						try:
-							es.index(index=INDEX_NAME, doc_type='abstract', body=json_obj)
+							es.index(index=INDEX_NAME, body=json_obj)
 						except:
 							raise ValueError('incompatible json obj')						
 					elif query_result['hits']['total'] == 1:
 						article_id = query_result['hits']['hits'][0]['_id']
-						es.index(index=INDEX_NAME, id=article_id, doc_type='abstract', body=json_obj)
+						es.index(index=INDEX_NAME, id=article_id, body=json_obj)
+					
+			
+					engine = pg.return_sql_alchemy_engine()
 
-
-	# 					engine = pg.return_sql_alchemy_engine()
-	# s_df.to_sql('sentences5', \
-	# 	engine, schema='annotation', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'concept_arr' : sqla.types.JSON})
-
-
+					sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+						if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+					sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+						if_exists='append', index=False)
+					sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+						if_exists='append', index=False, dtype={'concept_arr' : sqla.types.JSON})
+			
+					engine.dispose()
 
 def load_pubmed_local_2(start_file):
 	es = u.get_es_client()
-	number_of_processes = 1
+	number_of_processes = 40
 
-	cursors = []
-	for i in range(number_of_processes):
-		conn, cursor = pg.return_postgres_cursor()
-		cursors.append((conn,cursor))
+	# cursors = []
+	# for i in range(number_of_processes):
+	# 	conn, cursor = pg.return_postgres_cursor()
+	# 	cursors.append((conn,cursor))
 
 	task_queue = mp.Queue()
 
 	pool = []
 	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue, cursors[i][0], cursors[i][1]))
+		# p = mp.Process(target=doc_worker, args=(task_queue, cursors[i][0], cursors[i][1]))
+		p = mp.Process(target=doc_worker, args=(task_queue,))
 		pool.append(p)
 		p.start()
 
@@ -128,46 +138,57 @@ def load_pubmed_local_2(start_file):
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
-		settings = {"mappings" : {"abstract" : {"properties" : {
-			"journal_issn" : {"type" : "keyword"}
-			,"journal_issn_type" : {"type" : "keyword"}
-			,"journal_title" : {"type" : "text"}
-			,"journal_iso_abbrev" : {"type" : "keyword"}
-			,"journal_volume" : {"type" : "text"}
-			,"journal_issue" : {"type" : "text"}
-			,"journal_pub_year" : {"type" : "integer"}
-			,"journal_pub_month" : {"type" : "keyword"}
-			,"journal_pub_day" : {"type" : "keyword"}
-			,"journal_issue" : {"type" : "keyword"}
-			,"article_title" : {"type" : "text"}
-			,"article_abstract" : {"properties" : {}}
-			,"pmid" : {"type" : "integer"}
-			,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
-				"doi" : {"type" : "keyword"},
-				"pii" : {"type" : "keyword"}}}
-			,"citations_pmid" : {"type" : "keyword"}
-			,"title_conceptids" : {"type" : "keyword"}
-			,"title_dids" : {"type" : "keyword"}
-			,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
-				"background_cid" : {"type" : "keyword"},
-				"conclusions_cid" : {"type" : "keyword"},
-				"objective_cid" : {"type" : "keyword"},
-				"results_cid" : {"type" : "keyword"},
-				"unlabelled_cid" : {"type" : "keyword"}}}
-			,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
-				"background_did" : {"type" : "keyword"},
-				"conclusions_did" : {"type" : "keyword"},
-				"objective_did" : {"type" : "keyword"},
-				"results_did" : {"type" : "keyword"}}}
-			,"article_type_id" : {"type" : "keyword"}
-			,"article_type" : {"type" : "keyword"} 
-			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
-			,"filename" : {"type" : "keyword"}
-		}}}}
-		es.indices.create(index=INDEX_NAME, body=settings)
+		# settings = {"mappings" :{"_doc" : {"properties" : {
+		# 	"journal_issn" : {"type" : "keyword"}
+		# 	,"journal_issn_type" : {
+		# 		"properties" : {"IssnType" : {"type" : "keyword"}}
+		# 		}
+		# 	,"journal_title" : {"type" : "text"}
+		# 	,"journal_iso_abbrev" : {"type" : "keyword"}
+		# 	,"journal_volume" : {"type" : "text"}
+		# 	,"journal_issue" : {"type" : "text"}
+		# 	,"journal_pub_year" : {"type" : "integer"}
+		# 	,"journal_pub_month" : {"type" : "keyword"}
+		# 	,"journal_pub_day" : {"type" : "keyword"}
+		# 	,"journal_issue" : {"type" : "keyword"}
+		# 	,"article_title" : {"type" : "text"}
+		# 	,"article_abstract" : {"properties" : {}}
+		# 	,"pmid" : {"type" : "integer"}
+		# 	,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
+		# 		"doi" : {"type" : "keyword"},
+		# 		"pii" : {"type" : "keyword"}}}
+		# 	,"citations_pmid" : {"type" : "keyword"}
+		# 	,"title_conceptids" : {"type" : "keyword"}
+		# 	,"title_dids" : {"type" : "keyword"}
+		# 	,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
+		# 		"background_cid" : {"type" : "keyword"},
+		# 		"conclusions_cid" : {"type" : "keyword"},
+		# 		"objective_cid" : {"type" : "keyword"},
+		# 		"results_cid" : {"type" : "keyword"},
+		# 		"unlabelled_cid" : {"type" : "keyword"}}}
+		# 	,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
+		# 		"background_did" : {"type" : "keyword"},
+		# 		"conclusions_did" : {"type" : "keyword"},
+		# 		"objective_did" : {"type" : "keyword"},
+		# 		"results_did" : {"type" : "keyword"}}}
+		# 	,"article_type_id" : {"type" : "keyword"}
+		# 	,"article_type" : {"type" : "keyword"}
+		# 	,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
+		# 	,"filename" : {"type" : "keyword"}
+		# }}}}
+		# settings = {
+		# 	"_doc" : {
+		# 		"properties" : {
+		# 			"journal_pub_year" : {"type" : "integer"}
+		# 			}
+		# 		}
+		# 	}
+			
+		
+		es.indices.create(index=INDEX_NAME)
 		
 
-	folder_arr = ['resources/updatefiles']
+	folder_arr = ['resources/ftp.ncbi.nlm.nih.gov/pubmed/baseline']
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -198,30 +219,31 @@ def load_pubmed_local_2(start_file):
 				file_timer.stop()
 				if file_num >= start_file+10:
 					break
-				
+			
 		if file_num == start_file+10:
 			break
-				
-				
 
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
 	for p in pool:
 		p.join()
-	
 
-def get_abstract_conceptids_2(abstract_dict, article_text, cursor):
+	# for i in range(cursors):
+	# 	cursors[i][0].close()
+	# 	cursors[i][1].close()
+
+
+def get_abstract_conceptids_2(abstract_dict, article_text):
 	cid_dict = {}
 	did_dict = {}
 	result_dict = {}
-	
 	cleaned_text = ann2.clean_text(article_text)
 	all_words = ann2.get_all_words_list(cleaned_text)
 	
-	cache = ann2.get_cache(all_words, True, cursor)
+	cache = ann2.get_cache(all_words, True)
 	
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache, cursor)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache)
 	sentence_annotations_df['pmid'] = abstract_dict['pmid']
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
 	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
@@ -388,7 +410,6 @@ def get_article_info_2(elem, json_str):
 	article_text = ""
 	try:
 		article_elem = elem.find('./MedlineCitation/Article')
-		print(article_elem)
 	except:
 		json_str['article_title'] = None
 		json_str['article_abstract'] = None
@@ -398,7 +419,6 @@ def get_article_info_2(elem, json_str):
 	try:
 		title_elem = article_elem.find('./ArticleTitle')
 		json_str['article_title'] = str(title_elem.text)
-		print(json_str['article_title'])
 		article_text += str(title_elem.text)
 	except:
 		json_str['article_title'] = None
@@ -459,7 +479,7 @@ def get_article_info_2(elem, json_str):
 
 	return json_str, article_text
 
-def get_snomed_annotation(text_dict, cache, cursor):
+def get_snomed_annotation(text_dict, cache):
 	sentences_df = pd.DataFrame()
 	sentences_df = return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
 
@@ -467,14 +487,15 @@ def get_snomed_annotation(text_dict, cache, cursor):
 		for ind,k1 in enumerate(text_dict['article_abstract']):
 			sentences_df = return_section_sentences(text_dict['article_abstract'][k1], str(k1), ind+1, sentences_df)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, cursor, True, True, True)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, True, True, True)
 
 	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 
 
 def return_section_sentences(text, section, section_index, sentences_df):
-	
+	text = text.replace('...', '.')
+	text = text.replace('. . .', '.')
 	tokenized = nltk.sent_tokenize(text)
 
 	for ln_num, line in enumerate(tokenized):
@@ -497,6 +518,7 @@ def index_sentences(index_num):
 
 	cursor.execute(index_query, None)
 	cursor.connection.commit()
+	conn.close()
 	cursor.close()		
 
 if __name__ == "__main__":

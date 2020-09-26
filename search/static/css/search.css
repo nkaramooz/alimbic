@@ -111,7 +111,7 @@ input[type=number]::-webkit-outer-spin-button {
 	overflow: hidden;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 5; /* number of lines to show */
+	-webkit-line-clamp: 7; /* number of lines to show */
 }
 .preview-full {
 	padding-top: 15px;

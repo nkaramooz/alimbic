@@ -17,7 +17,7 @@ import time
 import sys
 import sqlite3
 
-def get_new_candidate_df(word, case_sensitive, cursor):
+def get_new_candidate_df(word, case_sensitive):
 	#Knocks off a second off a sentence by selecting for word_ord=1
 	new_candidate_query = ""
 
@@ -54,15 +54,15 @@ def get_new_candidate_df(word, case_sensitive, cursor):
 			  on tb1.adid = ANY(tb2.adid_agg)
 			where lower(tb2.word) in %s
 		"""
-
-
+	conn, cursor = pg.return_postgres_cursor()
 	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
 	 ["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
+	cursor.close()
+	conn.close()
 
-	# new_candidate_df[(new_candidate_df.word_ord==2) & (new_candidate_df.word=='syndrome')]
 	return new_candidate_df
 
-def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, cache):
+def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
@@ -77,6 +77,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 	for index,word in enumerate(ln_words):
+
 		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
 		# identify acronyms
 
@@ -144,6 +145,7 @@ def return_line_snomed_annotation_v2(cursor, line, threshold, case_sensitive, ca
 		final_results = prune_results_v2(joined_results, joined_results)
 	
 		final_results = final_results.merge(results_df, on=['adid'])
+
 		final_results = final_results[['acid_x', 'adid', 'description_start_index_x', 'description_end_index_x', 'term_x', 'sum_score', 'term_start_index', \
 			'term_end_index', 'order_score_x', 'final_score', 'term_length_x', 'is_acronym']]
 		final_results.columns = ['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'sum_score', 'term_start_index', \
@@ -285,15 +287,19 @@ def prune_results_v2(scores_df, og_results):
 	else:
 		return prune_results_v2(results_df, og_results)
 
-# Attempts to disambiguate terms to select one (acronym disambiguation)
+# Attempts to disambiguate terms to select one
 # Technically currently in the first IF statement if there is still a tie, it should resort
 # to using previous concept frequencies. Examples where this would pertain is where a 
 # document references pneumocystis pneumonia and phencyclidine, both of which have the
 # acronym PCP
 # will defer fixing this till later
-def resolve_conflicts(results_df, cursor):
-	results_df['index_count'] = 1
-	counts_df = results_df.groupby(['term_start_index','section_ind', 'ln_num'], as_index=False)['index_count'].sum()
+def resolve_conflicts(results_df):
+	acronym_df = results_df[results_df['is_acronym'] == True].copy()
+	results_df = results_df[results_df['is_acronym'] == False].copy()
+
+	counts_df = results_df.drop_duplicates(['term_start_index','acid', 'section_ind', 'ln_num']).copy()
+	counts_df['index_count'] = 1
+	counts_df = counts_df.groupby(['term_start_index','acid', 'section_ind', 'ln_num'], as_index=False)['index_count'].sum()
 
 	conflicted_indices = counts_df[counts_df['index_count'] > 1]
 	conflict_free_df = results_df[~((results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
@@ -303,7 +309,6 @@ def resolve_conflicts(results_df, cursor):
 	conflicted_df = results_df[(results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
 		(results_df['ln_num'].isin(conflicted_indices['ln_num'])) & \
 		(results_df['section_ind'].isin(conflicted_indices['section_ind']))].copy()
-
 	final_results = conflict_free_df.copy()
 
 	if len(conflict_free_df.index) > 0:
@@ -331,29 +336,36 @@ def resolve_conflicts(results_df, cursor):
 
 	# Really should only want below for query annotation. Not document annotation
 	 #first try and choose most common concept. If not choose randomly
-	else:
-		conc_count_query = "select acid, count from annotation2.concept_counts where acid in %s"
-		params = (tuple(conflicted_df['acid']),)
-		cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
+	# else:
+	## ADD BACK CURSOR HERE
+	# 	u.pprint(results_df)
+	# 	u.pprint(final_results)
+	# 	u.pprint("STOP")
+	# 	sys.exit(0)
+		# conc_count_query = "select acid, count from annotation2.concept_counts where acid in %s"
+		# params = (tuple(conflicted_df['acid']),)
+		# cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
 
 
-		conflicted_df = conflicted_df.merge(cid_cnt_df, on=['acid'], how='left')
-		conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
+		# conflicted_df = conflicted_df.merge(cid_cnt_df, on=['acid'], how='left')
+		# conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
 
-		conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
+		# conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
 
-		conflicted_df = conflicted_df.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
+		# conflicted_df = conflicted_df.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
 
-		last_term_start_index = None
-		last_ln_num = None
-		last_section_ind = None
-		for index,row in conflicted_df.iterrows():
-			if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
-				last_section_ind != row['last_section_ind']:
-				final_results = final_results.append(row, sort=False)
-				last_term_start_index = row['term_start_index']
-				last_ln_num = row['ln_num']
-				last_section_ind = row['section_ind']
+		# last_term_start_index = None
+		# last_ln_num = None
+		# last_section_ind = None
+		# for index,row in conflicted_df.iterrows():
+		# 	if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
+		# 		last_section_ind != row['last_section_ind']:
+		# 		final_results = final_results.append(row, sort=False)
+		# 		last_term_start_index = row['term_start_index']
+		# 		last_ln_num = row['ln_num']
+		# 		last_section_ind = row['section_ind']
+
+	final_results = final_results.append(acronym_df)
 
 	return final_results
 
@@ -365,22 +377,22 @@ def add_names(results_df):
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
-		search_query = "select conceptid, term from annotation.preferred_concept_names \
-			where conceptid in %s"
+		search_query = "select acid, term from annotation2.preferred_concept_names \
+			where acid in %s"
 
 		params = (tuple(results_df['acid']),)
-		names_df = pg.return_df_from_query(cursor, search_query, params, ['conceptid', 'term'])
+		names_df = pg.return_df_from_query(cursor, search_query, params, ['acid', 'term'])
 
-		results_df = results_df.merge(names_df, on='conceptid')
+		results_df = results_df.merge(names_df, on='acid')
 		cursor.close()
 		conn.close
 		return results_df
 
 
-def annotate_line_v2(sentence_df, cursor, case_sensitive, cache):
+def annotate_line_v2(sentence_df, case_sensitive, cache):
 	
 	line = clean_text(sentence_df['line'])
-	words_df, annotation = return_line_snomed_annotation_v2(cursor, line, 93, case_sensitive, cache)
+	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, cache)
 	if annotation is not None:
 		annotation['ln_num'] = sentence_df['ln_num']
 		annotation['section'] = sentence_df['section']
@@ -392,8 +404,9 @@ def annotate_line_v2(sentence_df, cursor, case_sensitive, cache):
 	return words_df, annotation
 
 def get_annotated_tuple(c_df):
-	c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
+
 	if len(c_df) >= 1:
+		c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
 		c_res = pd.DataFrame()
 		sentence_arr = []
 		line = c_df['line'].values[0]
@@ -405,7 +418,8 @@ def get_annotated_tuple(c_df):
 		for ind1, word in enumerate(ln_words):
 			added = False
 			while (concept_counter < concept_len):
-				if ((ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
+
+				if ((isinstance(c_df.iloc[concept_counter]['acid'], str)) and (ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
 					sentence_arr.append((word, c_df.iloc[concept_counter]['acid']))
 					added = True
 					if ((ind1 == c_df.iloc[concept_counter]['description_end_index'])):
@@ -463,39 +477,37 @@ def get_concept_synonyms_df_from_series(conceptid_series, cursor):
 
 def query_expansion(conceptid_series, cursor):
 	conceptid_tup = tuple(conceptid_series.tolist())
-	syn_query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
-	syn_df = pg.return_df_from_query(cursor, syn_query, (conceptid_tup,), \
-	 ["reference_conceptid", "synonym_conceptid"])
+	
 
 	child_query = """
 		select 
-			conceptid
-			,supertypeid
+			child_acid
+			,parent_acid
 		from (
 			select
-				supertypeid,
-    			conceptid,
-    			count,
-    			row_number() over (partition by supertypeid order by count desc) as rn
+				parent_acid,
+    			child_acid,
+    			cnt,
+    			row_number() over (partition by parent_acid order by cnt desc) as rn
 			from
 			(
 				select 
-					supertypeid
-            		,subtypeid as conceptid
-            		,ct.count
+					parent_acid
+            		,child_acid
+            		,ct.cnt
 				from (
-					select subtypeid, supertypeid
-					from snomed.curr_transitive_closure_f where supertypeid in %s
+					select child_acid, parent_acid
+					from snomed2.transitive_closure_acid where parent_acid in %s
 				) tb1
-				join annotation.concept_counts ct
-		  			on tb1.subtypeid = ct.conceptid
+				join annotation2.concept_counts ct
+		  		on tb1.child_acid = ct.concept
     		) tb2
 		) tb3
 		where rn <= 4
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
-		["conceptid", "supertypeid"])
+		["child_acid", "parent_acid"])
 
 	results_list = []
 
@@ -504,12 +516,8 @@ def query_expansion(conceptid_series, cursor):
 		added_other = False
 		# JUST CHANGED PARENTHESES location
 
-		if len(syn_df[syn_df['reference_conceptid'] == item].index) > 0:
-			temp_res.extend(syn_df[syn_df['reference_conceptid'] == item]['synonym_conceptid'].tolist())
-			added_other = True
-
-		if len(child_df[child_df['supertypeid'] == item].index) > 0:
-			temp_res.extend(child_df[child_df['supertypeid'] == item]['conceptid'].tolist())
+		if len(child_df[child_df['parent_acid'] == item].index) > 0:
+			temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
 			added_other = True
 
 		if added_other:
@@ -522,11 +530,11 @@ def query_expansion(conceptid_series, cursor):
 def get_children(conceptid, cursor):
 	child_query = """
 		select 
-			subtypeid as conceptid
-		from snomed.curr_transitive_closure_f tb1
-		left join annotation.concept_counts tb2
-		on tb1.subtypeid = tb2.conceptid
-		where supertypeid = %s and tb2.count is not null
+			child_cid as conceptid
+		from snomed2.transitive_closure_acid tb1
+		left join annotation2.concept_counts tb2
+		on tb1.child_cid = tb2.cid
+		where parent_cid = %s and tb2.count is not null
 		order by tb2.count desc
 		limit 15
 	"""
@@ -552,8 +560,9 @@ def get_all_words_list(text):
 
 	return list(set(all_words))
 
-def get_cache(all_words_list, case_sensitive, cursor):
-	cache = get_new_candidate_df(all_words_list, case_sensitive, cursor)
+def get_cache(all_words_list, case_sensitive):
+
+	cache = get_new_candidate_df(all_words_list, case_sensitive)
 	cache['points'] = 0
 
 	cache.loc[cache.word.isin(all_words_list), 'points'] = 1
@@ -570,54 +579,59 @@ def get_cache(all_words_list, case_sensitive, cursor):
 # ann_df returned for annotation if write sentences is negative
 # otherwise returns 3 dataframes for pubmed indexing
 # This is probably poor form
-def annotate_text_not_parallel(sentences_df, cache, cursor, case_sensitive, bool_acr_check, write_sentences):
+def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_check, write_sentences):
 	concepts_df = pd.DataFrame()
 	sentence_df = pd.DataFrame()
 	words_df = pd.DataFrame()
 
 	for ind,item in sentences_df.iterrows():
-		line_words_df, res_df = annotate_line_v2(item, cursor, case_sensitive, cache)
+		line_words_df, res_df = annotate_line_v2(item, case_sensitive, cache)
 		concepts_df = concepts_df.append(res_df, sort=False)
 		words_df = words_df.append(line_words_df, sort=False)
-	u.pprint("pre_acronym")
-	u.pprint(concepts_df)
 
 	if len(concepts_df.index) > 0:
-		concepts_df = resolve_conflicts(concepts_df, cursor)
+		concepts_df = resolve_conflicts(concepts_df)
+
 		concepts_df = acronym_check(concepts_df)
-	u.pprint("post_acronym")
-	u.pprint(concepts_df)
+	concepts_df = concepts_df.drop_duplicates().copy()
 	conn = sqlite3.connect(':memory:')
-	words_df.to_sql('words_df', conn, index=False)
-	concepts_df.to_sql('final_results', conn, index=False, if_exists='replace')
-	query = """
-		select 
-			t1.term
-			,t1.term_index
-			,t1.ln_num
-			,t1.section_ind
-			,t1.section
-			,t2.description_start_index
-			,t2.acid
-			,t2.adid
-			,t2.description_end_index
-			,t2.sum_score
-			,t2.term_start_index
-			,t2.term_end_index
-			,t2.order_score
-			,t2.final_score
-			,t2.term_length
-			,t2.is_acronym
-			,t1.line
-		from words_df t1
-		left join final_results t2
-		on t1.term_index >= t2.description_start_index and t1.term_index <= t2.description_end_index
-			and t1.ln_num = t2.ln_num and t1.section_ind = t2.section_ind
-	"""
-	ann_df = pd.read_sql_query(query, conn)
+
+	if len(concepts_df.index) > 0:
+		words_df.to_sql('words_df', conn, index=False)
+		concepts_df.to_sql('final_results', conn, index=False, if_exists='replace')
+		query = """
+			select 
+				t1.term
+				,t1.term_index
+				,t1.ln_num
+				,t1.section_ind
+				,t1.section
+				,t2.description_start_index
+				,t2.acid
+				,t2.adid
+				,t2.description_end_index
+				,t2.sum_score
+				,t2.term_start_index
+				,t2.term_end_index
+				,t2.order_score
+				,t2.final_score
+				,t2.term_length
+				,t2.is_acronym
+				,t1.line
+			from words_df t1
+			left join final_results t2
+			on t1.term_index >= t2.description_start_index and t1.term_index <= t2.description_end_index
+				and t1.ln_num = t2.ln_num and t1.section_ind = t2.section_ind
+		"""
+		ann_df = pd.read_sql_query(query, conn)
+	else:
+		ann_df = words_df.copy()
+		ann_df['acid'] = np.nan
+		ann_df['adid'] = np.nan
+		ann_df['description_start_index'] = ann_df['term_index']
+		ann_df['description_end_index'] = ann_df['term_index']
 
 	section_max = ann_df['section_ind'].max()+1
-
 	sentence_annotations_df = pd.DataFrame()
 	sentence_tuples_df = pd.DataFrame()
 	sentence_concept_arr_df = pd.DataFrame()
@@ -652,7 +666,12 @@ def annotate_text_not_parallel(sentences_df, cache, cursor, case_sensitive, bool
 				sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
 
 				single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']]
-				single_ln_df = single_ln_df.iloc[[0]].copy()
+				try:
+					single_ln_df = single_ln_df.iloc[[0]].copy()
+				except:
+					print("ERROR ERROR")
+					print(single_ln_df)
+					u.pprint(ann_df)
 				single_ln_df['sentence_tuples'] = [s_arr]
 				sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
 				single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
@@ -660,6 +679,7 @@ def annotate_text_not_parallel(sentences_df, cache, cursor, case_sensitive, bool
 				sentence_concept_arr_df = sentence_concept_arr_df.append(single_concept_arr_df, sort=False)
 
 		return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
+
 	return ann_df
 
 
@@ -724,7 +744,7 @@ if __name__ == "__main__":
 	# 	chronic obstructive pulmonary disease and congestive heart failure
 	# """
 	query1 = """
-		protein c deficiency protein s deficiency
+		protein C deficiency protein S deficiency
 	"""
 	query2 = """
 		chronic obstructive pulmonary disease and congestive heart failure
@@ -812,17 +832,16 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query38
+		term = query1
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		print(all_words)
-		cache = get_cache(all_words, False, cursor)
+		cache = get_cache(all_words, True, cursor)
+
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 		print(item)
-		res = annotate_text_not_parallel(item, cache, cursor, False, True, False)
-		u.pprint(res.columns)
+		res = annotate_text_not_parallel(item, cache, cursor, True, True, False)
 		u.pprint(res[['term', 'acid']])
-		
 		d.stop()
 		counter += 1
 	

@@ -112,9 +112,9 @@ def add_new_description(acid, new_description, cursor):
 				,adid
 				,term
 			from annotation2.lemmas
-			where term_lower = lower(%s)
+			where term_lower = lower(%s) and acid=%s
 		"""
-		desc_df = pg.return_df_from_query(cursor, query, (new_description,), ['acid', 'adid', 'term'])
+		desc_df = pg.return_df_from_query(cursor, query, (new_description,acid), ['acid', 'adid', 'term'])
 
 		if len(desc_df.index) > 0:
 			message = "Description exists. ACID match : "
@@ -181,12 +181,17 @@ def remove_adid(adid, cursor):
 	adid_df = get_existing_adid(adid, cursor)
 
 	if len(adid_df.index) > 0:
-		term = adid_df['term'][0]
 		query = """
 			insert into annotation2.root_desc_inactive(adid,term,active,effectivetime)
-				VALUES(%s,%s,'f',now())
+				select
+					adid
+					,term
+					,'f' as active
+					,now() as effectivetime
+				from annotation2.lemmas
+				where adid = %s
 		"""
-		cursor.execute(query, (adid,term))
+		cursor.execute(query, (adid,))
 		cursor.connection.commit()
 	else:
 		error = True

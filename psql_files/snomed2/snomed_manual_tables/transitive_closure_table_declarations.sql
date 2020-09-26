@@ -11,8 +11,8 @@ create index transitive_closure_cid_parent_cid_ind on transitive_closure_cid(par
 
 drop table if exists transitive_closure_acid cascade;
 create table transitive_closure_acid (
-	child_cid varchar(36) not null
-	,parent_cid varchar(36)
+	child_acid varchar(36) not null
+	,parent_acid varchar(36)
 );
-create index transitive_closure_acid_child_cid_ind on transitive_closure_acid(child_cid);
-create index transitive_closure_acid_parent_cid_ind on transitive_closure_acid(parent_cid);
+create index transitive_closure_acid_child_cid_ind on transitive_closure_acid(child_acid);
+create index transitive_closure_acid_parent_cid_ind on transitive_closure_acid(parent_acid);
