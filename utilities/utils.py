@@ -20,9 +20,9 @@ class Timer:
 		return float(self.end_time - self.start_time)
 
 def pprint(data_frame):
-	with pd.option_context('display.max_rows', None, 'display.max_columns', 10):
-		pd.set_option('display.width', 1000)
-		print(data_frame)
+	# with pd.option_context("display.max_rows", None, "display.max_columns", None):
+		
+	print(data_frame.to_string())
 
 def write_sentences(s_df, cursor):
 	engine = pg.return_sql_alchemy_engine()

@@ -11,7 +11,7 @@ import collections
 import os
 import random
 import sys
-import snomed_annotator as ann
+import snomed_annotator2 as ann2
 import pickle as pk
 import sys
 from keras.preprocessing import sequence
@@ -45,7 +45,6 @@ vocabulary_size = 50000
 
 
 # Vocabulary spacer should be 4
-# UNK should have index of 1, but unable to change this now
 vocabulary_spacer = 4
 target_treatment_key = vocabulary_size-vocabulary_spacer+3 #49,999
 target_condition_key = vocabulary_size-vocabulary_spacer+2 #49,998
@@ -62,14 +61,14 @@ b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 
 
 def get_all_conditions_set():
-	query = "select root_cid from annotation.concept_types where rel_type='condition'"
+	query = "select root_acid from annotation2.base_concept_types where rel_type='condition'"
 	conn,cursor = pg.return_postgres_cursor()
-	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
 def get_all_treatments_set():
 	
-	query = "select root_cid from annotation.concept_types where rel_type='treatment'"
+	query = "select root_acid from annotation2.base_concept_types where rel_type='treatment'"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
@@ -126,7 +125,7 @@ def apply_word_counts_to_dict(cursor, sentence_row):
 
 
 def get_word_index(word, cursor):
-	query = "select rn from annotation.word_counts_50k where word=%s limit 1"
+	query = "select rn from ml2.word_counts_50k where word=%s limit 1"
 	ind_df = pg.return_df_from_query(cursor, query, (word,), ['rn'])
 	
 	# return index for UNK
@@ -140,12 +139,46 @@ def get_word_from_ind(index):
 		return 'UNK'
 	else:
 		conn,cursor = pg.return_postgres_cursor()
-		query = "select word from annotation.word_counts_50k where rn = %s limit 1"
+		query = "select word from ml2.word_counts_50k where rn = %s limit 1"
 		word_df = pg.return_df_from_query(cursor, query, (index,), ['word'])
 		return str(word_df['word'][0])
 
 
 def train_data_generator(batch_size, cursor):
+	print("train_data_generator")
+	while True:
+		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from annotation.training_sentences", \
+			None, ['ver'])['ver'][0])
+
+		# Note that ordering by random adds significant time
+		new_version = curr_version + 1
+		query = "select id, x_train_gen, label from annotation.training_sentences where ver = %s limit %s"
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'label'])
+
+		x_train_gen = train_df['x_train_gen'].tolist()
+		# x_train_spec = train_df['x_train_spec'].tolist()
+		y_train = train_df['label'].tolist()
+		id_df = train_df['id'].tolist()
+
+		try:
+			query = """
+				set schema 'annotation';
+				UPDATE annotation.training_sentences
+				SET ver = %s
+				where id = ANY(%s);
+			"""
+			cursor.execute(query, (new_version, id_df))
+			cursor.connection.commit()
+
+			# yield [np.asarray(x_train_gen), np.asarray(x_train_spec)], np.asarray(y_train)
+			# print((np.asarray(x_train_gen), np.asarray(y_train)))
+			yield (np.asarray(x_train_gen), np.asarray(y_train))
+		except:
+			print("update version failed. Rolling back")
+			cursor.connection.rollback()
+			yield None
+
+def train_data_generator_v2(batch_size, cursor):
 	print("train_data_generator")
 	while True:
 		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from annotation.training_sentences", \
@@ -220,27 +253,27 @@ def train_with_word2vec_v2():
 	batch_size = 200
 	num_epochs = 10
 
-	model=Sequential()
-	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
-	model.add(Bidirectional(LSTM(500, dropout=0.3, return_sequences=True, input_shape=(embedding_size, batch_size))))
-	model.add(TimeDistributed(Dense(50)))
-	model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
-	model.add(Dense(20))
-	model.add(Flatten())
-	model.add(Dense(1, activation='sigmoid'))
+	# model=Sequential()
+	# model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
+	# model.add(Bidirectional(LSTM(500, dropout=0.3, return_sequences=True, input_shape=(embedding_size, batch_size))))
+	# model.add(TimeDistributed(Dense(50)))
+	# model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	# model.add(Dense(20))
+	# model.add(Flatten())
+	# model.add(Dense(1, activation='sigmoid'))
 
-	# inp1 = Input(shape=(max_words,))
-	# model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp1)
-	# model = Bidirectional(LSTM(128, dropout=0.7, recurrent_dropout=0.7, return_sequences=True, input_shape=(embedding_size, batch_size)))(model)
-	# model = TimeDistributed(Dense(50))(model)
-	# model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(model)
-	# model = Dropout(0.3)(model)
-	# model = Dense(50, activation='relu')(model)
-	# model = Dropout(0.3)(model)
-	# model = Dense(10, activation='relu')(model)
-	# model = Flatten()(model)
-	# model = Dense(1, activation='sigmoid')(model)
-	# model = Model(inputs=[inp1], outputs=model)
+	inp1 = Input(shape=(max_words,))
+	model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp1)
+	model = Bidirectional(LSTM(128, dropout=0.7, recurrent_dropout=0.7, return_sequences=True, input_shape=(embedding_size, batch_size)))(model)
+	model = TimeDistributed(Dense(50))(model)
+	model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(model)
+	model = Dropout(0.3)(model)
+	model = Dense(50, activation='relu')(model)
+	model = Dropout(0.3)(model)
+	model = Dense(10, activation='relu')(model)
+	model = Flatten()(model)
+	model = Dense(1, activation='sigmoid')(model)
+	model = Model(inputs=[inp1], outputs=model)
 
 
 	# inp1 = Input(shape=(max_words,))
@@ -253,25 +286,25 @@ def train_with_word2vec_v2():
 
 
 
-	# inp2 = Input(shape=(max_words,))
+	inp2 = Input(shape=(1,))
 	# second_model = Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True)(inp2)
 	# second_model = LSTM(50, return_sequences=True, input_shape=(embedding_size, batch_size))(second_model)
 
-	# second_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(second_model)
-	# second_model = Dropout(0.3)(second_model)
-	# second_model = Dense(25, activation='relu')(second_model)
+	second_model = Conv1D(filters=32, kernel_size=5, padding='same', activation='relu')(inp2)
+	second_model = Dropout(0.3)(second_model)
+	second_model = Dense(25, activation='relu')(second_model)
 
 
 
-	# c = Concatenate()(inputs=[first_model, second_model])
-	# out = Embedding(vocabulary_size, embedding_size, trainable=True)(c)
-	# out = Bidirectional(LSTM(100))(c)
-	# out = Dense(25, activation='relu')(c)
-	# out = Dropout(0.3)(out)
-	# out = Dense(10, activation='relu')(out)
-	# out = Flatten()(out)
-	# out = Dense(1, activation='sigmoid')(out)
-	# model = Model(inputs=[inp1, inp2], outputs=out)
+	c = Concatenate()(inputs=[first_model, second_model])
+	out = Embedding(vocabulary_size, embedding_size, trainable=True)(c)
+	out = Bidirectional(LSTM(100))(c)
+	out = Dense(25, activation='relu')(c)
+	out = Dropout(0.3)(out)
+	out = Dense(10, activation='relu')(out)
+	out = Flatten()(out)
+	out = Dense(1, activation='sigmoid')(out)
+	model = Model(inputs=[inp1, inp2], outputs=out)
 
 	print(model.summary())
 	# model.summary(print_fn=lambda x: report.write(x + '\n'))
@@ -459,10 +492,10 @@ def recat_calculate(func, args, engine):
 
 
 def apply_get_generic_labelled_data(row, all_conditions_set, all_treatments_set):
-	return get_labelled_data_sentence_generic_v2(row, row['condition_id'], row['treatment_id'], all_conditions_set, all_treatments_set)
+	return get_labelled_data_sentence_generic_v2(row, row['condition_acid'], row['treatment_acid'], all_conditions_set, all_treatments_set)
 
 def apply_get_specific_labelled_data(row):
-	return get_labelled_data_sentence_specific_v2(row, row['condition_id'], row['treatment_id'])
+	return get_labelled_data_sentence_specific_v2(row, row['condition_acid'], row['treatment_acid'])
 
 def apply_score(row, model):
 	# print([row['x_train_gen'], row['x_train_spec']])
@@ -483,49 +516,6 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	u.pprint("write")
 
 
-# Uses conceptid for treatments
-# def get_labelled_data_sentence(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
-# 	conn,cursor = pg.return_postgres_cursor()
-# 	final_results = pd.DataFrame()
-
-# 	sample = [0]*max_words
-	
-# 	counter=0
-# 	for index,words in enumerate(sentence['sentence_tuples']):
-# 		## words[1] is the conceptid, words[0] is the word
-# 		# condition 1 -- word is the condition of interest
-
-# 		if words[1] == condition_id and sample[counter-1] == target_condition_key:
-# 			continue
-# 		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
-# 			sample[counter] = target_condition_key
-# 		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
-# 			sample[counter] = generic_condition_key
-# 			# - word is generic treatment
-# 		elif (words[1] == tx_id) and (sample[counter-1] != target_treatment_key):
-# 			sample[counter] = target_treatment_key
-# 		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
-# 			sample[counter] = generic_treatment_key
-# 			# Now using conceptid if available
-# 		elif words[1] != 0 and (get_word_index(words[1], cursor) != UNK_ind) and get_word_index(words[1], cursor) != sample[counter-1]:
-# 			sample[counter] = get_word_index(words[1], cursor)
-# 		elif (words[1] == 0 and (get_word_index(words[0], cursor) != UNK_ind) and get_word_index(words[0], cursor) != sample[counter-1])\
-# 			and words[1] not in conditions_set and words[1] not in all_treatments_set:
-# 			sample[counter] = get_word_index(words[0], cursor)
-# 		elif (words[1] == 0) and (get_word_index(words[0], cursor) == UNK_ind) and \
-# 			words[1] not in conditions_set and words[1] not in all_treatments_set:
-# 			sample[counter] = get_word_index(words[0], cursor)
-# 		else:
-# 			counter -= 1
-		
-# 		counter += 1
-
-# 		if counter >= max_words-1:
-# 			break
-
-# 	cursor.close()
-# 	conn.close()
-# 	return sample
 
 # sample[0] = dict value of item
 # sample[1]: 1=target_condition, 2=target_treatment
@@ -535,7 +525,7 @@ def get_labelled_data_sentence_generic_v2(sentence, condition_id, tx_id, conditi
 	sample = [0]*max_words
 	counter = 0
 
-	for index,words in enumerate(sentence['sentence_tuples']):
+	for index,words in enumerate(sentence['sentence_tuples']):		
 		if words[1] == condition_id and sample[counter-1] == target_condition_key:
 			continue
 		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
@@ -753,178 +743,178 @@ def get_bounded_labelled_data_sentence(sentence, condition_id, tx_id, conditions
 	return sample
 
 def gen_datasets_top(write_type):
-	conn,cursor = pg.return_postgres_cursor()
-	engine = pg.return_sql_alchemy_engine()
-
-	query = "select min(ver) as ver from annotation.labelled_treatments t1 where label=0 or label=1"
+	query = "select min(ver) as ver from ml2.labelled_treatments t1 where label=0 or label=1"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
 
 
-	query = "select count(*) as cnt from annotation.labelled_treatments where label=0 or label=1"
+	query = "select count(*) as cnt from ml2.labelled_treatments where label=0 or label=1"
 	max_counter = int(pg.return_df_from_query(cursor, query, None, ['cnt'])['cnt'][0])
 
 	query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
+			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
 		"""
-	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+
 	
 	while (len(labels_df) > 0):
 		print(labels_df)
-		write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, write_type, engine, cursor)
-		query = "UPDATE annotation.labelled_treatments set ver = %s where id = %s"
+		write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, write_type)
+		query = "UPDATE ml2.labelled_treatments set ver = %s where id = %s"
 		cursor.execute(query, (new_version, labels_df['id'].values[0]))
 		cursor.connection.commit()
 
 		query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
+			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
 		"""
-		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 
-def gen_datasets_bottom(new_version, conditions_set, treatments_set):
-	number_of_processes = 1
-	engine_arr = []
-	cursor_arr = []
+
+def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	sentences_df = pd.DataFrame()
+
+	if condition_acid == '%':
+		tx_id_arr = [treatment_acid]
+		tx_id_arr.extend(ann2.get_children(treatment_acid, cursor))
+		
+		sentences_query = """
+						select
+							t4.sentence_tuples
+							,t2.condition_acid
+							,t3.treatment_acid
+							,t1.sentence_id
+							,t1.section_ind
+							,t1.pmid
+						from pubmed.sentence_concept_arr t1
+						join (select root_acid as condition_acid from annotation2.base_concept_types where rel_type='condition' or rel_type='symptom') t2
+							on t2.condition_acid = ANY(t1.concept_arr::text[])
+						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
+							on t3.treatment_acid = ANY(t1.concept_arr::text[])
+						join pubmed.sentence_tuples t4
+							on t1.sentence_id = t4.sentence_id
+					"""
+		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
+				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
+			
+		print("finished query")
+			
+		print("len of wildcard: " + str(len(sentences_df)))
+	else:
+		condition_id_arr = [condition_acid]
+		condition_id_arr.extend(ann2.get_children(condition_acid, cursor))
+
+		tx_id_arr = [treatment_acid]
+		tx_id_arr.extend(ann2.get_children(treatment_acid, cursor))
+		sentences_query = """
+				select
+					t4.sentence_tuples
+					,t2.condition_acid
+					,t3.treatment_acid
+					,t1.sentence_id
+					,t1.section_ind
+					,t1.pmid
+				from pubmed.sentence_concept_arr t1
+				join (select acid as condition_acid from annotation2.downstream_root_cid where acid in %s) t2
+					on t2.condition_acid = ANY(t1.concept_arr::text[])
+				join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
+					on t3.treatment_acid = ANY(t1.concept_arr::text[])
+				join pubmed.sentence_tuples t4
+					on t1.sentence_id = t4.sentence_id
+			"""
+		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
+				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
+	cursor.close()
+	conn.close()
+
+	if len(sentences_df.index) > 0:
+		sentences_df['label'] = label
+		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, 'gen')
+
+
+def gen_datasets_mp(new_version):
+	number_of_processes = 30
 	old_version = new_version-1
-
-	for i in range(number_of_processes):
-		engine = pg.return_sql_alchemy_engine()
-		engine_arr.append(engine)
-		conn,cursor = pg.return_postgres_cursor()
-		cursor_arr.append(cursor)
+	conditions_set = get_all_conditions_set()
+	treatments_set = get_all_treatments_set()
 
 	task_queue = mp.Queue()
-
 	pool = []
+
 	for i in range(number_of_processes):
-		p = mp.Process(target=gen_dataset_worker, args=(task_queue, engine_arr[i], cursor_arr[i]))
+		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set))
 		pool.append(p)
 		p.start()
-
-	counter = 0
 
 	conn,cursor = pg.return_postgres_cursor()
 
 	query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and condition_id=%s limit 2
+			select t1.id, condition_acid::text, treatment_acid::text, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
 		"""
-	labels_df = pg.return_df_from_query(cursor, query, (old_version,'%'), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+	labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 	
 
-	while (len(labels_df) > 0 and counter <= 1):
-		query = "UPDATE annotation.labelled_treatments set ver = %s where id = %s"
-		cursor.execute(query, (new_version, labels_df['id'].values[0]))
+	while len(labels_df.index) > 0:
+		for index,item in labels_df.iterrows():
+			params = (item['condition_acid'], item['treatment_acid'], item['label'])
+			task_queue.put((gen_datasets_mp_bottom, params))
+
+		query = "UPDATE ml2.labelled_treatments set ver = %s where id in %s"
+		cursor.execute(query, (new_version, tuple(labels_df['id'].values.tolist())))
 		cursor.connection.commit()
 
-		params = (labels_df, conditions_set, treatments_set)
-		task_queue.put((write_sentence_vectors_from_labels, params))
-
-		print(labels_df)
-
 		query = """
-			select t1.id, condition_id, treatment_id, label, ver from annotation.labelled_treatments t1 where ver=%s and condition_id=%s limit 2
+			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
 		"""
-
-		labels_df = pg.return_df_from_query(cursor, query, (old_version,'%'), ['id', 'condition_id', 'treatment_id', 'label', 'ver'])
+		labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+	
 		
-		# except:
-		# 	cursor.connection.rollback()
-		counter += 1
-	cursor.close()
-	conn.close()
-
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
 	for p in pool:
 		p.join()
 
-	for g in engine_arr:
-		g.dispose()
+	for p in pool:
+		p.close()
 
-	for c in cursor_arr:
-		c.close()
+	cursor.close()
+	conn.close()
 
 
-def gen_dataset_worker(input, engine, cursor):
+def gen_dataset_worker(input, conditions_set, treatments_set):
 	for func,args in iter(input.get, 'STOP'):
-		gen_dataset_calculate(func, args, engine, cursor)
+		gen_dataset_calculate(func, args, conditions_set, treatments_set)
 
-def gen_dataset_calculate(func, args, engine, cursor):
-	func(*args, engine, cursor)
+def gen_dataset_calculate(func, args, conditions_set, treatments_set):
+	func(*args, conditions_set, treatments_set)
 
-def write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, write_type, engine, cursor):
-	condition_sentence_ids = pd.DataFrame()
 
-	for index,item in labels_df.iterrows():
-		sentences_df = pd.DataFrame()
+def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, write_type):
+	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
 
-		if item['condition_id'] == '%':
-			tx_id_arr = [item['treatment_id']]
-			tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
-			tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
-	
-			sentences_query = """
-						select 
-							t1.sentence_tuples
-							,t1.sentence
-							,t2.condition_id
-							,t1.conceptid as treatment_id
-							,t1.id
-							,t1.pmid
-						from annotation.sentences5 t1
-						right join (select id, conceptid as condition_id from annotation.sentences5) t2
-							on t1.id = t2.id
-						inner join (select root_cid from annotation.concept_types where rel_type='condition') t3
-							on t2.condition_id = t3.root_cid
-						where t1.conceptid in %s
-					"""
-			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
-				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
-			
-			print("finished query")
-			
-			print("len of wildcard: " + str(len(sentences_df)))
-		else:
-			condition_id_arr = [item['condition_id']]
-			condition_id_arr.extend(ann.get_children(item['condition_id'], cursor))
-			condition_id_arr = ann.get_concept_synonyms_list_from_list(condition_id_arr, cursor)
-
-			tx_id_arr = [item['treatment_id']]
-			tx_id_arr.extend(ann.get_children(item['treatment_id'], cursor))
-			tx_id_arr = ann.get_concept_synonyms_list_from_list(tx_id_arr, cursor)
-
-			sentences_query = """
-				select sentence_tuples, sentence, t2.condition_id, t1.conceptid as treatment_id, t1.id, t1.pmid
-				from annotation.sentences5 t1
-				right join (
-					select id, conceptid as condition_id from annotation.sentences5 where conceptid in %s
-				) t2
-				on t1.id = t2.id
-				where conceptid in %s
-			"""
-			sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
-				['sentence_tuples', 'sentence', 'condition_id', 'treatment_id', 'id', 'pmid'])
-		
-		
+	if len(sentences_df.index) > 0:
 		if write_type == 'gen':
 			sentences_df['x_train_gen'] = sentences_df.apply(apply_get_generic_labelled_data, all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 			sentences_df['x_train_spec'] = sentences_df.apply(apply_get_specific_labelled_data, axis=1)
-			sentences_df['label'] = item['label']
+
 			sentences_df['ver_gen'] = 0
 			sentences_df['ver_spec'] = 0
-			sentences_df = sentences_df[['id', 'sentence', 'sentence_tuples', 'condition_id', 'treatment_id', 'x_train_gen', 'x_train_spec', 'label', 'ver_gen', 'ver_spec']]
-			sentences_df.to_sql('training_sentences_with_version_v2', engine, schema='annotation', if_exists='append', \
-				index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+			sentences_df = sentences_df[['sentence_id', 'sentence_tuples', 'condition_acid', 'treatment_acid', 'x_train_gen', 'x_train_spec', 'label', 'ver_gen', 'ver_spec']]
+			sentences_df.to_sql('training_sentences_with_version', engine, schema='ml2', if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 		elif write_type == 'spec':
 			for i,d in sentences_df.iterrows():
 				res = get_labelled_data_sentence_custom_v2(d, d['condition_id'], d['treatment_id'])
 				res['label'] = item['label']
 				res['ver'] = 0
 				res.to_sql('custom_training_sentences', engine, schema='annotation', if_exists='append', \
-						index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_cust' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+							index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_cust' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+		cursor.close()
+		conn.close()
+		engine.dispose()
 
 def analyze_sentence(sentence_df, condition_id, cursor):
 	# model = load_model('model01.04.19.-01.hdf5')
@@ -1053,8 +1043,9 @@ if __name__ == "__main__":
 	# print(get_word_index('195967001', cursor))
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
-	parallel_treatment_recategorization_top('double-10.hdf5')
+	# parallel_treatment_recategorization_top('double-10.hdf5')
 	# gen_datasets_top('gen')
+	gen_datasets_mp(1)
 	# update_word2vec('model.3.hdf5')
 
 

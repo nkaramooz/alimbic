@@ -13,6 +13,7 @@ custom_synonym_dict = {
 	,'regurgitation' : 'insufficiency'
 	,'transplantation' : 'transplant'
 	,'vagus' : 'vagal'
+	,'and' : 'plus'
 }
 
 def create_custom_terms():

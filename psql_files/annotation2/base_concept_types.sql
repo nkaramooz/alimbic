@@ -1,23 +1,20 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 drop table if exists base_concept_types;
 
 create table base_concept_types as (
-	select
-		conceptid :: varchar(40) as root_cid
-		,null :: varchar(40) as associated_cid
+		select
+		ac.acid :: varchar(40) as root_acid
 		,concept_type :: text as rel_type
-		,1 :: integer as active
-		,'1999-08-05 13:30:37.279497' :: timestamp as effectivetime
-	from (
-	select
-		conceptid
-		,concept_type
-	from (
-		select 
-			subtypeid as conceptid, 
-			case 
-				when supertypeid = '49755003' then 'condition' --therapeutic diet
+		from (
+			select
+			conceptid
+			,concept_type
+			from (
+				select 
+				subtypeid as conceptid, 
+				case 
+					when supertypeid = '49755003' then 'condition' --therapeutic diet
 				when supertypeid = '226077000' then 'treatment' --therapeutic diet
 				when supertypeid = '105958000' then 'treatment'
 				when supertypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
@@ -66,7 +63,6 @@ create table base_concept_types as (
 				when supertypeid = '56402004' then 'diagnostic' --  Biopsy of mucous membrane (procedure)
 				when supertypeid = '392089008' then 'treatment' -- Breast procedure (procedure)
 				when supertypeid = '65818007' then 'treatment' -- Stent device (physical object)
-
 				when supertypeid = '303679003' then 'diagnostic' -- Computed tomography of systems (procedure)
 				when supertypeid = '265244003' then 'treatment' -- Endocrine system and/or breast operations (procedure)
 				when supertypeid = '284366008' then 'diagnostic' -- Examination of body system (procedure)
@@ -92,7 +88,6 @@ create table base_concept_types as (
 				when supertypeid = '168600009' then 'diagnostic' -- Thoracic inlet X-ray (procedure)
 				when supertypeid = '231345002' then 'treatment' -- Topical local anesthetic to mucous membrane (procedure)
 				when supertypeid = '303911009' then 'diagnostic' -- Ultrasound studies of systems (procedure)
-
 				when supertypeid = '118949002' then 'treatment' -- Procedure on extremity 
 				when supertypeid = '118754003' then 'treatment' -- Procedure on gland 
 				when supertypeid = '118950002' then 'treatment' -- Procedure on head AND/OR neck
@@ -118,7 +113,6 @@ create table base_concept_types as (
 				when supertypeid = '128927009' then 'treatment' -- Procedure by method (procedure)
 				when supertypeid = '169443000' then 'prevention' --  Preventive procedure (procedure)
 				when supertypeid = '20135006' then 'screening' -- Screening procedure (procedure)
-
 				when supertypeid = '386811000' then 'diagnostic' -- Fetal procedure DIAGNOSTIC
 				when supertypeid = '243773009' then 'diagnostic' -- Fetal blood sampling
 				when supertypeid = '371571005' then 'diagnostic' -- Imaging by body site DIAGNOSTIC
@@ -126,17 +120,13 @@ create table base_concept_types as (
 				when supertypeid = '5880005' then 'diagnostic'  --  Physical examination procedure Diagnostic
 				when supertypeid = '302381002' then 'diagnostic' -- Placental biopsy  Diagnostic
 				when supertypeid = '285579008' then 'diagnostic' --  Taking swab from body site
-
 				when supertypeid = '108252007' then 'diagnostic' -- laboratory procedure
-				
 				when supertypeid = '104464008' then 'diagnostic' -- Acid phosphatase measurement, forensic examination (procedure)
 				when supertypeid = '103693007' then 'diagnostic' -- Diagnostic procedure (procedure)
 				when supertypeid = '258174001' then 'diagnostic' -- Imaging guidance procedure (procedure)
 				when supertypeid = '362964009' then 'treatment' -- Palliative procedure (procedure)
 				when supertypeid = '20135006' then 'diagnostic' --  Screening procedure (procedure)
 				when supertypeid = '277132007' then 'treatment' -- Therapeutic procedure (procedure)
-
-
 				when supertypeid = '104464008' then 'diagnostic'-- Acid phosphatase measurement, forensic examination
 				when supertypeid = '432442004' then 'diagnostic' -- Collection of forensic data (procedure)
 				when supertypeid = '21268002' then 'diagnostic'  -- Cytopathology procedure, forensic (procedure)
@@ -150,7 +140,6 @@ create table base_concept_types as (
 				when supertypeid = '122869004' then 'diagnostic' -- Measurement procedure (procedure)
 				when supertypeid = '14766002' then 'diagnostic' -- Aspiration (procedure)
 				when supertypeid = '86273004' then 'diagnostic' -- Biopsy (procedure)
-
 				when supertypeid = '419036000' then 'cause' -- Archaea
 				when supertypeid = '409822003' then 'cause' -- Bacteria
 				when supertypeid = '84676004' then 'cause' -- Prion
@@ -160,46 +149,38 @@ create table base_concept_types as (
 				when supertypeid = '370570004' then 'cause' -- Protoctista
 				when supertypeid = '417396000' then 'cause' -- Protozoa
 				when supertypeid = '417377004' then 'cause' -- Mold
-				-- when supertypeid = '88878007' then 'cause' -- protein
-				-- when supertypeid = '106197002' then 'cause' -- Mediator of immune response AND/OR inflammation (substance)
-				-- when supertypeid = '106192008' then 'cause' -- Complement related substance (substance)
-				-- when supertypeid = '7120007' then 'cause' --  Antigen (substance)
-
 				when supertypeid = '404684003' then 'symptom' -- clinical finding
 				when supertypeid = '4147007' then 'condition' -- Mass
-				when supertypeid = '123037004' then 'anatomy' -- body structure
-
-				
+				when supertypeid = '123037004' then 'anatomy' -- body structure			
 				when supertypeid = '363787002' then 'observable' -- observable entity
-
 				when supertypeid = '362981000' then 'qualifier' -- qualifier value
-
 	   			when supertypeid = '64572001' then 'condition' -- disease
-	   		end as concept_type
+		   		end as concept_type
 
-		from snomed.curr_transitive_closure_f tr
-		left outer join (select
-									conceptid
-									,1 as match
-								from annotation.active_descriptions d
-								where term like '%(finding)%' or term like '%(disorder)%') j
-		on tr.subtypeid = j.conceptid
-		where j.match is null
-	) tb
+		   			from snomed2.curr_transitive_closure_f tr
+		   			left outer join (select
+		   				cid
+		   				,1 as match
+		   				from snomed2.active_descriptions d
+		   				where term like '%(finding)%' or term like '%(disorder)%') j
+		   			on tr.subtypeid = j.cid
+		   			where j.match is null
+		   			) tb
 	where concept_type is not null and conceptid not in ('182813001', '276239002')
-	
+
 	union all
 
 	select
-		conceptid
-		,case 
-			when term like '%(finding)%' then 'symptom'
-			when term like '%(disorder)%' then 'condition' end as concept_type
-		from annotation.active_descriptions
-
+	cid as conceptid
+	,case 
+	when term like '%(finding)%' then 'symptom'
+	when term like '%(disorder)%' then 'condition' end as concept_type
+	from snomed2.active_descriptions
 	) f 
-	where concept_type is not null
+join annotation2.downstream_root_cid ac
+on f.conceptid = ac.cid
+where concept_type is not null
 );
 
-create index base_ct_conceptid on base_concept_types(root_cid);
-create index base_ct_concept_type on base_concept_types(rel_type)
+create index base_ct_conceptid on base_concept_types(root_acid);
+	create index base_ct_concept_type on base_concept_types(rel_type)

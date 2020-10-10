@@ -17,6 +17,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import sys
 import sqlalchemy as sqla
+import regex as re
 
 INDEX_NAME = 'pubmedx1.6'
 
@@ -41,7 +42,7 @@ def index_doc_from_elem(elem, filename, issn_list):
 		json_str = get_journal_info(elem, json_str)
 
 		if json_str['journal_pub_year'] is not None:
-			if (int(json_str['journal_pub_year']) >= 1990):
+			if ((int(json_str['journal_pub_year']) >= 1990)):
 				
 				# cursor = conn.cursor()
 				json_str, article_text = get_article_info_2(elem, json_str)
@@ -108,13 +109,13 @@ def index_doc_from_elem(elem, filename, issn_list):
 					sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
 						if_exists='append', index=False)
 					sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-						if_exists='append', index=False, dtype={'concept_arr' : sqla.types.JSON})
+						if_exists='append', index=False)
 			
 					engine.dispose()
 
 def load_pubmed_local_2(start_file):
 	es = u.get_es_client()
-	number_of_processes = 40
+	number_of_processes = 48
 
 	# cursors = []
 	# for i in range(number_of_processes):
@@ -138,54 +139,45 @@ def load_pubmed_local_2(start_file):
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
-		# settings = {"mappings" :{"_doc" : {"properties" : {
-		# 	"journal_issn" : {"type" : "keyword"}
-		# 	,"journal_issn_type" : {
-		# 		"properties" : {"IssnType" : {"type" : "keyword"}}
-		# 		}
-		# 	,"journal_title" : {"type" : "text"}
-		# 	,"journal_iso_abbrev" : {"type" : "keyword"}
-		# 	,"journal_volume" : {"type" : "text"}
-		# 	,"journal_issue" : {"type" : "text"}
-		# 	,"journal_pub_year" : {"type" : "integer"}
-		# 	,"journal_pub_month" : {"type" : "keyword"}
-		# 	,"journal_pub_day" : {"type" : "keyword"}
-		# 	,"journal_issue" : {"type" : "keyword"}
-		# 	,"article_title" : {"type" : "text"}
-		# 	,"article_abstract" : {"properties" : {}}
-		# 	,"pmid" : {"type" : "integer"}
-		# 	,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
-		# 		"doi" : {"type" : "keyword"},
-		# 		"pii" : {"type" : "keyword"}}}
-		# 	,"citations_pmid" : {"type" : "keyword"}
-		# 	,"title_conceptids" : {"type" : "keyword"}
-		# 	,"title_dids" : {"type" : "keyword"}
-		# 	,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
-		# 		"background_cid" : {"type" : "keyword"},
-		# 		"conclusions_cid" : {"type" : "keyword"},
-		# 		"objective_cid" : {"type" : "keyword"},
-		# 		"results_cid" : {"type" : "keyword"},
-		# 		"unlabelled_cid" : {"type" : "keyword"}}}
-		# 	,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
-		# 		"background_did" : {"type" : "keyword"},
-		# 		"conclusions_did" : {"type" : "keyword"},
-		# 		"objective_did" : {"type" : "keyword"},
-		# 		"results_did" : {"type" : "keyword"}}}
-		# 	,"article_type_id" : {"type" : "keyword"}
-		# 	,"article_type" : {"type" : "keyword"}
-		# 	,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
-		# 	,"filename" : {"type" : "keyword"}
-		# }}}}
-		# settings = {
-		# 	"_doc" : {
-		# 		"properties" : {
-		# 			"journal_pub_year" : {"type" : "integer"}
-		# 			}
-		# 		}
-		# 	}
-			
+		settings = {"mappings" :{"_doc" : {"properties" : {
+			"journal_issn" : {"type" : "keyword"}
+			,"journal_issn_type" : {"type" : "keyword"}
+			,"journal_title" : {"type" : "text"}
+			,"journal_iso_abbrev" : {"type" : "keyword"}
+			,"journal_volume" : {"type" : "text"}
+			,"journal_issue" : {"type" : "text"}
+			,"journal_pub_year" : {"type" : "integer"}
+			,"journal_pub_month" : {"type" : "keyword"}
+			,"journal_pub_day" : {"type" : "keyword"}
+			,"journal_issue" : {"type" : "keyword"}
+			,"article_title" : {"type" : "text"}
+			,"article_abstract" : {"properties" : {}}
+			,"pmid" : {"type" : "integer"}
+			,"article_ids" : {"properties" : {"pmid" : {"type" : "keyword"}, 
+				"doi" : {"type" : "keyword"},
+				"pii" : {"type" : "keyword"}}}
+			,"citations_pmid" : {"type" : "keyword"}
+			,"title_conceptids" : {"type" : "keyword"}
+			,"title_dids" : {"type" : "keyword"}
+			,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
+				"background_cid" : {"type" : "keyword"},
+				"conclusions_cid" : {"type" : "keyword"},
+				"objective_cid" : {"type" : "keyword"},
+				"results_cid" : {"type" : "keyword"},
+				"unlabelled_cid" : {"type" : "keyword"}}}
+			,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
+				"background_did" : {"type" : "keyword"},
+				"conclusions_did" : {"type" : "keyword"},
+				"objective_did" : {"type" : "keyword"},
+				"results_did" : {"type" : "keyword"}}}
+			,"article_type_id" : {"type" : "keyword"}
+			,"article_type" : {"type" : "keyword"}
+			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
+			,"filename" : {"type" : "keyword"}
+		}}}}
 		
-		es.indices.create(index=INDEX_NAME)
+		
+		es.indices.create(index=INDEX_NAME, body=settings, include_type_name=True)
 		
 
 	folder_arr = ['resources/ftp.ncbi.nlm.nih.gov/pubmed/baseline']
@@ -198,7 +190,6 @@ def load_pubmed_local_2(start_file):
 
 		for filename in file_lst:
 
-			abstract_counter = 0
 			file_path = folder_path + '/' + filename
 			file_num = int(re.findall('pubmed20n(.*).xml', filename)[0])
 
@@ -207,20 +198,20 @@ def load_pubmed_local_2(start_file):
 			
 				file_timer = u.Timer('file')
 
-				file_abstract_counter = 0
+				# file_abstract_counter = 0
 				for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
 					json_str = {}
 					params = (ET.tostring(elem), filename, issn_list)
 					task_queue.put((index_doc_from_elem, params))
-					file_abstract_counter += 1
+					# file_abstract_counter += 1
 					elem.clear()
-
+				# print(file_abstract_counter)
 
 				file_timer.stop()
-				if file_num >= start_file+10:
+				if file_num >= start_file+4:
 					break
 			
-		if file_num == start_file+10:
+		if file_num == start_file+4:
 			break
 
 	for i in range(number_of_processes):
@@ -494,13 +485,18 @@ def get_snomed_annotation(text_dict, cache):
 
 
 def return_section_sentences(text, section, section_index, sentences_df):
-	text = text.replace('...', '.')
-	text = text.replace('. . .', '.')
-	tokenized = nltk.sent_tokenize(text)
 
+	tokenized = nltk.sent_tokenize(text)
+	# Counter is needed because some papers have extraneous periods and line numbers get thrown off (i.e. . . . or . .)
+	# counter = 0
 	for ln_num, line in enumerate(tokenized):
+
+		# if re.search('[a-zA-z]',tokenized[ln_num]) is None:
+		# 	continue
+		# else:
 		sentences_df = sentences_df.append(pd.DataFrame([[line, section, section_index, ln_num]],
-			columns=['line', 'section', 'section_ind', 'ln_num']), sort=False)
+				columns=['line', 'section', 'section_ind', 'ln_num']), sort=False)
+			# counter += 1
 
 	return sentences_df
 
@@ -528,11 +524,11 @@ if __name__ == "__main__":
 	# c.stop()
 
 
-	start_file = 900
-	while (start_file < 1132):
+	start_file = 616
+	while (start_file < 1016):
 		print(start_file)
 		load_pubmed_local_2(start_file)
-		start_file += 10
+		start_file += 5
 	# index_sentences(5)
 	
 

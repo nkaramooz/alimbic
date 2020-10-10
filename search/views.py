@@ -918,7 +918,7 @@ def conceptid_search_results(request, query, pivot_cids, journals, start_year, e
 	es = es_util.get_es_client()
 	conn, cursor = pg.return_postgres_cursor()
 
-	full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+	full_query_concepts_list = ann2.query_expansion(query_concepts_df['conceptid'], cursor)
 
 	query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
@@ -954,8 +954,6 @@ def post_search_text(request):
 	filters = {}
 	if request.method == 'GET': 
 		parsed = urlparse.urlparse(request.path)
-		print(parsed.path)
-		print(parse_qs(parsed.path))
 		parsed = parse_qs(parsed.path)
 		# query = parse_qs(parsed.path)['/search/query'][0]
 		# return render(request, 'search/concept_search_home_page.html', 
@@ -1013,7 +1011,7 @@ def post_search_text(request):
 
 	if query_type == 'pivot':
 		query_concepts_df = pd.DataFrame(primary_cids, columns=['conceptid'])
-		full_query_concepts_list = ann.query_expansion(query_concepts_df['conceptid'], cursor)
+		full_query_concepts_list = ann2.query_expansion(query_concepts_df['conceptid'], cursor)
 
 		unmatched_terms = data['unmatched_terms']
 
@@ -1053,7 +1051,6 @@ def post_search_text(request):
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["acid"])
 			
 		if len(query_concepts_df.index) == 1:
-			u.pprint(query_concepts_df)
 			print("DIRECT MATCH")
 
 		if (len(query_concepts_df.index) != 0):
@@ -1082,10 +1079,10 @@ def post_search_text(request):
 		flattened_query = None
 			
 		if not query_concepts_df.empty:
-			u.pprint(query_concepts_df)
+
 			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].copy()
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
-			u.pprint(unmatched_terms)
+
 			full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 			query_concept_count = len(query_concepts_df.index)
@@ -1103,8 +1100,8 @@ def post_search_text(request):
 
 			e = u.Timer("related_concepts")
 
-			# treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
-			# 		symptom_count, unmatched_terms, filters, cursor)
+			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, 
+					unmatched_terms, filters, cursor)
 			e.stop()
 			primary_cids = query_concepts_df['acid'].tolist()
 
@@ -1149,24 +1146,24 @@ def get_calcs(query_concepts_df, cursor):
 
 def rollups(cids_df, cursor):
 	if len(cids_df.index) > 0:
-		params = (tuple(cids_df['conceptid']), tuple(cids_df['conceptid']))
+		params = (tuple(cids_df['acid']), tuple(cids_df['acid']))
 
-		query = "select subtypeid, supertypeid from snomed.curr_transitive_closure_f where subtypeid in %s and supertypeid in %s"
-		parents_df = pg.return_df_from_query(cursor, query, params, ["subtypeid", "supertypeid"])
+		query = "select child_acid, parent_acid from snomed2.transitive_closure_acid where child_acid in %s and parent_acid in %s"
+		parents_df = pg.return_df_from_query(cursor, query, params, ["child_acid", "parent_acid"])
 
 		parents_df['parent_count'] = 1
-		parent_count_df = parents_df.groupby(['subtypeid'], as_index=False)['parent_count'].sum()
-		parents_df = parents_df[['subtypeid', 'supertypeid']].merge(parent_count_df, how='left', left_on=['subtypeid'], right_on=['subtypeid'])
+		parent_count_df = parents_df.groupby(['child_acid'], as_index=False)['parent_count'].sum()
+		parents_df = parents_df[['child_acid', 'parent_acid']].merge(parent_count_df, how='left', left_on=['child_acid'], right_on=['child_acid'])
 
 		# now make np array of cids
 
-		cids_df = cids_df.merge(parents_df, how='left', left_on=['conceptid'], right_on=['subtypeid'])
+		cids_df = cids_df.merge(parents_df, how='left', left_on=['acid'], right_on=['child_acid'])
 		cids_df['parent_count'] = cids_df['parent_count'].fillna(0)
 
-		cids_df = cids_df.merge(cids_df[['conceptid', 'parent_count']], how='left', left_on=['supertypeid'], right_on=['conceptid'])
-		cids_df.columns = ['conceptid', 'count', 'term', 'subtypeid', 'supertypeid', 'parent_count', 'supertypeid_y', 'supertypeid_count']
+		cids_df = cids_df.merge(cids_df[['acid', 'parent_count']], how='left', left_on=['parent_acid'], right_on=['acid'])
+		cids_df.columns = ['acid', 'count', 'term', 'child_acid', 'parent_acid', 'parent_count', 'parent_acid_y', 'parent_acid_count']
 
-		cids_df = cids_df.sort_values(['conceptid', 'supertypeid_count'], ascending=False).drop_duplicates(['conceptid']).reset_index(drop=True)
+		cids_df = cids_df.sort_values(['acid', 'parent_acid_count'], ascending=False).drop_duplicates(['acid']).reset_index(drop=True)
 		cids_df = cids_df.sort_values(by=['parent_count'], ascending=True)
 
 		g = u.Timer('json_resp')
@@ -1182,12 +1179,12 @@ def rollups(cids_df, cursor):
 def get_json(item_df, prev_json):
 
 	if item_df['parent_count'] == 0:
-		prev_json.append({item_df['conceptid'] : {'name' : item_df['term'], 'count' : item_df['count'], 'children' : []}})
+		prev_json.append({item_df['acid'] : {'name' : item_df['term'], 'count' : item_df['count'], 'children' : []}})
 		return prev_json
 	else:
 		for i,r in enumerate(prev_json):
-			if item_df['supertypeid'] in r.keys():
-				r[item_df['supertypeid']]['children'].append({item_df['conceptid'] : {'name' : item_df['term'], 'count' : item_df['count'], 'children' : []}})
+			if item_df['parent_acid'] in r.keys():
+				r[item_df['parent_acid']]['children'].append({item_df['acid'] : {'name' : item_df['term'], 'count' : item_df['count'], 'children' : []}})
 				return prev_json
 		for i,r in enumerate(prev_json):
 			get_json(item_df, r[list(r.keys())[0]]['children'])
@@ -1309,13 +1306,14 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 
 
 	if (len(journals) > 0) or start_year or end_year:
-		d = {"bool" : {}}
-
+		# d = {"bool" : {}}
+		d = []
 		if len(journals) > 0:
-			d["bool"]["should"] = []
+			# d["bool"]["should"] = []
 
 			for i in journals:
-				d["bool"]["should"].append({"term" : {'journal_iso_abbrev' : i}})
+				# d["bool"]["should"].append({"term" : {'journal_iso_abbrev' : i}})
+				d.append({"term" : {'journal_iso_abbrev' : i}})
 
 		if start_year and end_year:
 			d["bool"]["must"] = [{"range" : {"journal_pub_year" : {"gte" : start_year, "lte" : end_year}}}]
@@ -1326,12 +1324,12 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 
 		es_query["bool"]["filter"] = d
 
-		
+
 
 	return es_query
 
 def get_concept_query_string(full_conceptid_list, cursor):
-	print(full_conceptid_list)
+
 	query_string = ""
 	for item in full_conceptid_list:
 		if type(item) == list:
@@ -1399,7 +1397,7 @@ def get_flattened_query_concept_list(concept_list):
 	return flattened_query_concept_list
 
 def get_query_concept_types_df(flattened_concept_list, cursor):
-	concept_type_query_string = "select root_cid as conceptid, rel_type as concept_type from annotation.concept_types where root_cid in %s"
+	concept_type_query_string = "select root_cid as conceptid, rel_type as concept_type from annotation2.concept_types where root_cid in %s"
 
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
 		(tuple(flattened_concept_list),), ["conceptid", "concept_type"])
@@ -1426,7 +1424,7 @@ def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cur
 				    	,effectivetime
 				    	,active
 				    	,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
-					from annotation.concept_types
+					from annotation2.concept_types
 					where root_cid in %s and associated_cid in %s and rel_type=%s) tb1
 				where active=1 and row_num=1 ) tb2
 			union
@@ -1441,7 +1439,7 @@ def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cur
 					    ,effectivetime
 					    ,active
 					    ,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
-					from annotation.concept_types
+					from annotation2.concept_types
 					where root_cid in %s and rel_type=%s) tb3
 			    where active=1 and row_num=1
 		"""
@@ -1459,7 +1457,7 @@ def get_query_concept_types_df_2(flattened_concept_list, query_concept_list, cur
 # Conceptid_df is the title_match
 def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, concept_type):
 
-	dist_concept_list = list(set(conceptid_df['conceptid'].tolist()))
+	dist_concept_list = list(set(conceptid_df['acid'].tolist()))
 
 	if concept_type == 'treatment' and len(dist_concept_list) > 0:
 		query = """
@@ -1474,63 +1472,34 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	elif len(dist_concept_list) > 0:
 
 		concept_type_query_string = """
-				select
-				tb2.conceptid
-				,tb2.concept_type
-			from (
-				select
-					root_cid as conceptid
-				  	,rel_type as concept_type
-				from (
-					select 
-						root_cid
-				    	,associated_cid
-				    	,rel_type
-				    	,effectivetime
-				    	,active
-				    	,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
-					from annotation.concept_types
-					where root_cid in %s and associated_cid in %s and rel_type=%s) tb1
-				where active=1 and row_num=1 ) tb2
-			union
-				select
-					root_cid as conceptid
-			    	,rel_type as concept_type
-				from (
-					select 
-						root_cid
-					    ,associated_cid
-					    ,rel_type
-					    ,effectivetime
-					    ,active
-					    ,row_number () over (partition by root_cid, rel_type order by effectivetime desc) as row_num
-					from annotation.concept_types
-					where root_cid in %s and rel_type=%s) tb3
-			    where active=1 and row_num=1
+			select 
+				root_acid as acid
+				,rel_type as concept_type
+			from annotation2.base_concept_types
+			where rel_type = %s
 		"""
 		### THIS WONT WORK WITH MULTIPLE CONCEPTS
 
-		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (tuple(dist_concept_list), tuple(query_concept_list[0]), \
-				concept_type, tuple(dist_concept_list), concept_type), ["conceptid", "concept_type"])
-		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['conceptid'])
+		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid", "concept_type"])
+		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='inner', on=['acid'])
 
 		return conceptid_df
 	else:
 		concept_type_query_string = """
-			select root_cid
-			from annotation.concept_types
+			select root_cid as acid
+			from annotation2.concept_types
 			where rel_type=%s
 
 		"""
-		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["conceptid"])
-		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['conceptid'])
+		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid"])
+		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['acid'])
 		return conceptid_df
 		# return pd.DataFrame([], columns=["conceptid", "concept_type"])
 
-def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, filters, cursor):
+def get_related_conceptids(query_concept_list, unmatched_terms, filters, cursor):
 	result_dict = dict()
 	es = es_util.get_es_client()
-	print(query_concept_list)
+
 	print("above is related concept query concept list")
 	
 	# es_query = get_query(query_concept_list, unmatched_terms, journals, start_year, end_year, ["title_conceptids^5"], cursor)
@@ -1558,51 +1527,48 @@ def get_related_conceptids(query_concept_list, symptom_count, unmatched_terms, f
 	sub_dict['cause'] = []
 
 	if len(title_match_cids_df) > 0:
-		title_match_cids_df = de_dupe_synonyms_2(title_match_cids_df, cursor)
+
 		flattened_query_concepts = get_flattened_query_concept_list(query_concept_list)
 
-		agg_tx = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'treatment')
+	# 	agg_tx = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'treatment')
 
-		if not agg_tx.empty:
-			agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
-			agg_tx['count'] = 1
-			agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
+	# 	if not agg_tx.empty:
+	# 		agg_tx = agg_tx.drop_duplicates(subset=['conceptid', 'pmid'])
+	# 		agg_tx['count'] = 1
+	# 		agg_tx = agg_tx.groupby(['conceptid'], as_index=False)['count'].sum()
 
-			agg_tx = ann.add_names(agg_tx)
-			sub_dict['treatment'] = rollups(agg_tx, cursor)
+	# 		agg_tx = ann.add_names(agg_tx)
+	# 		sub_dict['treatment'] = rollups(agg_tx, cursor)
 
 
-		agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
-		# agg_diagnostic = []
-		if len(agg_diagnostic) > 0:
-			agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['conceptid', 'pmid'])
-			agg_diagnostic['count'] = 1
-			agg_diagnostic = agg_diagnostic.groupby(['conceptid'],  as_index=False)['count'].sum()
+	# 	agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
+
+	# 	if len(agg_diagnostic) > 0:
+	# 		agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['conceptid', 'pmid'])
+	# 		agg_diagnostic['count'] = 1
+	# 		agg_diagnostic = agg_diagnostic.groupby(['conceptid'],  as_index=False)['count'].sum()
 			
-			agg_diagnostic = ann.add_names(agg_diagnostic)
-			sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
+	# 		agg_diagnostic = ann.add_names(agg_diagnostic)
+	# 		sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
 			
 
-		agg_cause = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'cause')
-		# agg_cause = []
-		if len(agg_cause) > 0:
-			agg_cause = agg_cause.drop_duplicates(subset=['conceptid', 'pmid'])
-			agg_cause['count'] = 1
-			agg_cause = agg_cause.groupby(['conceptid'],  as_index=False)['count'].sum()
-			agg_cause = ann.add_names(agg_cause)
-			sub_dict['cause'] = rollups(agg_cause, cursor)
-			# agg_cause = agg_cause.sort_values(['count'], ascending=False)
-			# for index,row in agg_cause.iterrows():
-			# 	item_dict = {row['conceptid'] : {'name': row['term'], 'count': row['count'], 'children' : []}}
-			# 	sub_dict['cause'].append(item_dict)
+	# 	agg_cause = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'cause')
+
+	# 	if len(agg_cause) > 0:
+	# 		agg_cause = agg_cause.drop_duplicates(subset=['conceptid', 'pmid'])
+	# 		agg_cause['count'] = 1
+	# 		agg_cause = agg_cause.groupby(['conceptid'],  as_index=False)['count'].sum()
+	# 		agg_cause = ann.add_names(agg_cause)
+	# 		sub_dict['cause'] = rollups(agg_cause, cursor)
+
 
 		agg_condition = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'condition')
 
 		if len(agg_condition) > 0:
-			agg_condition = agg_condition.drop_duplicates(subset=['conceptid', 'pmid'])
+			agg_condition = agg_condition.drop_duplicates(subset=['acid', 'pmid'])
 			agg_condition['count'] = 1
-			agg_condition = agg_condition.groupby(['conceptid'],  as_index=False)['count'].sum()
-			agg_condition = ann.add_names(agg_condition)
+			agg_condition = agg_condition.groupby(['acid'],  as_index=False)['count'].sum()
+			agg_condition = ann2.add_names(agg_condition)
 			agg_condition = agg_condition.sort_values(['count'], ascending=False)
 			sub_dict['condition'] = rollups(agg_condition, cursor)
 	
@@ -1686,13 +1652,13 @@ def get_conceptids_from_sr(sr):
 
 def get_title_cids(sr):
 
-	conceptid_df = pd.DataFrame(columns=['conceptid', 'pmid'])
+	conceptid_df = pd.DataFrame(columns=['acid', 'pmid'])
 	for hit in sr['hits']['hits']:
 		if hit['_source']['title_conceptids'] is not None:
 			pmid = hit['_source']['pmid']
 			cid_list = list(set(hit['_source']['title_conceptids']))
 			new_df = pd.DataFrame()
-			new_df['conceptid'] = cid_list
+			new_df['acid'] = cid_list
 			new_df['pmid'] = pmid
 			conceptid_df = conceptid_df.append(new_df)
 	return conceptid_df

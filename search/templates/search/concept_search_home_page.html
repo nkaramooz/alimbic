@@ -2,6 +2,8 @@
 <!-- {% url 'search:concept_search_results' as concept_search %} -->
 {% include 'search/search_bar_template.html' with action=concept_search %}
 
-<div class="results" id="results">
-	{% include 'search/concept_search_results_page.html' %}
-</div>
+<body style="font-family: sans-serif;">
+	<div class="results" id="results">
+		{% include 'search/concept_search_results_page.html' %}
+	</div>
+</body>

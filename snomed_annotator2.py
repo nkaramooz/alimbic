@@ -338,7 +338,7 @@ def resolve_conflicts(results_df):
 	 #first try and choose most common concept. If not choose randomly
 	# else:
 	## ADD BACK CURSOR HERE
-	# 	u.pprint(results_df)
+	# 	u.p(results_df)
 	# 	u.pprint(final_results)
 	# 	u.pprint("STOP")
 	# 	sys.exit(0)
@@ -371,6 +371,7 @@ def resolve_conflicts(results_df):
 
 
 def add_names(results_df):
+	print(results_df)
 	conn,cursor = pg.return_postgres_cursor()
 	if results_df is None:
 		cursor.close()
@@ -413,25 +414,14 @@ def get_annotated_tuple(c_df):
 
 		ln_words = line.split()
 		concept_counter = 0
-		concept_len = len(c_df)
-		at_end = False
-		for ind1, word in enumerate(ln_words):
-			added = False
-			while (concept_counter < concept_len):
+		concept_len = len(c_df)\
 
-				if ((isinstance(c_df.iloc[concept_counter]['acid'], str)) and (ind1 >= c_df.iloc[concept_counter]['description_start_index']) and (ind1 <= c_df.iloc[concept_counter]['description_end_index'])):
-					sentence_arr.append((word, c_df.iloc[concept_counter]['acid']))
-					added = True
-					if ((ind1 == c_df.iloc[concept_counter]['description_end_index'])):
-						concept_counter +=1
-					break
-				else:
-					sentence_arr.append((word, 0))
-					added = True
-					break
 
-			if not added:
-				sentence_arr.append((word, 0))
+		for index,item in c_df.iterrows():
+			if isinstance(item['acid'], str):
+				sentence_arr.append((item['term'], item['acid']))
+			else:
+				sentence_arr.append((item['term'], 0))
 
 		return sentence_arr
 	else:
@@ -530,19 +520,19 @@ def query_expansion(conceptid_series, cursor):
 def get_children(conceptid, cursor):
 	child_query = """
 		select 
-			child_cid as conceptid
+			child_acid
 		from snomed2.transitive_closure_acid tb1
 		left join annotation2.concept_counts tb2
-		on tb1.child_cid = tb2.cid
-		where parent_cid = %s and tb2.count is not null
-		order by tb2.count desc
+			on tb1.child_acid = tb2.concept
+		where tb1.parent_acid = %s and tb2.cnt is not null
+		order by tb2.cnt desc
 		limit 15
 	"""
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid,), \
-		["conceptid"])
+		["child_acid"])
 	
 
-	return child_df['conceptid'].tolist()
+	return child_df['child_acid'].tolist()
 
 def get_all_words_list(text):
 	tokenized = nltk.sent_tokenize(text)
@@ -638,45 +628,49 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 	if write_sentences:	
 		for i in range(section_max):
 			section_df = ann_df[ann_df['section_ind'] == i].copy()
-			
-			ln_len = section_df['ln_num'].max()+1
 
-			for j in range(ln_len):
-				ln_df =  section_df[section_df['ln_num'] == j].copy()
-				concept_arr = list(set(ln_df['acid'].dropna().tolist()))
-				uid = str(uuid.uuid1())
-			
-				s_arr = get_annotated_tuple(ln_df)
+			if len(section_df.index) > 0:
+				ln_len = int(section_df['ln_num'].max())+1
 
-				ln_df['sentence_id'] = uid
-				ln_df.fillna('-1', inplace=True)
-				
-				ln_df.to_sql('ln_df', conn, index=False, if_exists='replace')
-				query = """
-					select 
-						sentence_id
-						,section
-						,section_ind
-						,ln_num
-						,acid
-						,adid
-						,case when acid='-1' then term else acid end as final_ann
-					from ln_df
-				"""
-				sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
+				for j in range(ln_len):
+					ln_df =  section_df[section_df['ln_num'] == j].copy()
 
-				single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']]
-				try:
-					single_ln_df = single_ln_df.iloc[[0]].copy()
-				except:
-					print("ERROR ERROR")
-					print(single_ln_df)
-					u.pprint(ann_df)
-				single_ln_df['sentence_tuples'] = [s_arr]
-				sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
-				single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
-				single_concept_arr_df['concept_arr'] = [concept_arr]
-				sentence_concept_arr_df = sentence_concept_arr_df.append(single_concept_arr_df, sort=False)
+					if len(ln_df.index) > 0:
+						concept_arr = list(set(ln_df['acid'].dropna().tolist()))
+						uid = str(uuid.uuid1())
+					
+						s_arr = get_annotated_tuple(ln_df)
+
+						ln_df['sentence_id'] = uid
+						ln_df.fillna('-1', inplace=True)
+						
+						ln_df.to_sql('ln_df', conn, index=False, if_exists='replace')
+						query = """
+							select 
+								sentence_id
+								,section
+								,section_ind
+								,ln_num
+								,acid
+								,adid
+								,case when acid='-1' then term else acid end as final_ann
+							from ln_df
+						"""
+						sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
+
+						single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
+						
+						try: 
+							single_ln_df = single_ln_df.iloc[[0]].copy()
+						except:
+							print("ERROR ERROR")
+							print(single_ln_df)
+							u.pprint(ann_df)
+						single_ln_df['sentence_tuples'] = [s_arr]
+						sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
+						single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
+						single_concept_arr_df['concept_arr'] = [concept_arr]
+						sentence_concept_arr_df = sentence_concept_arr_df.append(single_concept_arr_df, sort=False)
 
 		return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
@@ -826,22 +820,23 @@ if __name__ == "__main__":
 	query58="Prospective observational cohort study"
 	query59="Inhaled nitric oxide NO"
 	query60="intraoperative floppy iris syndrome"
+	query61="We conclude that the loss of vagal tone associated with the development of cardiac failure unmasks the direct negative chronotropic effect of exogenous adenosine on the sinoatrial node"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query1
+		term = query61
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		print(all_words)
-		cache = get_cache(all_words, True, cursor)
+		cache = get_cache(all_words, True)
 
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 		print(item)
-		res = annotate_text_not_parallel(item, cache, cursor, True, True, False)
-		u.pprint(res[['term', 'acid']])
+		res = annotate_text_not_parallel(item, cache, True, True, False)
+		u.pprint(res)
 		d.stop()
 		counter += 1
 	
