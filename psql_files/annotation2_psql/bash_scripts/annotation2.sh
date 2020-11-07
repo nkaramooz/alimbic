@@ -33,10 +33,10 @@ psql -d alimbic -f ../manual_tables/add_adid_acronym.sql -q
 echo "declare custom terms"
 psql -d alimbic -f ../manual_tables/declare_custom_terms.sql -q
 echo "create_custom_terms.py"
-python /home/nkaramooz/Documents/alimbic/psql_files/annotation2/manual_tables/create_custom_terms.py
+python /home/nkaramooz/Documents/alimbic/psql_files/annotation2_psql/manual_tables/create_custom_terms.py
 echo "rerun add_adid_acronym.sql now with custom_terms"
 psql -d alimbic -f ../manual_tables/add_adid_acronym.sql -q
 echo "lemmatizer.py"
-python /home/nkaramooz/Documents/alimbic/psql_files/annotation2/bash_scripts/lemmatizer.py
+python /home/nkaramooz/Documents/alimbic/psql_files/annotation2_psql/bash_scripts/lemmatizer.py
 echo "first_word"
 psql -d alimbic -f ../annotator_tables/first_word.sql

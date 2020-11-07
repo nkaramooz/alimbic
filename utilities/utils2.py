@@ -20,9 +20,12 @@ class Timer:
 		return float(self.end_time - self.start_time)
 
 def pprint(data_frame):
-	with pd.option_context('display.max_rows', None, 'display.max_columns', 10):
-		pd.set_option('display.width', 1000)
+	if isinstance(data_frame, str):
 		print(data_frame)
+	else:
+		with pd.option_context('display.max_rows', None, 'display.max_columns', 10):
+			pd.set_option('display.width', 1000)
+			print(data_frame)
 
 def get_conceptid_name(conceptid, cursor):
 	search_query = """

@@ -19,6 +19,9 @@ import sys
 import sqlalchemy as sqla
 import regex as re
 
+from ftplib import FTP
+from bs4 import BeautifulSoup
+
 INDEX_NAME = 'pubmedx1.6'
 
 def doc_worker(input):
@@ -42,9 +45,8 @@ def index_doc_from_elem(elem, filename, issn_list):
 		json_str = get_journal_info(elem, json_str)
 
 		if json_str['journal_pub_year'] is not None:
-			if ((int(json_str['journal_pub_year']) >= 1990)):
+			if ((int(json_str['journal_pub_year']) >= 1980)):
 				
-				# cursor = conn.cursor()
 				json_str, article_text = get_article_info_2(elem, json_str)
 				
 				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
@@ -54,6 +56,7 @@ def index_doc_from_elem(elem, filename, issn_list):
 					json_str['citations_pmid'] = get_article_citations(elem)
 				
 					annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
+					sentence_annotations_df['ver'] = 0
 
 					if annotation_dict['abstract'] is not None:
 						json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
@@ -92,28 +95,84 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 					query_result = es.search(index=INDEX_NAME, body=get_article_query)
 					
-					if query_result['hits']['total']['value'] == 0 or query_result['hits']['total']['value'] > 1:
+					if query_result['hits']['total']['value'] == 0:
 						try:
 							es.index(index=INDEX_NAME, body=json_obj)
 						except:
-							raise ValueError('incompatible json obj')						
-					elif query_result['hits']['total'] == 1:
+							raise ValueError('incompatible json obj')
+
+						try:
+							engine = pg.return_sql_alchemy_engine()
+							sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+								if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+							sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+								if_exists='append', index=False)
+							sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+								if_exists='append', index=False)
+							engine.dispose()
+						except:
+							try:
+								engine = pg.return_sql_alchemy_engine()
+								sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+								sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+									if_exists='append', index=False)
+								sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+									if_exists='append', index=False)
+								engine.dispose()
+							except:
+								try: 
+									engine = pg.return_sql_alchemy_engine()
+									sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+									sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+										if_exists='append', index=False)
+									sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+										if_exists='append', index=False)
+									engine.dispose()
+
+								except:
+									print("could not save the following")
+									u.pprint(sentence_tuples_df)
+									u.pprint(sentence_annotations_df)
+									u.pprint(sentence_concept_arr_df)
+
+					# Below should delete old annotations and update with new ones in tables
+					# Basically drop segments with that pmid and then append these values						
+					elif query_result['hits']['total']['value'] >= 1:
 						article_id = query_result['hits']['hits'][0]['_id']
 						es.index(index=INDEX_NAME, id=article_id, body=json_obj)
+						# conn, cursor = pg.return_postgres_cursor()
+
+						# query = """
+						# 	DELETE FROM pubmed.sentence_tuples
+						# 	where pmid = %s
+						# """
+						# cursor.execute(query, (pmid,))
+						# cursor.connection.commit()
+
+						# query = """
+						# 	DELETE FROM pubmed.sentence_annotations
+						# 	where pmid = %s
+						# """
+						# cursor.execute(query, (pmid,))
+						# cursor.connection.commit()
+
+						# query = """
+						# 	DELETE FROM pubmed.sentence_concept_arr
+						# 	where pmid = %s
+						# """
+						# cursor.execute(query, (pmid,))
+						# cursor.connection.commit()
+						# cursor.close()
+						# conn.close()
+			
 					
-			
-					engine = pg.return_sql_alchemy_engine()
 
-					sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
-						if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-					sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
-						if_exists='append', index=False)
-					sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-						if_exists='append', index=False)
-			
-					engine.dispose()
+					
 
-def load_pubmed_local_2(start_file):
+
+def load_pubmed_local_2(start_file, folder_path):
 	es = u.get_es_client()
 	number_of_processes = 48
 
@@ -134,8 +193,7 @@ def load_pubmed_local_2(start_file):
 	conn, cursor = pg.return_postgres_cursor()
 	issn_query = "select issn from pubmed.journals"
 	issn_list = pg.return_df_from_query(cursor, issn_query, None, ['issn'])['issn'].tolist()
-	cursor.close()
-	conn.close()
+	
 
 	index_exists = es.indices.exists(index=INDEX_NAME)
 	if not index_exists:
@@ -180,7 +238,7 @@ def load_pubmed_local_2(start_file):
 		es.indices.create(index=INDEX_NAME, body=settings, include_type_name=True)
 		
 
-	folder_arr = ['resources/ftp.ncbi.nlm.nih.gov/pubmed/baseline']
+	folder_arr = [folder_path]
 
 	for folder_path in folder_arr:
 		file_counter = 0
@@ -189,28 +247,29 @@ def load_pubmed_local_2(start_file):
 		file_lst.sort()
 
 		for filename in file_lst:
-
 			file_path = folder_path + '/' + filename
 			file_num = int(re.findall('pubmed20n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
 				print(filename)
-			
-				file_timer = u.Timer('file')
 
-				# file_abstract_counter = 0
 				for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
 					json_str = {}
 					params = (ET.tostring(elem), filename, issn_list)
 					task_queue.put((index_doc_from_elem, params))
-					# file_abstract_counter += 1
 					elem.clear()
-				# print(file_abstract_counter)
-
-				file_timer.stop()
+				query = """
+					INSERT INTO pubmed.indexed_files
+					VALUES
+					(%s, %s)
+					"""
+				cursor.execute(query, (filename, file_num))
+				cursor.connection.commit()
 				if file_num >= start_file+4:
 					break
-			
+		
+		cursor.close()
+		conn.close()
 		if file_num == start_file+4:
 			break
 
@@ -515,7 +574,34 @@ def index_sentences(index_num):
 	cursor.execute(index_query, None)
 	cursor.connection.commit()
 	conn.close()
-	cursor.close()		
+	cursor.close()	
+
+def get_start_file_num():
+	conn,cursor = pg.return_postgres_cursor()
+	conn, cursor = pg.return_postgres_cursor()
+	query = """
+		select max(file_num) from pubmed.indexed_files
+	"""
+	cursor.execute(query)
+	max_num = cursor.fetchone()[0]
+	cursor.close()
+	conn.close()
+
+	return max_num+1	
+
+def get_end_file_num(start_file_num):
+	f = FTP('ftp.ncbi.nlm.nih.gov')
+	f.login()
+	f.cwd('/pubmed/updatefiles/')
+	filenames = f.nlst()
+
+	max_file_num = start_file_num
+	for i in filenames:
+		if re.match(".*\.xml\.gz$", i):
+			file_num = int(re.findall('pubmed20n(.*)\.xml.gz$', i)[0])
+			if file_num > max_file_num:
+				max_file_num = file_num
+	return max_file_num
 
 if __name__ == "__main__":
 
@@ -523,11 +609,23 @@ if __name__ == "__main__":
 	# c = u.Timer("full timer")
 	# c.stop()
 
+	# print(sys.argv[1])
+	# if sys.argv[1] == 'update':
+	# 	conn, cursor = pg.return_postgres_cursor()
+	# 	query = "select max(file_num) from pubmed.indexed_files"
+	# 	cursor.execute(query)
+	# 	start_num = cursor.fetchone()[0] + 1
+	# 	cursor.close()
+	# 	conn.close()
+	# 	load_pubmed_local_2(start_num, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov/pubmed/updatefiles')
 
-	start_file = 616
-	while (start_file < 1016):
+	# start_file = get_start_file_num()
+	# end_file = get_end_file_num(start_file) + 1
+	start_file = 500
+	end_file = 1016
+	while (start_file < end_file):
 		print(start_file)
-		load_pubmed_local_2(start_file)
+		load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/pubmed/baseline')
 		start_file += 5
 	# index_sentences(5)
 	

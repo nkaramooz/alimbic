@@ -19,6 +19,6 @@ psql -d alimbic -f ../manual_tables/add_adid_acronym.sql -q
 echo "drop lemmas"
 psql -d alimbic -c "drop table annotation2.lemmas"
 echo "update_lemmas.py"
-python /home/nkaramooz/Documents/alimbic/psql_files/annotation2/bash_scripts/update_lemmas.py
+python /home/nkaramooz/Documents/alimbic/psql_files/annotation2_psql/bash_scripts/update_lemmas.py
 echo "first_word"
 psql -d alimbic -f ../annotator_tables/first_word.sql

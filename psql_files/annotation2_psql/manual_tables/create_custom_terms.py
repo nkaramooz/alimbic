@@ -14,6 +14,9 @@ custom_synonym_dict = {
 	,'transplantation' : 'transplant'
 	,'vagus' : 'vagal'
 	,'and' : 'plus'
+	,'hypokinetic' : 'hypokinesis'
+	,'with' : 'and'
+	,'and' : 'with'
 }
 
 def create_custom_terms():

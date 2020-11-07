@@ -1,9 +1,7 @@
 $(document).ready(function() {
 
 	$('.expand_btn').on('click', function() {
-		console.log("clicked");
 		var prev = $(this).parent().parent().find(".preview-ellipsis")
-		console.log(prev)
 		if (prev.length > 0) {
 			prev.removeClass('preview-ellipsis').addClass('preview-full');
 		} else {
@@ -21,6 +19,28 @@ $(document).ready(function() {
 			$(this).find('#expando').removeClass('exp_less');
 			$(this).find('#expando').addClass('exp_more');
 		}
+	});
+
+	$('#more_treatment_btn').on('click', function() {
+		if ($('#treatments').find('.hidden-items').hasClass('hide')) { 
+			$('#treatments').find('.hidden-items').removeClass('hide');
+			$(this).text('less');
+		}
+		else {
+			$('#treatments').find('.hidden-items').addClass('hide');
+			$(this).text('more');
+		}			
+	});
+
+	$('#more_conditions_btn').on('click', function() {
+		if ($('#conditions').find('.hidden-items').hasClass('hide')) { 
+			$('#conditions').find('.hidden-items').removeClass('hide');
+			$(this).text('less');
+		}
+		else {
+			$('#conditions').find('.hidden-items').addClass('hide');
+			$(this).text('more');
+		}			
 	});
 	
 });

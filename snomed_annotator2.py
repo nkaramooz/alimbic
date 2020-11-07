@@ -72,8 +72,6 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 
 	lmtzr = WordNetLemmatizer()
 
-	# c = u.Timer('get_candidates')
-	c = u.Timer("iterate_candidates")
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 	for index,word in enumerate(ln_words):
@@ -90,7 +88,6 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 		if word.lower() != 'vs':
 			word = lmtzr.lemmatize(word)
 
-		j = u.Timer("evaluate_candidate")
 		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 		# if not active_match:
@@ -186,23 +183,21 @@ def acronym_check(results_df):
 
 # def l_func(row, word):
 	
-
+# TODO: Leutinizing hormone releasing hormone messes up because hormone appears twice
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
 	threshold = threshold/100.0
-
 	new_candidate_df_arr = []
 	for index,df in enumerate(candidate_df_arr):
-
 		df_copy = df.copy()
-		df_copy['l_dist_tmp'] = -1.0
+		# df_copy['l_dist_tmp'] = -1.0
 		if case_sensitive:
 			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x, word)/100.0)
 
 		else:
 			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x.lower(), word.lower())/100.0)
 
-		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold), ['substring_start_index']] = substring_start_index
-		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold), ['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold)][['l_dist_tmp']].values
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & (df_copy.l_dist < threshold), ['substring_start_index']] = substring_start_index
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & (df_copy.l_dist < threshold), ['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold)][['l_dist_tmp']].values
 		df_copy = df_copy.drop(['l_dist_tmp'], axis=1)
 	
 		new_candidate_df_arr.append(df_copy)
@@ -299,9 +294,10 @@ def resolve_conflicts(results_df):
 
 	counts_df = results_df.drop_duplicates(['term_start_index','acid', 'section_ind', 'ln_num']).copy()
 	counts_df['index_count'] = 1
-	counts_df = counts_df.groupby(['term_start_index','acid', 'section_ind', 'ln_num'], as_index=False)['index_count'].sum()
+	counts_df = counts_df.groupby(['term_start_index', 'section_ind', 'ln_num'], as_index=False)['index_count'].sum()
 
 	conflicted_indices = counts_df[counts_df['index_count'] > 1]
+
 	conflict_free_df = results_df[~((results_df['term_start_index'].isin(conflicted_indices['term_start_index'])) & \
 		(results_df['ln_num'].isin(conflicted_indices['ln_num'])) &\
 		(results_df['section_ind'].isin(conflicted_indices['section_ind'])))].copy()
@@ -312,7 +308,6 @@ def resolve_conflicts(results_df):
 	final_results = conflict_free_df.copy()
 
 	if len(conflict_free_df.index) > 0:
-		
 		conflict_free_df['concept_count'] = 1
 		concept_weights = conflict_free_df.groupby(['acid'], as_index=False)['concept_count'].sum()
 
@@ -321,8 +316,9 @@ def resolve_conflicts(results_df):
 		#set below to negative 10 and drop all rows with negative value
 		join_weights['concept_count'].fillna(0, inplace=True)
 		join_weights['final_score'] = join_weights['final_score'] + join_weights['concept_count']
-		join_weights = join_weights.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
 
+		# Reason to sort by acid is to have something slightly deterministic in the event both scores are the same
+		join_weights = join_weights.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score', 'acid'], ascending=False)
 		last_term_start_index = None
 		last_ln_num = None
 		last_section_ind = None
@@ -371,7 +367,6 @@ def resolve_conflicts(results_df):
 
 
 def add_names(results_df):
-	print(results_df)
 	conn,cursor = pg.return_postgres_cursor()
 	if results_df is None:
 		cursor.close()
@@ -405,9 +400,8 @@ def annotate_line_v2(sentence_df, case_sensitive, cache):
 	return words_df, annotation
 
 def get_annotated_tuple(c_df):
-
 	if len(c_df) >= 1:
-		c_df = c_df.sort_values(by=['description_start_index'], ascending=True)
+		c_df = c_df.sort_values(by=['term_index'], ascending=True)
 		c_res = pd.DataFrame()
 		sentence_arr = []
 		line = c_df['line'].values[0]
@@ -821,13 +815,18 @@ if __name__ == "__main__":
 	query59="Inhaled nitric oxide NO"
 	query60="intraoperative floppy iris syndrome"
 	query61="We conclude that the loss of vagal tone associated with the development of cardiac failure unmasks the direct negative chronotropic effect of exogenous adenosine on the sinoatrial node"
+	query62="Combination of tocolytic agents for inhibiting preterm labour"
+	query63="Things are seldom what they seem"
+	query64="luteinizing hormone releasing hormone"
+	query65="T cell"
+
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query61
+		term = query65
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		print(all_words)

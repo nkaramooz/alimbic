@@ -30,21 +30,35 @@
 
 				{% if treatment|length > 0 %}
 					<li>
-						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption="topics">{{treatment|length}}</span></div>
-						<div class="collapsible-body">
+						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption=""><b>{{treatment|length}} topics </b></span></div>
+						<div class="collapsible-body" id='treatments'>
 							<ul class="default-browser">
 								{% for node in treatment %}
 									{% include 'search/nested_view_template.html' with pivot_type='treatment' %}
 								{% endfor %}
+
 							</ul>
+						<div class="row">
+							<div class="col s5"></div>
+							<div class="col s2">
+								{% if treatment|length >= 11 %}
+									<a class="blue-text btn-flat" id="more_treatment_btn" style="text-transform: none;"> more </a>
+								{% endif %}
+							</div>
+							<div class="col s5">
+							</div>	
 						</div>
-					</li>						
+						</div>
+						
+						
+					</li>
+						
 				{% endif %}
 				
 
 				{% if diagnostic|length > 0 %}
 					<li>
-						<div class="collapsible-header"> Diagnostics <span class="new badge" data-badge-caption="topics">{{diagnostic|length}}</span></div>
+						<div class="collapsible-header"> Diagnostics <span class="new badge" data-badge-caption=""><b>{{diagnostic|length}} topics</b></span></div>
 						<div class="collapsible-body">
 							<ul class="">
 								{% for node in diagnostic %}
@@ -58,7 +72,7 @@
 
 				{% if cause|length > 0 %}
 		      		<li>
-		      			<div class="collapsible-header"> Organisms <span class="new badge" data-badge-caption="topics">{{cause|length}}</span></div>
+		      			<div class="collapsible-header"> Organisms <span class="new badge" data-badge-caption=""><b>{{cause|length}} topics</b></span></div>
 		      			<div class="collapsible-body">
 		      				<ul class="">
 								{% for node in cause %}
@@ -73,14 +87,25 @@
 
 				{% if condition|length > 0 %}
 					<li>
-		      			<div class="collapsible-header"> Conditions <span class="new badge" data-badge-caption="topics">{{condition|length}}</span></div>
-		      			<div class="collapsible-body">
+		      			<div class="collapsible-header"> Conditions <span class="new badge" data-badge-caption=""><b>{{condition|length}} topics</b></span></div>
+		      			<div class="collapsible-body" id="conditions">
 		      				<ul class="">
 								{% for node in condition %}
 									{% include 'search/nested_view_template.html' with pivot_type='condition' %}
 								{% endfor %}
 							</ul>
+						
 
+						<div class="row">
+							<div class="col s5"></div>
+							<div class="col s2">
+								{% if treatment|length >= 11 %}
+									<a class="blue-text btn-flat" id="more_conditions_btn" style="text-transform: none;"> more </a>
+								{% endif %}
+							</div>
+							<div class="col s5">
+							</div>	
+						</div>
 						</div>
 					</li>
 						
@@ -88,7 +113,7 @@
 
 				{% if calcs|length > 0 %}
 					<li>
-		      			<div class="collapsible-header"> Calculators <span class="new badge" data-badge-caption="calculators">{{calcs|length}}</span></div>
+		      			<div class="collapsible-header"> Calculators <span class="new badge" data-badge-caption=""><b>{{calcs|length}} calculators </b></span></div>
 		      			<div class="collapsible-body">
 		      				<ul class="">
 								{% for c in calcs %}
@@ -106,9 +131,7 @@
 					</li>
 		
 				{% endif %}
-			
 
-			
 			</ul>
 		</div>
 	{% endif %}

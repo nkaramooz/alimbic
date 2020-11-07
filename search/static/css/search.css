@@ -213,3 +213,11 @@ hr {
 i.icon-blue {
     color: blue !important;
 }
+
+#treatments {
+	padding-bottom: 0px !important;
+}
+
+#more_treatment_btn {
+	font-size: 18px;
+}
