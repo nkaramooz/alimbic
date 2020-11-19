@@ -1,7 +1,7 @@
 $(document).ready(function() {
 	$('.pivot-form').on('submit', function(event) {
 	event.preventDefault();
-	console.log("PIVOT");
+
 
 	$('#results').hide();
 	$('#loader').removeClass("inactive");
@@ -11,13 +11,12 @@ $(document).ready(function() {
 	var query_list = [];
 	$('[name="query_annotation[]"]').each(function() {
 		query_list.push($(this).val());
-		console.log($(this).val());
 	}).get();
-	console.log(query_list);
+
 	
 
 	var chipInstance = M.Chips.getInstance($(".chips"));
-	console.log($('#query_annotation').val())
+
 	var data1 = { query : $('#search_box').val(),
 			start_year : $('#start_year').val(),
 			end_year : $('#end_year').val(),
@@ -42,7 +41,7 @@ $(document).ready(function() {
 			$("#results").html(json);
 			$('#results').show();
 			var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
-			console.log(jQuery.param(data1));
+
 			history.replaceState(data1, null, f);
       		history.pushState(data1, null, f);
 		},
@@ -83,9 +82,9 @@ $(document).ready(function() {
 });
 
 function post_pivot_search(item) {
-  console.log($(item).parent());
+
   var pivot_cid = $(item).parent().children('#pivot_cid');
-  console.log(pivot_cid);
+
 
 };
 

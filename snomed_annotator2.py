@@ -576,7 +576,9 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 	if len(concepts_df.index) > 0:
 		concepts_df = resolve_conflicts(concepts_df)
 
-		concepts_df = acronym_check(concepts_df)
+		if bool_acr_check:
+			concepts_df = acronym_check(concepts_df)
+
 	concepts_df = concepts_df.drop_duplicates().copy()
 	conn = sqlite3.connect(':memory:')
 
@@ -819,6 +821,7 @@ if __name__ == "__main__":
 	query63="Things are seldom what they seem"
 	query64="luteinizing hormone releasing hormone"
 	query65="T cell"
+	query66="IVDU"
 
 	conn, cursor = pg.return_postgres_cursor()
 
@@ -826,15 +829,14 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query65
+		term = query66
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
-		print(all_words)
-		cache = get_cache(all_words, True)
-
+		cache = get_cache(all_words, False)
+		print(cache)
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 		print(item)
-		res = annotate_text_not_parallel(item, cache, True, True, False)
+		res = annotate_text_not_parallel(item, cache, False, False, False)
 		u.pprint(res)
 		d.stop()
 		counter += 1

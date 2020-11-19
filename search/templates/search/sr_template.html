@@ -26,8 +26,9 @@
 						</div>
 					</div>
 			
-				{% if a.abstract_show is not None %}
+				{% if a.abstract_show.1 != 'None' %}
 					<div class="preview-ellipsis" id="preview-ellipsis">
+
 						{% if a.abstract_show.0 == 'unlabelled' %}
 							<h5>abstract</h5>
 						{% else %}

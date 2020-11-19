@@ -9,7 +9,6 @@ $(document).ready(function() {
 		}
 
 		$(this).parent().find(".expanded").toggle();
-		console.log($(this).find('#expando').attr('class'));
 		if ($(this).find('#expando').hasClass('exp_more')) {
 			$(this).find("#expand_icon").html('expand_less');
 			$(this).find('#expando').removeClass('exp_more');

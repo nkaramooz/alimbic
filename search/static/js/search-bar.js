@@ -292,7 +292,7 @@ function post_search_text() {
   $('#loader').removeClass("inactive");
   $('#loader').addClass("active");
   var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
-  console.log(chipInstance.chipsData);
+
   var data1 = { query : $('#search_box').val(),
          start_year : $('#start_year').val(),
         end_year : $('#end_year').val(),
@@ -302,6 +302,7 @@ function post_search_text() {
         unmatched_terms : $('#unmatched_terms').val(),
   }
   console.log(data1);
+
   $.ajax({
     url : "search/",
     type : "POST",
@@ -318,9 +319,9 @@ function post_search_text() {
       $("#results").html(json);
       $('#results').show();
       var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
-      console.log(jQuery.param(data1));
-      console.log(data1['journals'][0]);
-      console.log(chipInstance.chipsData);
+      // console.log(jQuery.param(data1));
+      // console.log(data1['journals'][0]);
+      // console.log(chipInstance.chipsData);
       // history.pushState(data, null, 'http://127.0.0.1:8000/');
       history.replaceState(data1, null, f);
       history.pushState(data1, null, f);

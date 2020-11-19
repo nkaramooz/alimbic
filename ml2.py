@@ -188,7 +188,7 @@ def train_with_word2vec():
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor),
-	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4142230//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4917720//batch_size)+1),
 	 callbacks=[checkpointer])
 
 	report.close()
@@ -970,14 +970,14 @@ if __name__ == "__main__":
 	# print(get_word_index('195967001', cursor))
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
-	parallel_treatment_recategorization_top('../model-08.hdf5')
-	# gen_datasets_top('gen')
+	# parallel_treatment_recategorization_top('../model-10.hdf5')
+	parallel_treatment_recategorization_top('model-10.hdf5')
 	# gen_datasets_mp(1)
 
 	# update_word2vec('model.3.hdf5')
 
 	# train_with_word2vec()
-	# print_contingency('model-02.hdf5')
+	# print_contingency('model-01.hdf5')
 	# print_contingency('model-02.hdf5')
 	# print_contingency('model-03.hdf5')
 	# print_contingency('model-04.hdf5')

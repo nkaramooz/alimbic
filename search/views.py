@@ -922,20 +922,20 @@ def post_search_text(request):
 	es = es_util.get_es_client()
 	pivot_cid = None
 	unmatched_terms = None
+	pivot_term = None
 	query_type = ''
 	primary_cids = None
 	query = ''
 	filters = {}
+	query = None
+	
+	# If GET request, this is from a link
 	if request.method == 'GET': 
 		parsed = urlparse.urlparse(request.path)
 		parsed = parse_qs(parsed.path)
+		print("KJAHDSKJHSADHJKSHKADJL")
 		# query = parse_qs(parsed.path)['/search/query'][0]
-		# return render(request, 'search/concept_search_home_page.html', 
-		# 	{'sr_payload' : None, 'query' : '', 'concepts' : None, 'query_annoation' : None, 'unmatched_terms' : None,
-		# 		'journals': None, 'start_year' : '', 'end_year' : '', 'at_a_glance' : {'related' : None}, \
-		# 		'treatment' : None, 'diagnostic' : None, 'cause' : None, 'condition' : None, \
-		# 		'calcs' : None}
-		# 	)
+
 		query = parsed['/search/query'][0]
 
 		if 'query_annotation[]' in parsed:
@@ -945,7 +945,8 @@ def post_search_text(request):
 			unmatched_terms = parsed['unmatched_terms'][0]
 		
 		if 'pivot_cid' in parsed:
-			primary_cids.append(['pivot_cid'])
+			print(parsed['pivot_cid'])
+			primary_cids.extend(parsed['pivot_cid'])
 
 		if 'start_year' in parsed:
 			filters['start_year'] = int(parsed['start_year'][0])
@@ -966,17 +967,21 @@ def post_search_text(request):
 		if 'query_type' in parsed:
 			query_type = parsed['query_type'][0]
 
-	elif request.method == 'POST':
+	if request.method == 'POST':
+		print("ASDKJLDSAKJSDA POST POST POS")
 		data = json.loads(request.body)
 		query = data['query']
 		filters = get_query_filters(data)
 		query_type = data['query_type']
+		unmatched_terms = data['unmatched_terms']
+		print(data)
 		if 'query_annotation' in data:
 			primary_cids = data['query_annotation']
 
 		if 'pivot_cid' in data:
+			print("ADSKHJDSAKHJLALDHSJ")
 			primary_cids.append(data['pivot_cid'])
-
+			print(primary_cids)
 		# html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 'query' : query, 'query_annotation' : query_annotation, \
 		# 		'unmatched_terms' : unmatched_terms, 'concepts' : query_concepts_dict, \
 		# 		'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
@@ -995,13 +1000,18 @@ def post_search_text(request):
 
 	if query_type == 'pivot':
 		query_concepts_df = pd.DataFrame(primary_cids, columns=['acid'])
+		u.pprint(query_concepts_df)
 		full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
 
-		unmatched_terms = data['unmatched_terms']
+		pivot_term = None
 
-			
-		pivot_term = data['pivot_term']
-		query = data['query'] + ' ' + pivot_term
+
+		if request.method == 'POST':
+			pivot_term = data['pivot_term']
+			query = query + ' ' + pivot_term
+		else:
+			query = query + ' ' + parsed['pivot_term'][0]
+		
 		params = filters
 
 
@@ -1044,7 +1054,7 @@ def post_search_text(request):
 			cache = ann2.get_cache(all_words, False)
 			
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
-			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, True, False)
+			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, False, False)
 		
 		primary_cids = None
 		
@@ -1114,16 +1124,19 @@ def get_ip_address(request):
 	return ip
 
 def get_calcs(query_concepts_df, cursor):
-	concepts = query_concepts_df['acid'].tolist()
+	concepts = query_concepts_df[query_concepts_df['acid'].notna()].copy()
+	concepts = concepts['acid'].tolist()
+	if len(concepts) > 0:
+		query = "select distinct on (title, t1.desc, url) title, t1.desc, url from annotation2.mdc_staging t1 where acid in %s"
+		calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
 
-	query = "select distinct on (title, t1.desc, url) title, t1.desc, url from annotation2.mdc_staging t1 where acid in %s"
-	calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
+		calc_json = []
+		for ind,item in calcs.iterrows():
+			calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
 
-	calc_json = []
-	for ind,item in calcs.iterrows():
-		calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
-
-	return calc_json
+		return calc_json
+	else:
+		return None
 
 def rollups(cids_df, cursor):
 	if len(cids_df.index) > 0:
@@ -1196,7 +1209,7 @@ def log_query (ip_address, query, primary_cids, unmatched_terms, filters, treatm
 		unmatched_terms,filters['start_year'], filters['end_year'], json.dumps(filters['journals']), \
 		json.dumps(condition_dict), json.dumps(treatment_dict), json.dumps(diagnostic_dict), json.dumps(cause_dict)))
 
-	# cursor.connection.commit()
+	cursor.connection.commit()
 
 
 
