@@ -9,11 +9,11 @@
 	<div class="col s1"></div>
 	<div class="col s11">
 	<div class="query-display">
-		<h5>
+		<!-- <h5>
 			{% for concept in concepts %}
 				<i> {{concept.acid}} : {{concept.term}} </i>
 			{% endfor %} 
-		</h5>
+		</h5> -->
 
 		{% for i in query_annotation %}
 			<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
