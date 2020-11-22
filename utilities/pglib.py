@@ -5,10 +5,9 @@ from sqlalchemy import create_engine
 import time
 import os
 
-DB_S = ''
 
 def return_postgres_cursor():
-	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % DB_S
+	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % os.environ['DB_S']
 	conn_string = "dbname='alimbic' user='nkaramooz' connect_timeout=50"
 	# conn_string = "host='localhost' dbname='laso' user='Nima'"
 	conn = psycopg2.connect(conn_string)
@@ -16,7 +15,7 @@ def return_postgres_cursor():
 	return conn,cursor
 
 def return_postgres_conn():
-	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % DB_S
+	# conn_string = "host='laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com' dbname='laso' connect_timeout=5 user='laso_db' password='%s'" % os.environ['DB_S']
 	conn_string = "dbname='alimbic' user='nkaramooz'"
 	conn = psycopg2.connect(conn_string)
 	return conn
@@ -27,7 +26,7 @@ def return_df_from_query(cursor, sql_query, params, column_names):
 	return pd.DataFrame(records, columns = column_names)
 
 def return_sql_alchemy_engine():
-	# engine = create_engine('postgresql://laso_db:%s@laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com:5432/laso') % DB_S
+	# engine = create_engine('postgresql://laso_db:%s@laso-or.cmzwr3t5wsym.us-west-2.rds.amazonaws.com:5432/laso') % os.environ['DB_S']
 	engine = create_engine('postgresql:///alimbic')
 	# engine = create_engine('postgresql://Nima@localhost:5432/laso')
 	return engine

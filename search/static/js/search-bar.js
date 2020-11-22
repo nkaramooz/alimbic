@@ -297,7 +297,6 @@ function post_search_text() {
         query_annotation : $('#query_annotation').val(),
         unmatched_terms : $('#unmatched_terms').val(),
   }
-  console.log(data1);
 
   $.ajax({
     url : "search/",

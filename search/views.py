@@ -815,8 +815,8 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
 		"""
+		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),), ["acid"])
 
-		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list[0]),), ["acid"])
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
 
 		return conceptid_df
@@ -830,7 +830,6 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			from annotation2.base_concept_types
 			where rel_type = %s
 		"""
-
 
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid", "concept_type"])
 		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='inner', on=['acid'])
@@ -883,7 +882,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 
 		flattened_query_concepts = get_flattened_query_concept_list(query_concept_list)
 
-		agg_tx = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'treatment')
+		agg_tx = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'treatment')
 
 		if not agg_tx.empty:
 			agg_tx = agg_tx.drop_duplicates(subset=['acid', 'pmid'])
@@ -894,7 +893,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
 
 
-		agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'diagnostic')
+		agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'diagnostic')
 
 		if len(agg_diagnostic) > 0:
 			agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['acid', 'pmid'])
@@ -905,7 +904,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 			sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
 			
 
-		agg_cause = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'cause')
+		agg_cause = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'cause')
 
 		if len(agg_cause) > 0:
 			agg_cause = agg_cause.drop_duplicates(subset=['acid', 'pmid'])
@@ -915,7 +914,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 			sub_dict['cause'] = rollups(agg_cause, cursor)
 
 
-		agg_condition = get_query_concept_types_df_3(title_match_cids_df, query_concept_list, cursor, 'condition')
+		agg_condition = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'condition')
 
 		if len(agg_condition) > 0:
 			agg_condition = agg_condition.drop_duplicates(subset=['acid', 'pmid'])
