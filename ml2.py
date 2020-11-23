@@ -188,7 +188,7 @@ def train_with_word2vec():
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor),
-	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4917720//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4993115//batch_size)+1),
 	 callbacks=[checkpointer])
 
 	report.close()
@@ -878,13 +878,13 @@ def print_contingency(model_name):
 	conn, cursor = pg.return_postgres_cursor()
 	model = load_model(model_name)
 
-	curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from ml2.test_sentences_subset", \
+	curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from ml2.test_sentences", \
 			None, ['ver_gen'])['ver_gen'][0])
 	new_version = curr_version + 1
 
-	# should be OK to load 10k into memory
+	# should be OK to load into memory
 
-	testing_query = "select id, sentence_id, x_train_gen, label from ml2.test_sentences_subset where ver_gen=%s"
+	testing_query = "select id, sentence_id, x_train_gen, label from ml2.test_sentences where ver_gen=%s"
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
 		['id', 'sentence_id', 'x_train_gen', 'label'])
 
@@ -971,12 +971,12 @@ if __name__ == "__main__":
 	# print(train_data_generator(10, cursor))
 	# train_with_word2vec()
 	# parallel_treatment_recategorization_top('../model-10.hdf5')
-	parallel_treatment_recategorization_top('model-10.hdf5')
+	# parallel_treatment_recategorization_top('../model-10.hdf5')
 	# gen_datasets_mp(1)
 
 	# update_word2vec('model.3.hdf5')
 
-	# train_with_word2vec()
+	train_with_word2vec()
 	# print_contingency('model-01.hdf5')
 	# print_contingency('model-02.hdf5')
 	# print_contingency('model-03.hdf5')

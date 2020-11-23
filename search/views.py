@@ -468,7 +468,7 @@ def post_search_text(request):
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 			es_query = {"from" : 0, \
-						 "size" : 100, \
+						 "size" : 25, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, \
 						 	filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_conceptids^10", "abstract_conceptids.*^0.5"], cursor)}
@@ -860,7 +860,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 	title_match_cids_df = pd.DataFrame()
 	# while scroller.has_next:
 	counter = 0
-	while counter < 3:
+	while scroller.has_next:
 		article_list = scroller.next()
 		if article_list is not None: 
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)

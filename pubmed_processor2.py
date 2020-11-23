@@ -625,7 +625,7 @@ if __name__ == "__main__":
 	# end_file = 1016
 	while (start_file < end_file):
 		print(start_file)
-		load_pubmed_local_2(start_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
 		start_file += 5
 	# index_sentences(5)
 	

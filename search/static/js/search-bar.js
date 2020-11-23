@@ -3,6 +3,63 @@ var chip = {
     image: '', //optional
   };
 
+window.addEventListener('popstate', function(event) {
+  document.getElementById('search_box').disabled = true;
+  document.getElementById('start_year').disabled = true;
+  document.getElementById('end_year').disabled = true;
+  $('#results').hide();
+  $('#loader').removeClass("inactive");
+  $('#loader').addClass("active");
+
+  if (event.state !== null) {
+    $.ajax({
+      url : "search/",
+      type : "POST",
+      contentType: 'application/json',
+      data : JSON.stringify(event.state),
+
+      success : function(json) {
+
+        chips = event.state['journals'];
+        $('.chip .close').click();
+        var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
+        for (let i=0; i < chips.length; i++) {
+          chipInstance.addChip(chips[i]);
+          console.log(chips[i]);
+        };
+        
+        $('#start_year').val(event.state['start_year']);
+        $('#end_year').val(event.state['end_year']);
+        $('#query_type').val(event.state['query_type']);
+        $('#query_annotation').val(event.state['query_annotation']);
+        $('#unmatched_terms').val(event.state['unmatched_terms']);
+        
+        $('#search_box').val(event.state['query']);
+        $('#search_box').focus();
+        document.getElementById('search_box').disabled = false;
+        document.getElementById('start_year').disabled = false;
+        document.getElementById('end_year').disabled = false;
+        document.getElementById('journals').disabled = false;
+        $('#loader').removeClass("active");
+        $('#loader').addClass("inactive");
+        $("#results").html(json);
+        $('#results').show();
+
+    },
+
+     error : function(xhr, errmsf, err) {
+        console.log("error");
+      }
+
+    })
+  }
+
+  else {
+    // window.location.replace('http://127.0.0.1:8000');
+    window.location.replace('http://alimbic.com')
+
+  }});
+
 
 
 $(document).ready(function() {
@@ -289,6 +346,7 @@ function post_search_text() {
   $('#loader').addClass("active");
   var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
 
+
   var data1 = { query : $('#search_box').val(),
          start_year : $('#start_year').val(),
         end_year : $('#end_year').val(),
@@ -314,8 +372,9 @@ function post_search_text() {
       $("#results").html(json);
       $('#results').show();
       var f = 'http://alimbic.com/search/' + jQuery.param(data1);
-      history.replaceState(data1, null, f);
+      // var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
       history.pushState(data1, null, f);
+      
     },
 
     error : function(xhr, errmsf, err) {

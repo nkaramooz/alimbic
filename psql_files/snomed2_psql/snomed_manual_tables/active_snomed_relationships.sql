@@ -29,7 +29,7 @@ insert into active_snomed_relationships
 				,destinationid
 				,typeid
 				,active
-				,row_number() over (partition by sourceid, destinationid order by effectivetime desc) as rn_num
+				,row_number() over (partition by sourceid, destinationid, typeid order by effectivetime desc) as rn_num
 			from snomed2.curr_relationship_f
 		) t1
 		where rn_num = 1
