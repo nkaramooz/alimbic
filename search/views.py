@@ -381,8 +381,8 @@ def post_search_text(request):
 			primary_cids = data['query_annotation']
 
 		if 'pivot_cid' in data:
-
-			primary_cids.append(data['pivot_cid'])
+			if data['pivot_cid'] is not None:
+				primary_cids.append(data['pivot_cid'])
 
 
 	sr = dict()
@@ -860,7 +860,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 	title_match_cids_df = pd.DataFrame()
 	# while scroller.has_next:
 	counter = 0
-	while scroller.has_next:
+	while counter < 2:
 		article_list = scroller.next()
 		if article_list is not None: 
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)

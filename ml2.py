@@ -169,11 +169,12 @@ def train_with_word2vec():
 	num_epochs = 10
 
 	model=Sequential()
-	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True))
-	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True, mask_zero=True))
+	model.add(LSTM(700, return_sequences=True, input_shape=(embedding_size, batch_size)))
 	model.add(Dropout(0.3))
 	model.add(TimeDistributed(Dense(500)))
-	model.add(Conv1D(filters=32, kernel_size=3, padding='same', activation='relu'))
+	model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	model.add(Dense(250, activation='relu'))
 	model.add(Dense(50, activation='relu'))
 	model.add(Flatten())
 	model.add(Dense(1, activation='sigmoid'))
@@ -277,18 +278,13 @@ def update_word2vec(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=500
 	batch_size = 500
-	num_epochs = 4
+	num_epochs = 10
 	model = load_model(model_name)
 
-	all_conditions_set = get_all_conditions_set()
-	all_treatments_set = get_all_treatments_set()
-
-	
-	checkpointer = ModelCheckpoint(filepath='./model010419-{epoch:02d}.hdf5', verbose=1)
-
+	checkpointer = ModelCheckpoint(filepath='./model11.20{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:5}, steps_per_epoch =((2884571//batch_size)+1), callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4993115//batch_size)+1), callbacks=[checkpointer])
 
 	
 
@@ -299,14 +295,14 @@ def parallel_treatment_recategorization_top(model_name):
 	all_treatments_set = get_all_treatments_set()
 
 
-	query = "select min(ver) from ml2.treatment_candidates"
+	query = "select min(ver) from ml2.treatment_candidates where condition_acid='10609' "
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
 
 	while curr_version != new_version:
 		parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set)
-		query = "select min(ver) from ml2.treatment_candidates"
+		query = "select min(ver) from ml2.treatment_candidates where condition_acid='10609'"
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
 
 
@@ -331,7 +327,7 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 			,treatment_acid
 			,sentence_tuples
 		from ml2.treatment_candidates
-		where ver = %s limit 5000"""
+		where ver = %s and condition_acid='10609' limit 5000"""
 
 	treatment_candidates_df = pg.return_df_from_query(cursor, query, \
 				(old_version,), ['sentence_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
@@ -340,18 +336,26 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 		params = (model_name, treatment_candidates_df, all_conditions_set, all_treatments_set)
 		task_queue.put((batch_treatment_recategorization, params))
 
+		# update_query = """
+		# 	set schema 'ml2';
+		# 	UPDATE treatment_candidates
+		# 	SET ver = %s
+		# 	where sentence_id = ANY(%s) and condition_acid = ANY(%s) and treatment_acid = ANY(%s);
+		# """
+
 		update_query = """
 			set schema 'ml2';
 			UPDATE treatment_candidates
 			SET ver = %s
-			where sentence_id = ANY(%s) and condition_acid = ANY(%s) and treatment_acid = ANY(%s);
+			where sentence_id = ANY(%s) and condition_acid ='10609'  and treatment_acid = ANY(%s);
 		"""
 
 		sentence_id_list = treatment_candidates_df['sentence_id'].tolist()
 		condition_acid_list = treatment_candidates_df['condition_acid'].tolist()
 		treatment_acid_list = treatment_candidates_df['treatment_acid'].tolist()
 		new_version = old_version + 1
-		cursor.execute(update_query, (new_version, sentence_id_list, condition_acid_list, treatment_acid_list))
+		# cursor.execute(update_query, (new_version, sentence_id_list, condition_acid_list, treatment_acid_list))
+		cursor.execute(update_query, (new_version, sentence_id_list, treatment_acid_list))
 		cursor.connection.commit()
 		treatment_candidates_df = pg.return_df_from_query(cursor, query, \
 			(old_version,), ['sentence_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
@@ -878,13 +882,13 @@ def print_contingency(model_name):
 	conn, cursor = pg.return_postgres_cursor()
 	model = load_model(model_name)
 
-	curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from ml2.test_sentences", \
+	curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from ml2.test_sentences_subset", \
 			None, ['ver_gen'])['ver_gen'][0])
 	new_version = curr_version + 1
 
 	# should be OK to load into memory
 
-	testing_query = "select id, sentence_id, x_train_gen, label from ml2.test_sentences where ver_gen=%s"
+	testing_query = "select id, sentence_id, x_train_gen, label from ml2.test_sentences_subset where ver_gen=%s"
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
 		['id', 'sentence_id', 'x_train_gen', 'label'])
 
@@ -967,16 +971,14 @@ def build_w2v_embedding():
 
 if __name__ == "__main__":
 	
-	# print(get_word_index('195967001', cursor))
-	# print(train_data_generator(10, cursor))
-	# train_with_word2vec()
+
 	# parallel_treatment_recategorization_top('../model-10.hdf5')
-	# parallel_treatment_recategorization_top('../model-10.hdf5')
+	parallel_treatment_recategorization_top('model11.2009.hdf5')
 	# gen_datasets_mp(1)
 
-	# update_word2vec('model.3.hdf5')
+	# update_word2vec('model11.2009.hdf5')
 
-	train_with_word2vec()
+	# train_with_word2vec()
 	# print_contingency('model-01.hdf5')
 	# print_contingency('model-02.hdf5')
 	# print_contingency('model-03.hdf5')

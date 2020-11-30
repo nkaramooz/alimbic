@@ -35,13 +35,13 @@ def create_custom_terms():
 					public.uuid_generate_v4() as did
 					,adid as adid
 				from annotation2.add_adid_acronym t1
-				where t1.word = 'deficiency'
+				where t1.word = %s
 			) t1
 			join annotation2.add_adid_acronym t2
 			on t1.adid = t2.adid
 		ON CONFLICT (acid, term) DO NOTHING
 		"""
-		cursor.execute(query, (key, value))
+		cursor.execute(query, (key, value, key))
 		cursor.connection.commit()
 
 # below will only work on descendants of treatments

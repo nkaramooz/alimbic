@@ -35,7 +35,7 @@ insert into ml2.test_sentences_subset
     from ml2.test_sentences
     where label = 1
     order by random()
-    limit 2000;
+    limit 3000;
 
 create index if not exists test_sentences_subset_label_ind on test_sentences_subset(label);
 create index if not exists test_sentences_subset_ver_gen_ind on test_sentences_subset(ver_gen);

@@ -30,8 +30,8 @@ echo "insert_to_downstream.sql"
 psql -d alimbic -f ../insert_to_root/insert_to_downstream_root.sql -q
 echo "add_adid_acronym.sql"
 psql -d alimbic -f ../manual_tables/add_adid_acronym.sql -q
-echo "declare custom terms"
-psql -d alimbic -f ../manual_tables/declare_custom_terms.sql -q
+# echo "declare custom terms"
+# psql -d alimbic -f ../manual_tables/declare_custom_terms.sql -q
 echo "create_custom_terms.py"
 python /home/nkaramooz/Documents/alimbic/psql_files/annotation2_psql/manual_tables/create_custom_terms.py
 echo "rerun add_adid_acronym.sql now with custom_terms"

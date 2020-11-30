@@ -17,12 +17,11 @@
 					<input type="hidden" id="pivot_cid" value="{{key}}">
 					<input type="hidden" id="pivot_term" value="{{item.name}}">
 						{% if item.children|length > 0 %}
-							( {{item.children.0}} 
+							({{item.children.0}} 
 
 							{% if item.children|length > 1 %}
 								, {{item.children.1}} ...
-							{% endif %}
-							)
+							{% endif %})
 						{% endif %}
 				</div>
 			</div>

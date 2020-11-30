@@ -18,14 +18,13 @@ window.addEventListener('popstate', function(event) {
       contentType: 'application/json',
       data : JSON.stringify(event.state),
 
-      success : function(json) {
 
+      success : function(json) {
         chips = event.state['journals'];
         $('.chip .close').click();
         var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
         for (let i=0; i < chips.length; i++) {
           chipInstance.addChip(chips[i]);
-          console.log(chips[i]);
         };
         
         $('#start_year').val(event.state['start_year']);
@@ -33,7 +32,8 @@ window.addEventListener('popstate', function(event) {
         $('#query_type').val(event.state['query_type']);
         $('#query_annotation').val(event.state['query_annotation']);
         $('#unmatched_terms').val(event.state['unmatched_terms']);
-        
+        $('#pivot_cid').val(event.state['pivot_cid']);
+        $('#pivot_term').val(event.state['pivot_term']);
         $('#search_box').val(event.state['query']);
         $('#search_box').focus();
         document.getElementById('search_box').disabled = false;
@@ -42,8 +42,10 @@ window.addEventListener('popstate', function(event) {
         document.getElementById('journals').disabled = false;
         $('#loader').removeClass("active");
         $('#loader').addClass("inactive");
+
         $("#results").html(json);
         $('#results').show();
+
 
     },
 
@@ -354,6 +356,8 @@ function post_search_text() {
         query_type : "keyword",
         query_annotation : $('#query_annotation').val(),
         unmatched_terms : $('#unmatched_terms').val(),
+        pivot_cid : null,
+        pivot_term : null,
   }
 
   $.ajax({
@@ -372,6 +376,7 @@ function post_search_text() {
       $("#results").html(json);
       $('#results').show();
       var f = 'http://alimbic.com/search/' + jQuery.param(data1);
+
       // var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
       history.pushState(data1, null, f);
       
