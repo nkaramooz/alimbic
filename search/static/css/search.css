@@ -37,6 +37,7 @@
 
 	margin: auto;
 	width: 800px;
+
 }
 
 .nested {
@@ -182,6 +183,7 @@ input[type=number]::-webkit-outer-spin-button {
 	color: #495057;
 	border-radius: 0;
 	border: 1px solid grey;
+	text-align: center;
 }
 
 .body .glance {

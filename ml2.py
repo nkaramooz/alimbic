@@ -95,7 +95,7 @@ def get_word_from_ind(index):
 
 
 def train_data_generator(batch_size, cursor):
-	print("train_data_generator")
+
 	while True:
 		curr_version = int(pg.return_df_from_query(cursor, "select min(ver_gen) from ml2.train_sentences", \
 			None, ['ver_gen'])['ver_gen'][0])
@@ -170,10 +170,11 @@ def train_with_word2vec():
 
 	model=Sequential()
 	model.add(Embedding(vocabulary_size, embedding_size, input_length=max_words, trainable=True, mask_zero=True))
-	model.add(LSTM(700, return_sequences=True, input_shape=(embedding_size, batch_size)))
-	model.add(Dropout(0.3))
-	model.add(TimeDistributed(Dense(500)))
-	model.add(Conv1D(filters=32, kernel_size=5, padding='same', activation='relu'))
+	model.add(LSTM(500, return_sequences=True, input_shape=(embedding_size, batch_size)))
+	# model.add(Dropout(0.3))
+	# model.add(TimeDistributed(Dense(500)))
+	# model.add(Conv1D(500, filters=32, kernel_size=5, padding='same', activation='relu'))
+	model.add(GlobalMaxPooling1D())
 	model.add(Dense(250, activation='relu'))
 	model.add(Dense(50, activation='relu'))
 	model.add(Flatten())
@@ -189,7 +190,7 @@ def train_with_word2vec():
 	checkpointer = ModelCheckpoint(filepath='./model-{epoch:02d}.hdf5', verbose=1)
 
 	history = model.fit_generator(train_data_generator(batch_size, cursor),
-	 epochs=num_epochs, class_weight={0:1, 1:50}, steps_per_epoch =((4993115//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:75}, steps_per_epoch =((4992715//batch_size)+1),
 	 callbacks=[checkpointer])
 
 	report.close()
@@ -973,12 +974,12 @@ if __name__ == "__main__":
 	
 
 	# parallel_treatment_recategorization_top('../model-10.hdf5')
-	parallel_treatment_recategorization_top('model11.2009.hdf5')
+	# parallel_treatment_recategorization_top('model11.2009.hdf5')
 	# gen_datasets_mp(1)
 
 	# update_word2vec('model11.2009.hdf5')
 
-	# train_with_word2vec()
+	train_with_word2vec()
 	# print_contingency('model-01.hdf5')
 	# print_contingency('model-02.hdf5')
 	# print_contingency('model-03.hdf5')

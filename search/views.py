@@ -324,7 +324,7 @@ def post_search_text(request):
 	conn, cursor = pg.return_postgres_cursor()
 	es = es_util.get_es_client()
 	pivot_cid = None
-	unmatched_terms = None
+	unmatched_terms = ''
 	pivot_term = None
 	query_type = ''
 	primary_cids = None
@@ -376,6 +376,7 @@ def post_search_text(request):
 		filters = get_query_filters(data)
 		query_type = data['query_type']
 		unmatched_terms = data['unmatched_terms']
+		print(unmatched_terms)
 
 		if 'query_annotation' in data:
 			primary_cids = data['query_annotation']
@@ -393,7 +394,7 @@ def post_search_text(request):
 	diagnostic_dict = {}
 	cause_dict = {}
 	calcs_json = {}
-	unmatched_terms = 'None'
+
 	flattened_query = None
 
 	if query_type == 'pivot':
@@ -433,6 +434,7 @@ def post_search_text(request):
 	elif query_type == 'keyword':
 
 		query = ann2.clean_text(query)
+		
 
 		original_query_concepts_list = []
 		if query.upper() != query:
@@ -453,7 +455,7 @@ def post_search_text(request):
 			
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
 			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, False, False)
-		
+
 		primary_cids = None
 		
 
@@ -525,7 +527,7 @@ def get_calcs(query_concepts_df, cursor):
 	concepts = query_concepts_df[query_concepts_df['acid'].notna()].copy()
 	concepts = concepts['acid'].tolist()
 	if len(concepts) > 0:
-		query = "select distinct on (title, t1.desc, url) title, t1.desc, url from annotation2.mdc_staging t1 where acid in %s"
+		query = "select distinct on (title, t1.description, url) title, t1.description, url from annotation2.mdc_final t1 where acid in %s"
 		calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
 
 		calc_json = []
@@ -653,7 +655,7 @@ def get_show_hide_components(sr_src, hit_dict):
 
 
 def get_unmatched_terms(query, query_concepts_df):
-	unmatched_terms = 'None'
+	unmatched_terms = ''
 	for index,word in enumerate(query.split()):
 		if not query_concepts_df.empty and len((query_concepts_df[(query_concepts_df['term_end_index'] >= index) & (query_concepts_df['term_start_index'] <= index)]).index) > 0:
 			continue
@@ -684,7 +686,7 @@ def get_concept_string(conceptid_series):
 
 def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_year, fields_arr, cursor):
 	es_query = {}
-	if unmatched_terms == 'None':
+	if unmatched_terms == '':
 		es_query["bool"] = { \
 							"must_not": get_article_type_filters(), \
 							"must": \

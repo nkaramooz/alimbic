@@ -822,6 +822,7 @@ if __name__ == "__main__":
 	query64="luteinizing hormone releasing hormone"
 	query65="T cell"
 	query66="IVDU"
+	query67="bioprosthetic mitral valve"
 
 	conn, cursor = pg.return_postgres_cursor()
 
@@ -829,7 +830,7 @@ if __name__ == "__main__":
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query66
+		term = query67
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False)

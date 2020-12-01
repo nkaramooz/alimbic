@@ -53,4 +53,5 @@ INSERT INTO ml2.labelled_treatments_seed(condition_acid, treatment_acid, label)
 	,('%', '213104', 0)
 	,('%', '250848', 0)
 	,('%', '132114', 0)
+	,('125792', '267944', 0)
 	;
