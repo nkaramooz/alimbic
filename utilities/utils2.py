@@ -205,6 +205,46 @@ def remove_adid(adid, cursor):
 		error = True
 	return error
 
+def add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor):
+	if condition_acid != None and treatment_acid != None and relationship != None:
+		if (condition_acid == '%' and check_acid(treatment_acid)) or \
+			check_acid(condition_acid, cursor) and check_acid(treatment_acid, cursor):
+
+			if not check_existing_labelled_treatments(condition_acid, treatment_acid, cursor):
+				query = """
+					insert into ml2.labelled_treatments_app
+					VALUES(public.uuid_generate_v4(), %s, %s, %s)
+				"""
+				cursor.execute(query, (condition_acid, treatment_acid, relationship))
+				cursor.connection.commit()
+				return "success"
+			else:
+				return "labelled_treatment exists"
+		else:
+			return "condition_acid or treatment_acid invalid"
+	# Case when labelling condition to be too broad
+	else:
+		return "condition, treatment, or relationship not filled"
+
+def check_existing_labelled_treatments(condition_acid, treatment_acid, cursor):
+	query = """
+		select condition_acid from ml2.labelled_treatments where condition_acid = %s and treatment_acid = %s
+	"""
+	db_df = pg.return_df_from_query(cursor, query, (condition_acid, treatment_acid), ['condition_acid'])
+
+	if len(db_df.index) == 0:
+		query = """
+			select condition_acid from ml2.labelled_treatments_app where condition_acid = %s and treatment_acid = %s
+		"""
+		app_df = pg.return_df_from_query(cursor, query, (condition_acid, treatment_acid), ['condition_acid'])
+
+		if len(app_df.index) == 0:
+			return False
+		else:
+			return True
+	else:
+		return True
+
 def get_existing_adid(adid, cursor):
 	query = """
 		select 
@@ -244,58 +284,24 @@ def check_inactive_concepts(concept_name, cursor):
 	return conflict_df
 
 
-def acronym_override(did, is_acronym, cursor):
-	engine = pg.return_sql_alchemy_engine()
+# Will need to rerun pipeline for update to propagate
+def acronym_override(adid, is_acronym, cursor):
+	
+	df = get_existing_adid(adid, cursor)
 
-	modify_acronym_query = """
-		set schema 'annotation';
-		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-		INSERT INTO acronym_override (id, description_id, is_acronym, effectivetime)
-		VALUES (public.uuid_generate_v4(), %s, %s, now())
-	"""
-	cursor.execute(modify_acronym_query, (did, is_acronym))
-	cursor.connection.commit()
-
-	# now need to modify downstream tables (key_words, and lemmas)
-
-	get_query = """
-		select description_id, conceptid, term, word, word_ord, term_length, is_acronym
-		from annotation.augmented_active_key_words_v3
-		where description_id = %s
-	"""
-	entry_df = pg.return_df_from_query(cursor, get_query, (did,), ['description_id', 'conceptid', 'term', 'word', 'word_ord', 'term_length', 'is_acronym'])
-
-	delete_query = """
-		delete from annotation.augmented_active_key_words_v3
-		where description_id = %s
-	"""	
-	cursor.execute(delete_query, (did,))
-	cursor.connection.commit()
-
-	entry_df['is_acronym'] = is_acronym
-	entry_df.to_sql('augmented_active_key_words_v3', engine, schema='annotation', if_exists='append', index=False)
+	if len(df.index) > 0:
+		modify_acronym_query = """
+			set schema 'annotation2';
+			INSERT INTO acronym_override (id, adid, is_acronym, effectivetime)
+			VALUES (public.uuid_generate_v4(), %s, %s, now())
+		"""
+		cursor.execute(modify_acronym_query, (adid, is_acronym))
+		cursor.connection.commit()
+		return "added to acronym_override"
+	else:
+		return "adid invalid"
 
 
-	get_query = """
-		select description_id, conceptid, term, term_lower, word, word_ord, term_length, is_acronym
-		from annotation.lemmas_3
-		where description_id = %s
-	"""
-
-	entry_df = pg.return_df_from_query(cursor, get_query, (did,), \
-		['description_id', 'conceptid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
-
-	delete_query = """
-		delete from annotation.lemmas_3
-		where description_id = %s
-	"""
-	cursor.execute(delete_query, (did,))
-	cursor.connection.commit()
-
-	entry_df['is_acronym'] = is_acronym
-	entry_df.to_sql('lemmas_3', engine, schema='annotation', if_exists='append', index=False)
-
-	return True	
 
 
 def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cursor):

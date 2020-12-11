@@ -1,35 +1,53 @@
 {% for key,item in node.items %}
 
-{% if forloop.parentloop.counter < 11 %}
+<!-- {% if forloop.parentloop.counter < 11 %}
 <li style="list-style-type:circle !important"> 
 
 {% else %}
-<li style="list-style-type:circle !important" class="hidden-items hide"> 
+<li style="list-style-type:circle !important" class="hidden-items hide">  -->
 
-{% endif %}
-	<form action=# method="POST" class="pivot-form"> 
-		{% csrf_token %}
-		<ul>
+<!-- {% endif %} -->
+	<!-- <form action=# method="POST" class="pivot-form">  -->
+		<!-- {% csrf_token %} -->
+		<!-- <ul> -->
 
-			<div class="row valign-wrapper">
-				<div class="col s12 pivot-item">
-					<button type="submit" class="pivot-button" id="{{key}}"> {{item.name}} ({{item.count}} papers)</button>
-					<input type="hidden" id="pivot_cid" value="{{key}}">
-					<input type="hidden" id="pivot_term" value="{{item.name}}">
-						{% if item.children|length > 0 %}
-							({{item.children.0}} 
+			<!-- <div class="row valign-wrapper"> -->
+				<!-- <div class="col s12 pivot-item"> -->
+					{% if forloop.parentloop.counter < 11 %}
+						<div class="line-item">
+						<a href='#' class="collection-item" id="{{key}}"> {{item.name}} 
+							{% if item.children|length > 0 %}
+								({{item.children.0}} 
 
-							{% if item.children|length > 1 %}
-								, {{item.children.1}} ...
-							{% endif %})
-						{% endif %}
-				</div>
-			</div>
-		</ul>
-	</form>
+								{% if item.children|length > 1 %}
+									, {{item.children.1}} ...
+								{% endif %})
+							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %} </a>
+						<!-- <button type="submit"  > </button> -->
+						<input type="hidden" id="pivot_cid" value="{{key}}">
+						<input type="hidden" id="pivot_term" value="{{item.name}}">
+						</div>
+					{% else %}
+					<div class="line-item">
+						<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}} {% if item.children|length > 0 %}
+								({{item.children.0}} 
+
+								{% if item.children|length > 1 %}
+									, {{item.children.1}} ...
+								{% endif %})
+							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %}</a>
+						<!-- <button type="submit"  > </button> -->
+						<input type="hidden" id="pivot_cid" value="{{key}}">
+						<input type="hidden" id="pivot_term" value="{{item.name}}">
+						</div>
+					{% endif %}
+				<!-- </div> -->
+			<!-- </div> -->
+		<!-- </ul> -->
+	<!-- </form> -->
 
 
-</li>
+<!-- </li> -->
 {% endfor %}
 
 

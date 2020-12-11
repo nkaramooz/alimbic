@@ -6,7 +6,6 @@ from fuzzywuzzy import fuzz
 import utilities.pglib as pg
 import numpy as np
 import time
-import utilities.utils as u 
 
 
 def extract_value(term):

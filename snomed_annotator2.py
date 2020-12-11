@@ -6,10 +6,9 @@ from fuzzywuzzy import fuzz
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import numpy as np
-# import multiprocessing as mp
+
 from sqlalchemy import create_engine
 import copy
-import utilities.utils as u
 import utilities.pglib as pg
 import unittest
 import uuid
@@ -487,7 +486,7 @@ def query_expansion(conceptid_series, cursor):
 		  		on tb1.child_acid = ct.concept
     		) tb2
 		) tb3
-		where rn <= 4
+		where rn <= 50
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \

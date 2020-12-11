@@ -18,10 +18,10 @@ create table treatment_candidates as (
  	join (select distinct sentence_id, acid as treatment_acid 
  			from pubmed.sentence_annotations 
  			where 
- 				acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in ('165831', '250976', '241259'))) t3
+ 				acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in ('165831', '250976', '92218', '18621', '233259'))) t3
  		on t1.sentence_id = t3.sentence_id
  	join pubmed.sentence_tuples t4
- 		on t1.sentence_id = t4.sentence_id
+ 		on t1.sentence_id = t4.sentence_id 
  		) t5
 
 );

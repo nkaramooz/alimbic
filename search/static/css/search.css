@@ -24,7 +24,8 @@
 }
 
 .search-btn {
-	background-color: #007bff !important;
+	/*background-color: #007bff !important;*/
+	visibility: hidden;
 }
 
 .body {
@@ -140,21 +141,22 @@ input[type=number]::-webkit-outer-spin-button {
 
 }
 .pub-year {
-	border: 1px solid #ffd37c;
-	background-color: #ffd37c;
+	border: 1px solid #FFE66D;
+	background-color: #FFE66D;
 	align-content: center;
 	border-radius: 4px;
 	text-align: center;
 }
 
 .journal-title {
-	border: 1px solid #A7EAFF;
-	background-color: #A7EAFF;
+	border: 1px solid #60C3D2;
+	background-color: #60C3D2;
 	align-content: center;
 	border-radius: 4px;
 	text-align: center;
 	padding: 5px;
 	display: inline-block;
+	color: white;
 }
 
 
@@ -180,9 +182,7 @@ input[type=number]::-webkit-outer-spin-button {
 	padding: .375rem;
 	font-size: 1rem;
 	line-height: 1.5;
-	color: #495057;
-	border-radius: 0;
-	border: 1px solid grey;
+	border-radius: 4;
 	text-align: center;
 }
 
@@ -203,14 +203,6 @@ hr {
 	box-shadow: 0 2px 2px 0 rgba(0,0,0,0.14), 0 3px 1px -2px rgba(0,0,0,0.12), 0 1px 5px 0 rgba(0,0,0,0.2);
 }
 
-.body > .vanco-calc {
-	padding-bottom: 75px;
-	padding-top: 25px;
-}
-
-.body > .vanco-calc > .card-title {
-	padding-left: 20px !important;
-}
 
 i.icon-blue {
     color: blue !important;
@@ -218,5 +210,9 @@ i.icon-blue {
 
 #treatments {
 	padding-bottom: 0px !important;
+}
+
+span.badge.new {
+	background-color: #FF6B6B !important;
 }
 

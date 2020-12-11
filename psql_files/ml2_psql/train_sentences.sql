@@ -7,13 +7,14 @@ create table train_sentences as (
     	id
     	,sentence_id
     	,section_ind
-    	,x_train_gen
+    	,x_train_spec
+    	,x_train_mask
     	,label
-    	,ver_gen
+    	,ver
     from ml2.all_training_sentences
-    where rand <= 0.97
+    where rand <= 0.99
 );
 
 create index if not exists train_sentences_label_ind on train_sentences(label);
-create index if not exists train_sentences_ver_gen_ind on train_sentences(ver_gen);
+create index if not exists train_sentences_ver_ind on train_sentences(ver);
 create index if not exists train_sentences_id_ind on train_sentences(id);

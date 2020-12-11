@@ -4,7 +4,6 @@ from django.urls import reverse
 import snomed_annotator2 as ann2
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
-import utilities.utils as u
 import utilities.utils2 as u2
 import pandas as pd
 import utilities.es_utilities as es_util
@@ -16,10 +15,7 @@ import urllib.parse as urlparse
 from urllib.parse import parse_qs
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
-# import psql_files.annotation2.lemmatizer as lem
-# import ml2 as m
-# from keras.models import load_model
-# Create your views here.
+
 
 INDEX_NAME='pubmedx1.6'
 
@@ -259,6 +255,37 @@ def post_concept_override(request):
 		adid = request.POST['remove_adid']
 		error = u2.remove_adid(adid, cursor)
 		payload_dict['remove_adid'] = error
+	elif 'condition_acid_labelled' in request.POST:
+		condition_acid = None
+		treatment_acid = None
+		if request.POST['condition_acid_labelled'] != '':
+			condition_acid = request.POST['condition_acid_labelled']
+
+		if request.POST['treatment_acid_labelled'] != '':
+			treatment_acid = request.POST['treatment_acid_labelled']
+
+		relationship = None
+		if 'rel_0' in request.POST:
+			relationship = 0
+		elif 'rel_1' in request.POST:
+			relationship = 1
+		elif 'rel_2' in request.POST: 
+			relationship = 2
+		message = u2.add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor)
+		payload_dict['labelled_condition_treatment_message'] = message
+	elif 'adid_acronym_override' in request.POST:
+		adid = request.POST['adid_acronym_override']
+		is_acronym = None
+		if 'rel_true' in request.POST:
+			is_acronym = True
+		elif 'rel_false' in request.POST:
+			is_acronym = False
+
+		message = u2.acronym_override(adid, is_acronym, cursor)
+		payload_dict['acronym_override_message'] = message
+
+
+	
 		
 
 
@@ -437,8 +464,8 @@ def post_search_text(request):
 		
 
 		original_query_concepts_list = []
-		if query.upper() != query:
-			query = query.lower()
+		# if query.upper() != query:
+		query = query.lower()
 
 		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["acid"])
@@ -454,7 +481,7 @@ def post_search_text(request):
 			cache = ann2.get_cache(all_words, False)
 			
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
-			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, False, False)
+			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, True, False)
 
 		primary_cids = None
 		
@@ -673,7 +700,11 @@ def get_article_type_filters():
 			{"term": {"article_type" : "Comment"}}, \
 			{"term": {"article_type" : "Biography"}}, \
 			{"term": {"article_type" : "Patient Education Handout"}}, \
-			{"term": {"article_type" : "News"}}
+			{"term": {"article_type" : "News"}},
+			{"term": {'article_title': "rat"}},
+			{"term": {'article_title': "mice"}},
+			{"term": {'article_title': "mouse"}},
+			{"term": {'article_title': "rats"}}
 			]
 	return filt
 
@@ -855,7 +886,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 
 	es_query = get_query(query_concept_list, unmatched_terms, \
 						 	filters['journals'], filters['start_year'], filters['end_year']\
-						 	,["title_conceptids^5"], cursor)
+						 	,["title_conceptids^10", "abstract_conceptids.*^0.5"], cursor)
 
 	scroller = es_util.ElasticScroll(es, es_query)
 
@@ -924,6 +955,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 			agg_condition = agg_condition.groupby(['acid'],  as_index=False)['count'].sum()
 			agg_condition = ann2.add_names(agg_condition)
 			agg_condition = agg_condition.sort_values(['count'], ascending=False)
+			u2.pprint(agg_condition)
 			sub_dict['condition'] = rollups(agg_condition, cursor)
 
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']
