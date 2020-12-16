@@ -10,6 +10,7 @@ import numpy as np
 from sqlalchemy import create_engine
 import copy
 import utilities.pglib as pg
+import utilities.utils2 as u2
 import unittest
 import uuid
 import time
@@ -115,7 +116,7 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 
 		order_score = order_score[['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
 			['acid', 'adid', 'description_start_index'], as_index=False)['order_score'].sum()
-	
+
 		distinct_results = results_df[['acid', 'adid', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
 	
 		results_group = results_df.groupby(['acid', 'adid', 'description_start_index'], as_index=False)
@@ -487,6 +488,7 @@ def query_expansion(conceptid_series, cursor):
     		) tb2
 		) tb3
 		where rn <= 50
+
 	"""
 
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
@@ -660,7 +662,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 						except:
 							print("ERROR ERROR")
 							print(single_ln_df)
-							u.pprint(ann_df)
+							u2.pprint(ann_df)
 						single_ln_df['sentence_tuples'] = [s_arr]
 						sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
 						single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
@@ -709,14 +711,14 @@ class TestAnnotator(unittest.TestCase):
 
 		cursor = pg.return_postgres_cursor()
 		for q in queryArr:
-			check_timer = u.Timer(q[0])
+			check_timer = u2.Timer(q[0])
 		
 
 			res = annotate_text_not_parallel(q[0], 'title', cursor, False)
-			u.pprint("=============================")
+			u2.pprint("=============================")
 			
 			
-			u.pprint(res)
+			u2.pprint(res)
 			t = check_timer.stop_num()
 			d = ((q[1]-t)/t)*100
 			self.assertTrue(timeLimit(t, q[1]))
@@ -822,22 +824,24 @@ if __name__ == "__main__":
 	query65="T cell"
 	query66="IVDU"
 	query67="bioprosthetic mitral valve"
+	query68="Asthma exacerbation India"
 
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
-		d = u.Timer('t')
-		term = query67
+		d = u2.Timer('t')
+		term = query68
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False)
 		print(cache)
+		print("DSASADSDAHJKLDSAKLHJAKSHJ")
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 		print(item)
 		res = annotate_text_not_parallel(item, cache, False, False, False)
-		u.pprint(res)
+		u2.pprint(res)
 		d.stop()
 		counter += 1
 	

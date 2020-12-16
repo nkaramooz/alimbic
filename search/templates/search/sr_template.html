@@ -3,7 +3,7 @@
 <script src="{% static "js/search-results.js" %}"></script>
 
 {% for a in sr_payload %}
-	<div class="row">
+	<div class="row s12">
 		<div class="col s12">
 			<div class="card">
 				<div class="card-content">
@@ -14,14 +14,14 @@
 							<h6 class="pub-year">{{a.journal_pub_year}}</h6>
 						</div>
 						
-						<div class="col s4"></div>
-						<div class="col s2" style="text-align: center;">
+						<!-- <div class="col s4"></div> -->
+						<div class="col s8" style="text-align: center;">
 							<h6><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">pubmed</a></h6>
 						</div>
-						<div class="col s2" style="text-align: center;">
-							<h6><a target="_blank" href="http://localhost:9200/pubmedx1.6/_doc/{{a.id}}?pretty"> source </a> </h6>
-						</div>
-						<div class="col s4 right-align">
+						<!-- <div class="col s2" style="text-align: center;"> -->
+							<!-- <h6><a target="_blank" href="http://localhost:9200/pubmedx1.6/_doc/{{a.id}}?pretty"> source </a> </h6> -->
+						<!-- </div> -->
+						<div class="col s2 right-align">
 							<h6 class="journal-title"> {{a.journal_title}} </h6>
 						</div>
 					</div>

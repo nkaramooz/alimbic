@@ -403,7 +403,6 @@ def post_search_text(request):
 		filters = get_query_filters(data)
 		query_type = data['query_type']
 		unmatched_terms = data['unmatched_terms']
-		print(unmatched_terms)
 
 		if 'query_annotation' in data:
 			primary_cids = data['query_annotation']
@@ -500,7 +499,8 @@ def post_search_text(request):
 						 "size" : 25, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, \
 						 	filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_conceptids^10", "abstract_conceptids.*^0.5"], cursor)}
+						 	,["title_conceptids^2", "abstract_conceptids.*"], cursor)}
+			print(es_query)
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 
@@ -716,21 +716,23 @@ def get_concept_string(conceptid_series):
 	return result_string.strip()
 
 def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_year, fields_arr, cursor):
+
 	es_query = {}
 	if unmatched_terms == '':
-		es_query["bool"] = { \
+		es_query["function_score"] = {"query" : { "bool" : {\
 							"must_not": get_article_type_filters(), \
 							"must": \
 								[{"query_string": {"fields" : fields_arr, \
-								 "query" : get_concept_query_string(full_conceptid_list, cursor)}}]}
+								 "query" : get_concept_query_string(full_conceptid_list)}}]}}, \
+								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2019"}}}, "weight" : 5}]}
 	else:
-
-		es_query["bool"] = { \
+		# Unmatched terms need to be formatted for lucene
+		es_query["function_score"] = {"query" : {"bool" : {\
 						"must_not": get_article_type_filters(), \
 						"must": \
 							[{"query_string": {"fields" : fields_arr, \
-							 "query" : get_concept_query_string(full_conceptid_list, cursor)}}, {"query_string": {"fields" : ["article_title", "article_abstract.*"], \
-							"query" : unmatched_terms}}]}
+							 "query" : get_concept_query_string(full_conceptid_list)}}, {"query_string": {\
+							"query" : get_unmatched_query_string(unmatched_terms)}}]}}, "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2019"}}}, "weight" : 5}]}
 						# "should": \
 						# 	[{"query_string": {"fields" : fields_arr, \
 						# 	"query" : unmatched_terms}}]}
@@ -751,13 +753,13 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 		elif end_year:
 			d.append({"range" : {"journal_pub_year" : {"lte" : end_year}}})
 
-		es_query["bool"]["filter"] = d
+		es_query["function_score"]["query"]["bool"]["filter"] = d
 
 
 
 	return es_query
 
-def get_concept_query_string(full_conceptid_list, cursor):
+def get_concept_query_string(full_conceptid_list):
 
 	query_string = ""
 	for item in full_conceptid_list:
@@ -772,6 +774,17 @@ def get_concept_query_string(full_conceptid_list, cursor):
 	query_string = query_string.rstrip("AND ")
 
 	return query_string
+
+def get_unmatched_query_string(unmatched_terms):
+	query_string = ""
+	unmatched_list = unmatched_terms.rstrip(' ').split(' ')
+
+	for i in unmatched_list:
+		query_string += "( " + i + " ) AND "
+	query_string = query_string.rstrip("AND ")
+
+	return query_string
+
 
 def get_text_query(query):
 	es_query = {"from" : 0, \
@@ -955,7 +968,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, unm
 			agg_condition = agg_condition.groupby(['acid'],  as_index=False)['count'].sum()
 			agg_condition = ann2.add_names(agg_condition)
 			agg_condition = agg_condition.sort_values(['count'], ascending=False)
-			u2.pprint(agg_condition)
+
 			sub_dict['condition'] = rollups(agg_condition, cursor)
 
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']

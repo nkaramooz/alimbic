@@ -7,7 +7,7 @@ create table train_sentences as (
     	id
     	,sentence_id
     	,section_ind
-    	,x_train_spec
+    	,x_train_gen
     	,x_train_mask
     	,label
     	,ver

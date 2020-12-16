@@ -6,20 +6,19 @@
 
 <div class="container">
 	<div class="row">
-	<div class="col s1"></div>
-	<div class="col s11">
-	<div class="query-display">
-		<!-- <h5>
-			{% for concept in concepts %}
-				<i> {{concept.acid}} : {{concept.term}} </i>
-			{% endfor %} 
-		</h5> -->
+	<div class="col s12">
+		<div class="query-display">
+			<!-- <h5>
+				{% for concept in concepts %}
+					<i> {{concept.acid}} : {{concept.term}} </i>
+				{% endfor %} 
+			</h5> -->
 
-		{% for i in query_annotation %}
-			<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
-		{% endfor %}
-		<input type="hidden" name="unmatched_terms" id="unmatched_terms" value="{{unmatched_terms}}">
-	</div>
+			{% for i in query_annotation %}
+				<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
+			{% endfor %}
+			<input type="hidden" name="unmatched_terms" id="unmatched_terms" value="{{unmatched_terms}}">
+		</div>
 
 
 	{% if treatment|length > 0 or diagnostic|length > 0 or cause|length > 0 or condition|length > 0 or calcs|length > 0 %}
