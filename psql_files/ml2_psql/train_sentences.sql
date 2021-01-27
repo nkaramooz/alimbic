@@ -9,10 +9,12 @@ create table train_sentences as (
     	,section_ind
     	,x_train_gen
     	,x_train_mask
+        ,condition_acid
+        ,treatment_acid
     	,label
     	,ver
     from ml2.all_training_sentences
-    where rand <= 0.99
+    -- where rand <= 0.99
 );
 
 create index if not exists train_sentences_label_ind on train_sentences(label);

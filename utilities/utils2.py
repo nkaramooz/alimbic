@@ -182,6 +182,23 @@ def check_acid(acid, cursor):
 	else:
 		return False
 
+def change_concept_type(acid, rel_type, state, cursor):
+	if check_acid(acid, cursor):
+		query = """
+			insert into annotation2.concept_types_app
+				VALUES(%s, %s, %s, now())
+		"""
+		cursor.execute(query, (acid, rel_type, state))
+		cursor.connection.commit()
+		sql_file = open('/home/nkaramooz/Documents/alimbic/psql_files/annotation2_psql/concept_types/concept_types.sql', 'r')
+		cursor.execute(sql_file.read())
+		cursor.connection.commit()
+		return "that probably worked"
+	else:
+		return "error, acid is not real"
+
+	
+
 
 def remove_adid(adid, cursor):
 	# first check to make sure adid exists

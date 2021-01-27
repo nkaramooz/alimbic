@@ -6,4 +6,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 $(document).ready(function() {
     $('.collapsible').collapsible();
+    $(".collapsible-header").click(function() {
+
+    	console.log($(this).find('.material-icons').html());
+
+    	if ($(this).find('.material-icons').html() == 'arrow_drop_down') {
+    		$(this).find('.material-icons').html('arrow_drop_up');
+
+    	}
+    	else {
+    		$(this).find('.material-icons').html('arrow_drop_down');
+    	}
+
+    })
 });

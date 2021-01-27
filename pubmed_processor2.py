@@ -6,7 +6,7 @@ import psycopg2
 from psycopg2 import pool
 import pandas as pd
 import multiprocessing as mp
-import utilities.utils as u, utilities.pglib as pg
+import utilities.utils2 as u, utilities.pglib as pg
 import os
 import datetime
 from multiprocessing import Pool
@@ -22,7 +22,7 @@ import regex as re
 from ftplib import FTP
 from bs4 import BeautifulSoup
 
-INDEX_NAME = 'pubmedx1.6'
+INDEX_NAME = 'pubmedx1.8'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -46,127 +46,147 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 		if json_str['journal_pub_year'] is not None:
 			if ((int(json_str['journal_pub_year']) >= 1980)):
-				
 				json_str, article_text = get_article_info_2(elem, json_str)
 				
-				if (not bool(set(json_str['article_type']) & set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', 'News']))):
+				if ' a protocol for ' not in json_str['article_title'].lower() and \
+				 ' protocol for an ' not in json_str['article_title'].lower() and ' protocol for a ' not in json_str['article_title'].lower():
+					if (not bool(set(json_str['article_type']) & \
+						set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', \
+							'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
+							'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
+							'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
+							'Portrait', 'Video-Audio Media', 'Webcast']))):
+						
+						json_str = get_pmid(elem, json_str)
+						json_str = get_article_ids(elem, json_str)					
+						json_str['citations_pmid'] = get_article_citations(elem)
 					
-					json_str = get_pmid(elem, json_str)
-					json_str = get_article_ids(elem, json_str)					
-					json_str['citations_pmid'] = get_article_citations(elem)
-				
-					annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
-					sentence_annotations_df['ver'] = 0
+						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
+						sentence_annotations_df['ver'] = 0
 
-					if annotation_dict['abstract'] is not None:
-						json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
-						json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
+						if annotation_dict['abstract'] is not None:
+							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
+							json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
 
-					else:
-						json_str['abstract_conceptids'] = None
-						json_str['abstract_dids'] = None
+						else:
+							json_str['abstract_conceptids'] = None
+							json_str['abstract_dids'] = None
+						
+						if annotation_dict['title'] is not None:
+							title_cids = annotation_dict['title']['cids']
+							title_dids = annotation_dict['title']['dids']
+						else:
+							title_cids = None
+							title_dids = None
+
+						if title_cids is not None:
+							json_str['title_cids'] = title_cids
+							json_str['title_dids'] = title_dids
+						else:
+							json_str['title_cids'] = None
+							json_str['title_dids'] = None
+
+
+						if annotation_dict['article_keywords'] is not None:
+							keywords_cids = annotation_dict['article_keywords']['cids']
+							keywords_dids = annotation_dict['article_keywords']['dids']
+						else:
+							keywords_cids = None
+							keywords_dids = None
+
+						if keywords_cids is not None:
+							json_str['keywords_cids'] = keywords_cids
+							json_str['keywords_dids'] = keywords_dids
+						else:
+							json_str['keywords_cids'] = None
+							json_str['keywords_dids'] = None
+
+						json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+						json_str['filename'] = filename
+						pmid = json_str['pmid']
+						
+						
+						json_str =json.dumps(json_str)
+						json_obj = json.loads(json_str)
 					
-					if annotation_dict['title'] is not None:
-						title_cids = annotation_dict['title']['cids']
-						title_dids = annotation_dict['title']['dids']
-					else:
-						title_cids = None
-						title_dids = None
 
-					if title_cids is not None:
-						json_str['title_conceptids'] = title_cids
-						json_str['title_dids'] = title_dids
-					else:
-						json_str['title_conceptids'] = None
-						json_str['title_dids'] = None
+						es = u.get_es_client()
+						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 
+						query_result = es.search(index=INDEX_NAME, body=get_article_query)
+						
+						if query_result['hits']['total']['value'] == 0:
+							try:
+								es.index(index=INDEX_NAME, body=json_obj)
+							except:
+								raise ValueError('incompatible json obj')
 
-					json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-					json_str['filename'] = filename
-					pmid = json_str['pmid']
-					
-					
-					json_str =json.dumps(json_str)
-					json_obj = json.loads(json_str)
-				
-
-					es = u.get_es_client()
-					get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
-
-					query_result = es.search(index=INDEX_NAME, body=get_article_query)
-					
-					if query_result['hits']['total']['value'] == 0:
-						try:
-							es.index(index=INDEX_NAME, body=json_obj)
-						except:
-							raise ValueError('incompatible json obj')
-
-						try:
-							engine = pg.return_sql_alchemy_engine()
-							sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
-								if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-							sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
-								if_exists='append', index=False)
-							sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-								if_exists='append', index=False)
-							engine.dispose()
-						except:
 							try:
 								engine = pg.return_sql_alchemy_engine()
-								sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+								sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
 									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-								sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+								sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
 									if_exists='append', index=False)
-								sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+								sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								engine.dispose()
 							except:
-								try: 
+								try:
 									engine = pg.return_sql_alchemy_engine()
-									sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
+									sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-									sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
+									sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
 										if_exists='append', index=False)
-									sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
+									sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									engine.dispose()
-
 								except:
-									print("could not save the following")
-									u.pprint(sentence_tuples_df)
-									u.pprint(sentence_annotations_df)
-									u.pprint(sentence_concept_arr_df)
+									try: 
+										engine = pg.return_sql_alchemy_engine()
+										sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
+											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+										sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
+											if_exists='append', index=False)
+										sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
+											if_exists='append', index=False)
+										engine.dispose()
 
-					# Below should delete old annotations and update with new ones in tables
-					# Basically drop segments with that pmid and then append these values						
-					elif query_result['hits']['total']['value'] >= 1:
-						article_id = query_result['hits']['hits'][0]['_id']
-						es.index(index=INDEX_NAME, id=article_id, body=json_obj)
-						# conn, cursor = pg.return_postgres_cursor()
+									except:
+										print("could not save the following")
+										u.pprint(sentence_tuples_df)
+										u.pprint(sentence_annotations_df)
+										u.pprint(sentence_concept_arr_df)
 
-						# query = """
-						# 	DELETE FROM pubmed.sentence_tuples
-						# 	where pmid = %s
-						# """
-						# cursor.execute(query, (pmid,))
-						# cursor.connection.commit()
+						# Below should delete old annotations and update with new ones in tables
+						# Basically drop segments with that pmid and then append these values						
+						elif query_result['hits']['total']['value'] >= 1:
+							article_id = query_result['hits']['hits'][0]['_id']
+							es.index(index=INDEX_NAME, id=article_id, body=json_obj)
+							# conn, cursor = pg.return_postgres_cursor()
 
-						# query = """
-						# 	DELETE FROM pubmed.sentence_annotations
-						# 	where pmid = %s
-						# """
-						# cursor.execute(query, (pmid,))
-						# cursor.connection.commit()
+							# query = """
+							# 	DELETE FROM pubmed.sentence_tuples
+							# 	where pmid = %s
+							# """
+							# cursor.execute(query, (pmid,))
+							# cursor.connection.commit()
 
-						# query = """
-						# 	DELETE FROM pubmed.sentence_concept_arr
-						# 	where pmid = %s
-						# """
-						# cursor.execute(query, (pmid,))
-						# cursor.connection.commit()
-						# cursor.close()
-						# conn.close()
-			
+							# query = """
+							# 	DELETE FROM pubmed.sentence_annotations
+							# 	where pmid = %s
+							# """
+							# cursor.execute(query, (pmid,))
+							# cursor.connection.commit()
+
+							# query = """
+							# 	DELETE FROM pubmed.sentence_concept_arr
+							# 	where pmid = %s
+							# """
+							# cursor.execute(query, (pmid,))
+							# cursor.connection.commit()
+							# cursor.close()
+							# conn.close()
+				
 					
 
 					
@@ -215,19 +235,22 @@ def load_pubmed_local_2(start_file, folder_path):
 				"doi" : {"type" : "keyword"},
 				"pii" : {"type" : "keyword"}}}
 			,"citations_pmid" : {"type" : "keyword"}
-			,"title_conceptids" : {"type" : "keyword"}
+			,"title_cids" : {"type" : "keyword"}
 			,"title_dids" : {"type" : "keyword"}
 			,"abstract_conceptids" : {"properties" : {"methods_cid" : {"type" : "keyword"}, 
 				"background_cid" : {"type" : "keyword"},
 				"conclusions_cid" : {"type" : "keyword"},
 				"objective_cid" : {"type" : "keyword"},
 				"results_cid" : {"type" : "keyword"},
-				"unlabelled_cid" : {"type" : "keyword"}}}
+				"unlabelled_cid" : {"type" : "keyword"},
+				"keywords_cid" : {"type" : "keyword"}}}
 			,"abstract_dids" : {"properties" : {"methods_did" : {"type" : "keyword"}, 
 				"background_did" : {"type" : "keyword"},
 				"conclusions_did" : {"type" : "keyword"},
 				"objective_did" : {"type" : "keyword"},
-				"results_did" : {"type" : "keyword"}}}
+				"results_did" : {"type" : "keyword"},
+				"unlabelled_did" : {"type" : "keyword"}
+				"keywords_did" : {"type" : "keyword"}}}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
@@ -248,7 +271,7 @@ def load_pubmed_local_2(start_file, folder_path):
 
 		for filename in file_lst:
 			file_path = folder_path + '/' + filename
-			file_num = int(re.findall('pubmed20n(.*).xml', filename)[0])
+			file_num = int(re.findall('pubmed21n(.*).xml', filename)[0])
 
 			if file_num >= start_file:
 				print(filename)
@@ -259,7 +282,7 @@ def load_pubmed_local_2(start_file, folder_path):
 					task_queue.put((index_doc_from_elem, params))
 					elem.clear()
 				query = """
-					INSERT INTO pubmed.indexed_files
+					INSERT INTO pubmed.indexed_files_1_8
 					VALUES
 					(%s, %s)
 					"""
@@ -298,10 +321,22 @@ def get_abstract_conceptids_2(abstract_dict, article_text):
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
 	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
 
+	sentence_annotations_df['journal_pub_year'] = abstract_dict['journal_pub_year']
+	sentence_tuples_df['journal_pub_year'] = abstract_dict['journal_pub_year']
+	sentence_concept_arr_df['journal_pub_year'] = abstract_dict['journal_pub_year']
+
+	sentence_annotations_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
+	sentence_tuples_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
+	sentence_concept_arr_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
+
 	title_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
 	title_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
 
+	keywords_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
+	keywords_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
+
 	result_dict['title'] = {'cids' : title_cids, 'dids' : title_dids}
+	result_dict['article_keywords'] = {'cids' : keywords_cids, 'dids' : keywords_dids}
 
 
 	if abstract_dict['article_abstract'] is not None:
@@ -465,6 +500,7 @@ def get_article_info_2(elem, json_str):
 		json_str['article_abstract'] = None
 		json_str['article_type'] = None
 		json_str['article_type_id'] = None
+		json_str['article_keywords'] = None
 
 	try:
 		title_elem = article_elem.find('./ArticleTitle')
@@ -472,6 +508,19 @@ def get_article_info_2(elem, json_str):
 		article_text += str(title_elem.text)
 	except:
 		json_str['article_title'] = None
+
+
+	try:
+		keyword_elem = elem.find('./MedlineCitation/KeywordList')
+
+		for keyword in keyword_elem:
+			if json_str['article_keywords'] == None:
+				json_str['article_keywords'] = str(keyword.text)
+			else:
+				json_str['article_keywords'] = json_str['article_keywords'] + ' ' + str(keyword.text)
+		article_text += str(json_str['article_keywords'])
+	except:
+		json_str['article_keywords'] = None
 
 	try:
 		abstract_elem = article_elem.find('./Abstract')
@@ -537,6 +586,9 @@ def get_snomed_annotation(text_dict, cache):
 		for ind,k1 in enumerate(text_dict['article_abstract']):
 			sentences_df = return_section_sentences(text_dict['article_abstract'][k1], str(k1), ind+1, sentences_df)
 
+	if text_dict['article_keywords'] is not None:
+		sentences_df = return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
+
 	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, True, True, True)
 
 	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
@@ -580,16 +632,17 @@ def get_start_file_num():
 	conn,cursor = pg.return_postgres_cursor()
 	conn, cursor = pg.return_postgres_cursor()
 	query = """
-		select max(file_num) from pubmed.indexed_files
+		select max(file_num) from pubmed.indexed_files_1_8
 	"""
 	cursor.execute(query)
 	max_num = cursor.fetchone()[0]
 	cursor.close()
 	conn.close()
-
+	if max_num == None:
+		max_num = 0
 	return max_num+1	
 
-def get_end_file_num(start_file_num):
+def get_update_end_file_num(start_file_num):
 	f = FTP('ftp.ncbi.nlm.nih.gov')
 	f.login()
 	f.cwd('/pubmed/updatefiles/')
@@ -598,7 +651,7 @@ def get_end_file_num(start_file_num):
 	max_file_num = start_file_num
 	for i in filenames:
 		if re.match(".*\.xml\.gz$", i):
-			file_num = int(re.findall('pubmed20n(.*)\.xml.gz$', i)[0])
+			file_num = int(re.findall('pubmed21n(.*)\.xml.gz$', i)[0])
 			if file_num > max_file_num:
 				max_file_num = file_num
 	return max_file_num
@@ -611,21 +664,21 @@ if __name__ == "__main__":
 
 	# print(sys.argv[1])
 	# if sys.argv[1] == 'update':
-	# 	conn, cursor = pg.return_postgres_cursor()
-	# 	query = "select max(file_num) from pubmed.indexed_files"
-	# 	cursor.execute(query)
-	# 	start_num = cursor.fetchone()[0] + 1
-	# 	cursor.close()
-	# 	conn.close()
+	# conn, cursor = pg.return_postgres_cursor()
+	# query = "select max(file_num) from pubmed.indexed_files_1_8"
+	# cursor.execute(query)
+	# start_num = cursor.fetchone()[0] + 1
+	# cursor.close()
+	# conn.close()
 	# 	load_pubmed_local_2(start_num, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov/pubmed/updatefiles')
 
 	start_file = get_start_file_num()
-	end_file = get_end_file_num(start_file) + 1
-	# start_file = 1
-	# end_file = 1016
+	end_file = get_update_end_file_num(start_file) + 1
+
 	while (start_file < end_file):
 		print(start_file)
 		load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		# load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov')
 		start_file += 5
 	# index_sentences(5)
 	

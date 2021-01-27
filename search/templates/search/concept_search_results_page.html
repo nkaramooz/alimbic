@@ -29,7 +29,7 @@
 
 				{% if treatment|length > 0 %}
 					<li>
-						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption=""><b>{{treatment|length}} topics </b></span></div>
+						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption=""><b>{{treatment|length}} topics </b></span><i class="material-icons">arrow_drop_down</i></div>
 						<div class="collapsible-body" id='treatments'>
 							<!-- <ul class="default-browser"> -->
 							 <ul class="collection">
@@ -58,7 +58,7 @@
 
 				{% if diagnostic|length > 0 %}
 					<li>
-						<div class="collapsible-header"> Diagnostics <span class="new badge" data-badge-caption=""><b>{{diagnostic|length}} topics</b></span></div>
+						<div class="collapsible-header"> Diagnostics <span class="new badge" data-badge-caption=""><b>{{diagnostic|length}} topics</b></span><i class="material-icons">arrow_drop_down</i></div>
 						<div class="collapsible-body" id="diagnostic">
 							<ul class="collection">
 								{% for node in diagnostic %}
@@ -84,7 +84,7 @@
 
 				{% if cause|length > 0 %}
 		      		<li>
-		      			<div class="collapsible-header"> Organisms <span class="new badge" data-badge-caption=""><b>{{cause|length}} topics</b></span></div>
+		      			<div class="collapsible-header"> Organisms <span class="new badge" data-badge-caption=""><b>{{cause|length}} topics</b></span><i class="material-icons">arrow_drop_down</i></div>
 		      			<div class="collapsible-body" id="cause">
 		      				<ul class="collection">
 								{% for node in cause %}
@@ -108,7 +108,7 @@
 
 				{% if condition|length > 0 %}
 					<li>
-		      			<div class="collapsible-header"> Conditions <span class="new badge" data-badge-caption=""><b>{{condition|length}} topics</b></span></div>
+		      			<div class="collapsible-header"> Conditions <span class="new badge" data-badge-caption=""><b>{{condition|length}} topics</b></span><i class="material-icons">arrow_drop_down</i></div>
 		      			<div class="collapsible-body" id="conditions">
 		      				<ul class="collection">
 								{% for node in condition %}
@@ -120,7 +120,7 @@
 						<div class="row">
 							<div class="col s5"></div>
 							<div class="col s2">
-								{% if treatment|length >= 11 %}
+								{% if condition|length >= 11 %}
 									<a class="blue-text btn-flat" id="more_conditions_btn" style="text-transform: none;"> more </a>
 								{% endif %}
 							</div>
@@ -134,7 +134,7 @@
 
 				{% if calcs|length > 0 %}
 					<li>
-		      			<div class="collapsible-header"> Calculators <span class="new badge" data-badge-caption=""><b>{{calcs|length}} calculators </b></span></div>
+		      			<div class="collapsible-header"> Calculators <span class="new badge" data-badge-caption=""><b>{{calcs|length}} calculators </b></span><i class="material-icons">arrow_drop_down</i></div>
 		      			<div class="collapsible-body" id="calcs">
 		      				<ul class="">
 								{% for c in calcs %}
@@ -150,7 +150,7 @@
 							<div class="row">
 							<div class="col s5"></div>
 							<div class="col s2">
-								{% if cause|length >= 11 %}
+								{% if calcs|length >= 11 %}
 									<a class="blue-text btn-flat" id="more_calcs_btn" style="text-transform: none;"> more </a>
 								{% endif %}
 							</div>

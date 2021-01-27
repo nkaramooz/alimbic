@@ -9,7 +9,7 @@ create table treatment_recs_final_1 as (
 		,avg(score)
 	from ml2.treatment_recs_staging
 	group by condition_acid, treatment_acid
-	having avg(score) > 0.5 and count(*) > 1
+	having avg(score) > 0.5
 );
 
 create index tx_recs_final_1_cid on treatment_recs_final_1(condition_acid);

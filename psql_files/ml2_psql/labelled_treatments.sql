@@ -28,7 +28,7 @@ insert into labelled_treatments
 
 insert into labelled_treatments
 	select
-		public.uuid_generate_v4() as id
+		t1.id as id
 		,t1.condition_acid
 		,t1.treatment_acid
 		,t1.label

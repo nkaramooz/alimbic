@@ -7,7 +7,20 @@
 		<div class="col s12">
 			<div class="card">
 				<div class="card-content">
-					<span class="card-title"><b>{{a.article_title}}</b></span>
+
+					<div class="row">
+						<div class="col s11">
+
+							<span class="card-title"><b>{{a.article_title}}</b></span>
+						</div>
+						<div class="col s1">
+							<div style="text-align: right;">
+								<a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">
+									<i class="material-icons icon-blue" id="expand_icon">launch</i>
+								</a>
+							</div>
+						</div>
+					</div>
 
 					<div class="row valign-wrapper">
 						<div class="col s2">
@@ -16,11 +29,13 @@
 						
 						<!-- <div class="col s4"></div> -->
 						<div class="col s8" style="text-align: center;">
-							<h6><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">pubmed</a></h6>
+							<!-- <h6><a target="_blank" href="https://www.ncbi.nlm.nih.gov/pubmed/{{a.pmid}}">
+							<i class="material-icons icon-blue" id="expand_icon">launch</i>
+							</a></h6> -->
 						</div>
-						<!-- <div class="col s2" style="text-align: center;"> -->
-							<!-- <h6><a target="_blank" href="http://localhost:9200/pubmedx1.6/_doc/{{a.id}}?pretty"> source </a> </h6> -->
-						<!-- </div> -->
+						<div class="col s2" style="text-align: center;">
+							<h6><a target="_blank" href="http://localhost:9200/pubmedx1.8/_doc/{{a.id}}?pretty"> source </a> </h6>
+						</div>
 						<div class="col s2 right-align">
 							<h6 class="journal-title"> {{a.journal_title}} </h6>
 						</div>

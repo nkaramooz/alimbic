@@ -4,13 +4,15 @@ import sys
 import psycopg2
 from fuzzywuzzy import fuzz
 from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.corpus import wordnet
+from nltk import pos_tag
 import nltk.data
 import numpy as np
 
 from sqlalchemy import create_engine
 import copy
 import utilities.pglib as pg
-import utilities.utils2 as u2
+import utilities.utils2 as u
 import unittest
 import uuid
 import time
@@ -62,10 +64,22 @@ def get_new_candidate_df(word, case_sensitive):
 
 	return new_candidate_df
 
+def get_wordnet_pos(ln_words):
+
+	tags = nltk.pos_tag(ln_words)
+	tag_dict = {"J" : wordnet.ADJ, "N" : wordnet.NOUN,
+		"V": wordnet.VERB, "R" : wordnet.ADV, "I" : wordnet.VERB}
+
+	res = []
+	for i,tag in enumerate(tags):
+		res.append(tag_dict.get(tag[1][0].upper(), wordnet.NOUN))
+	return res
+
 def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
+	pos_tag = get_wordnet_pos(ln_words)
 
 	candidate_df_arr = []
 	results_df = pd.DataFrame()
@@ -74,9 +88,9 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
-	for index,word in enumerate(ln_words):
 
-		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
+	for index,word in enumerate(ln_words):
+		
 		# identify acronyms
 
 		if not case_sensitive:
@@ -85,9 +99,11 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 			if word.upper() != word:
 				word = word.lower()
 
-		if word.lower() != 'vs':
-			word = lmtzr.lemmatize(word)
+		if word.lower() != 'vs' and word.upper() != word:
+			word = lmtzr.lemmatize(word, pos_tag[index])
 
+		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
+		
 		candidate_df_arr, active_match = evaluate_candidate_df(word, index, candidate_df_arr, threshold, case_sensitive)
 
 		# if not active_match:
@@ -389,6 +405,7 @@ def annotate_line_v2(sentence_df, case_sensitive, cache):
 	
 	line = clean_text(sentence_df['line'])
 	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, cache)
+
 	if annotation is not None:
 		annotation['ln_num'] = sentence_df['ln_num']
 		annotation['section'] = sentence_df['section']
@@ -461,7 +478,7 @@ def get_concept_synonyms_df_from_series(conceptid_series, cursor):
 
 def query_expansion(conceptid_series, cursor):
 	conceptid_tup = tuple(conceptid_series.tolist())
-	
+
 
 	child_query = """
 		select 
@@ -662,7 +679,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 						except:
 							print("ERROR ERROR")
 							print(single_ln_df)
-							u2.pprint(ann_df)
+							u.pprint(ann_df)
 						single_ln_df['sentence_tuples'] = [s_arr]
 						sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
 						single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
@@ -711,14 +728,14 @@ class TestAnnotator(unittest.TestCase):
 
 		cursor = pg.return_postgres_cursor()
 		for q in queryArr:
-			check_timer = u2.Timer(q[0])
+			check_timer = u.Timer(q[0])
 		
 
 			res = annotate_text_not_parallel(q[0], 'title', cursor, False)
-			u2.pprint("=============================")
+			u.pprint("=============================")
 			
 			
-			u2.pprint(res)
+			u.pprint(res)
 			t = check_timer.stop_num()
 			d = ((q[1]-t)/t)*100
 			self.assertTrue(timeLimit(t, q[1]))
@@ -825,23 +842,23 @@ if __name__ == "__main__":
 	query66="IVDU"
 	query67="bioprosthetic mitral valve"
 	query68="Asthma exacerbation India"
-
+	query69="From the Centers for Disease Control and Prevention"
+	query70="advanced primary cutaneous cutaneous T cell"
+	query71="cows walked on the prairie"
+	query72="Remdesivir for the Treatment of Covid-19 - Final Report."
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
-		d = u2.Timer('t')
-		term = query68
+		d = u.Timer('t')
+		term = query72
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
 		cache = get_cache(all_words, False)
-		print(cache)
-		print("DSASADSDAHJKLDSAKLHJAKSHJ")
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-		print(item)
-		res = annotate_text_not_parallel(item, cache, False, False, False)
-		u2.pprint(res)
+		res, g, s = annotate_text_not_parallel(item, cache, True, True, True)
+		u.pprint(g['sentence_tuples'].tolist())
 		d.stop()
 		counter += 1
 	

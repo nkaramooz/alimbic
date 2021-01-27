@@ -10,6 +10,7 @@ custom_synonym_dict = {
 	,'antagonist' : 'antagonism'
 	,'blocker' : 'blockade'
 	,'blocker' : 'antagonist'
+	,'therapy' : 'agent'
 	,'regurgitation' : 'insufficiency'
 	,'transplantation' : 'transplant'
 	,'vagus' : 'vagal'
@@ -17,6 +18,15 @@ custom_synonym_dict = {
 	,'hypokinetic' : 'hypokinesis'
 	,'with' : 'and'
 	,'and' : 'with'
+	,'myeloid' : 'myelogenous'
+	,'pulmonary embolism' : 'PE'
+	,'patent foramen ovale' : 'PFO'
+	,'tumour necrosis factor' : 'TNF'
+	,'tumour necrosis factor' : 'TNF'
+	,'aortic valve' : 'AV'
+	,'mitral valve' : 'MV'
+	,'staphylococcus' : 'staph'
+	,'streptococcus' : 'strep'
 }
 
 def create_custom_terms():
@@ -34,10 +44,10 @@ def create_custom_terms():
 				select 
 					public.uuid_generate_v4() as did
 					,adid as adid
-				from annotation2.add_adid_acronym t1
+				from annotation2.lemmas t1
 				where t1.word = %s
 			) t1
-			join annotation2.add_adid_acronym t2
+			join annotation2.lemmas t2
 			on t1.adid = t2.adid
 		ON CONFLICT (acid, term) DO NOTHING
 		"""

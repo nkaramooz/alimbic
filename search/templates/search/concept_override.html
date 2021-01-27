@@ -382,6 +382,85 @@
 
 
 
+<div class="row center">
+	<h3> Change concept type </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" name="acid_change_concept_type"> <br> 
+			</div>
+		</div>
+		<span> Change the following rel_type </span>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="rel_condition" type="radio"/>
+					<span> condition </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_symptom" type="radio"/>
+					<span> symptom </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_treatment" type="radio"/>
+					<span> treatment </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_cause" type="radio"/>
+					<span> cause </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_diagnostic" type="radio"/>
+					<span> diagnostic </span>
+				</label>
+			</p>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="rel_activate" type="radio"/>
+					<span> activate </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_inactivate" type="radio"/>
+					<span> inactivate </span>
+				</label>
+			</p>
+		</div>
+
+		<div class="input-field col s2">
+			<button type="submit" value="change_concept_type_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="acronym_override_results">
+	{{payload.change_concept_type_message}}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+
 <!-- 
 		<h3> Descriptionid: <input type="text" name="description_id"> </h3> <br>
 		<input type="radio" name="action_type" value="add_description"> add description <br>

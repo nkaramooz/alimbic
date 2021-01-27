@@ -11,7 +11,7 @@ def get_new_update_files():
 	conn,cursor = pg.return_postgres_cursor()
 	conn, cursor = pg.return_postgres_cursor()
 	query = """
-		select max(file_num) from pubmed.indexed_files
+		select max(file_num) from pubmed.indexed_files_1_8
 	"""
 	cursor.execute(query)
 	max_num = cursor.fetchone()[0]
@@ -25,7 +25,7 @@ def get_new_update_files():
 	download_file_names = []
 	for i in filenames:
 		if re.match(".*\.xml\.gz$", i):
-			file_num = int(re.findall('pubmed20n(.*)\.xml.gz$', i)[0])
+			file_num = int(re.findall('pubmed21n(.*)\.xml.gz$', i)[0])
 			if file_num > max_num:
 				download_file_names.append(i)
 	return download_file_names

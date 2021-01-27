@@ -1,15 +1,403 @@
-<head> 
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
-</head>
+{% include 'search/main_header.html' with css='css/search.css' %}
+{% load app_filters %}
+{% load static %}
 
+<script src="{% static "js/training.js" %}"></script>
+
+<div class="container">
 <h1> Training </h1>
+
+
+<h2 id="sentence">{{sentence}}</h2>
+
+{{sentence_tuples}}
+<br>
+
+
+
+<input type="button" onclick="alertSelection()" unselectable="on" value="Get selection">
+
+
 <form action="{% url 'search:post_training' %}" method="post"> 
 {% csrf_token %}
-	<h3> condition_id: <input type="text" name="condition_id"> </h3> <br> 
-	<h3> treatment_id: <input type="text" name="treatment_id"> </h3> <br>
-	<input type="radio" name="label" value="0"> 0 <br>
-	<input type="radio" name="label" value="1"> 1 <br>
-	<input type="radio" name="label" value="2"> 2 <br>
-	<input type="submit" value="submit">
+	
+	
+
+	<input type='hidden' name="sentence" value="{{sentence}}">
+
+	<input type="hidden" name="sentence_tuples[]" value="{{sentence_tuples}}">
+	<input type='hidden' name="sentence_id" value="{{sentence_id}}">
+	<input type='hidden' name='entry_id' value="{{entry_id}}">
+	<input type='hidden' name='ver' value="{{ver}}">
+
+	<div class="input-field col s12">
+
+	<div class="row">
+		<div class="col s12">
+
+			<button class="waves-effect waves-light btn">Submit</button>
+ 		</div>
+	</div>	
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start1">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end1">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label1">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start2">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end2">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label2">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start3">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end3">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label3">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start4">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end4">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label4">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start5">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end5">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label5">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start6">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end6">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label6">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start7">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end7">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label7">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start8">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end8">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label8">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start9">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end9">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label9">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="col s12">
+			<div class="row">
+				<div class="input-field col s4">
+					<input type="number" name="start10">
+				</div>
+				<div class="input-field col s4">
+					<input type="number" name="end10">
+				</div>
+
+
+				<div class="input-field col s4">
+				    <select name="label10">
+				      <option value="" disabled selected>Choose your option</option>
+				      <option value="condition">condition</option>
+				      <option value="treatment">treatment</option>
+				      <option value="prevention">prevention</option>
+				      <option value="cause">cause</option>
+				      <option value="symptom">symptom</option>
+				      <option value="organism">organism</option>
+				      <option value="outcome">outcome</option>
+				      <option value="measurement">measurement</option>
+				      <option value="qualifier">qualifier</option>
+				      <option value="route">route</option>
+				      <option value="possible_cause">possible cause</option>
+				      <option value="sub_condition">sub condition</option>
+				      <option value="population">population</option>
+				      <option value="complication">complication</option>
+				    </select>
+				    <label>label</label>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	
+
 </form>
+</div>
+
+

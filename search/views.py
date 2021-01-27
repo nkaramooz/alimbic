@@ -17,14 +17,108 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 
 
-INDEX_NAME='pubmedx1.6'
+INDEX_NAME='pubmedx1.8'
 
 
 
 
 ### ML training data
 def training(request):
-	return render(request, 'search/training.html')
+	conn,cursor = pg.return_postgres_cursor()
+	query = """
+		select
+			entry_id
+			,sentence_id
+			,sentence_tuples
+			,label
+			,ver
+		from ml2.manual_spacy_labels
+		where ver = 0
+		order by random()
+		limit 1
+	"""
+	entry = pg.return_df_from_query(cursor, query, None, \
+		['entry_id', 'sentence_id', 'sentence_tuples', 'label', 'ver'])
+
+	sentence = ''
+	for item in entry['sentence_tuples'][0]:
+		sentence += item[0] + ' '
+
+	conn.close()
+	cursor.close()
+
+	return render(request, 'search/training.html', \
+		{'entry_id' : entry['entry_id'][0], 'sentence_id' : entry['sentence_id'][0], \
+		 'sentence': sentence, 'sentence_tuples' : entry['sentence_tuples'][0], 'label' : entry['label'], 'ver' : entry['ver'][0]})
+
+
+
+def post_training(request):
+	conn,cursor = pg.return_postgres_cursor()
+	
+	
+	sentence = request.POST['sentence']
+
+	labels = []
+	if request.POST['start1'] != '' and request.POST['end1'] != '' \
+		and 'label1' in request.POST:
+		labels.append((int(request.POST['start1']), int(request.POST['end1']), request.POST['label1']))
+
+	if request.POST['start2'] != '' and request.POST['end2'] != '' \
+		and 'label2' in request.POST:
+		labels.append((int(request.POST['start2']), int(request.POST['end2']), request.POST['label2']))
+
+	if request.POST['start3'] != '' and request.POST['end3'] != '' \
+		and 'label3' in request.POST:
+		labels.append((int(request.POST['start3']), int(request.POST['end3']), request.POST['label3']))
+
+	if request.POST['start4'] != '' and request.POST['end4'] != '' \
+		and 'label4' in request.POST:
+		labels.append((int(request.POST['start4']), int(request.POST['end4']), request.POST['label4']))
+
+	if request.POST['start5'] != '' and request.POST['end5'] != '' \
+		and 'label5' in request.POST:
+		labels.append((int(request.POST['start5']), int(request.POST['end5']), request.POST['label5']))
+
+	if request.POST['start6'] != '' and request.POST['end6'] != '' \
+		and 'label6' in request.POST:
+		labels.append((int(request.POST['start6']), int(request.POST['end6']), request.POST['label6']))
+
+	if request.POST['start7'] != '' and request.POST['end7'] != '' \
+		and 'label7' in request.POST:
+		labels.append((int(request.POST['start7']), int(request.POST['end7']), request.POST['label7']))
+
+	if request.POST['start8'] != '' and request.POST['end8'] != '' \
+		and 'label8' in request.POST:
+		labels.append((int(request.POST['start8']), int(request.POST['end8']), request.POST['label8']))
+
+	if request.POST['start9'] != '' and request.POST['end9'] != '' \
+		and 'label9' in request.POST:
+		labels.append((int(request.POST['start9']), int(request.POST['end9']), request.POST['label9']))
+
+	if request.POST['start10'] != '' and request.POST['end10'] != '' \
+		and 'label10' in request.POST:
+		labels.append((int(request.POST['start10']), int(request.POST['end10']), request.POST['label10']))
+	
+	if len(labels) > 0:
+		entry_id = request.POST['entry_id']
+		query = """
+			update ml2.manual_spacy_labels
+				set 
+					spacy_label = %s
+					,ver = 1
+				where entry_id = %s
+		"""
+		labels = (sentence, {"entities" : labels})
+		cursor.execute(query, (json.dumps(labels), entry_id))
+		cursor.connection.commit()
+
+	cursor.close()
+	conn.close()
+	return HttpResponseRedirect(reverse('search:training'))
+
+
+
 
 def is_conceptid(conceptid, cursor):
 	query = "select conceptid from annotation.active_selected_concepts where conceptid =%s "
@@ -43,27 +137,7 @@ def not_in_training_set(condition_id, treatment_id, cursor):
 		return True
 
 
-def post_training(request):
-	conn,cursor = pg.return_postgres_cursor()
-	condition_id = request.POST['condition_id']
 
-	treatment_id = request.POST['treatment_id']
-	label = None
-
-	if (is_conceptid(condition_id, cursor) and is_conceptid(treatment_id, cursor)):
-		if not_in_training_set(condition_id, treatment_id, cursor):
-			if request.POST['label'] == '0':
-				label = 0
-			elif request.POST['label'] == '1':
-				label = 1
-			elif request.POST['label'] == '2':
-				label = 2
-
-			u.treatment_label(condition_id, treatment_id, label, cursor)
-			
-	cursor.close()
-	conn.close()
-	return HttpResponseRedirect(reverse('search:training'))
 
 
 
@@ -284,8 +358,32 @@ def post_concept_override(request):
 		message = u2.acronym_override(adid, is_acronym, cursor)
 		payload_dict['acronym_override_message'] = message
 
+	elif 'acid_change_concept_type' in request.POST:
+		acid = request.POST['acid_change_concept_type']
+		rel_type = None
+		state = None
+		if 'rel_condition' in request.POST:
+			rel_type = 'condition'
+		elif 'rel_symptom' in request.POST:
+			rel_type = 'symptom'
+		elif 'rel_cause' in request.POST:
+			rel_type = 'cause'
+		elif 'rel_treatment' in request.POST:
+			rel_type = 'treatment'
+		elif 'rel_diagnostic' in request.POST:
+			rel_type = 'diagnostic'
 
-	
+
+		if 'rel_activate' in request.POST:
+			state = 1
+		elif 'rel_inactivate' in request.POST:
+			state = 0
+
+		if rel_type is not None and state is not None:
+			message = u2.change_concept_type(acid, rel_type, state, cursor)
+			payload_dict['change_concept_type_message'] = message
+		else:
+			payload_dict['change_concept_type_message'] = "Error status or rel_type is null"
 		
 
 
@@ -425,7 +523,7 @@ def post_search_text(request):
 
 	if query_type == 'pivot':
 		query_concepts_df = pd.DataFrame(primary_cids, columns=['acid'])
-
+		query_types_list = get_query_concept_types_df(query_concepts_df['acid'].tolist(), cursor)['concept_type'].tolist()
 		full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
 
 		pivot_term = None
@@ -445,14 +543,14 @@ def post_search_text(request):
 
 		es_query = {"from" : 0, \
 				 "size" : 100, \
-				 "query": get_query(full_query_concepts_list, unmatched_terms, filters['journals'], filters['start_year'], filters['end_year'], \
-				 	["title_conceptids^5", "abstract_conceptids.*"], cursor)}
+				 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list, filters['journals'], filters['start_year'], filters['end_year'], \
+				 	["title_conceptids^10", "abstract_conceptids.*"], cursor)}
 
 		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 		sr_payload = get_sr_payload(sr['hits']['hits'])
 
-		treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, primary_cids,
+		treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, primary_cids, query_types_list,
 					unmatched_terms, filters, cursor)
 
 		
@@ -461,7 +559,6 @@ def post_search_text(request):
 
 		query = ann2.clean_text(query)
 		
-
 		original_query_concepts_list = []
 		# if query.upper() != query:
 		query = query.lower()
@@ -486,26 +583,31 @@ def post_search_text(request):
 		
 
 		if not query_concepts_df['acid'].isnull().all():
-			original_query_concepts_list = query_concepts_df['acid'].tolist()
-			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].copy()
+			original_query_concepts_list = set(query_concepts_df['acid'].tolist())
+
+			query_types_list = get_query_concept_types_df(original_query_concepts_list, cursor)['concept_type'].tolist()
+
+			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].drop_duplicates(subset=['acid']).copy()
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 
 			full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
+
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 			query_concept_count = len(query_concepts_df.index)
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 			es_query = {"from" : 0, \
 						 "size" : 25, \
-						 "query": get_query(full_query_concepts_list, unmatched_terms, \
-						 	filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_conceptids^2", "abstract_conceptids.*"], cursor)}
-			print(es_query)
+						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
+						 	,filters['journals'], filters['start_year'], filters['end_year'] \
+						 	,["title_conceptids^10", "abstract_conceptids.*"], cursor)}
+			
+
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 
-			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, original_query_concepts_list,
-					unmatched_terms, filters, cursor)
+			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, \
+				original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor)
 
 			primary_cids = query_concepts_df['acid'].tolist()
 
@@ -704,6 +806,13 @@ def get_article_type_filters():
 			{"term": {'article_title': "rat"}},
 			{"term": {'article_title': "mice"}},
 			{"term": {'article_title': "mouse"}},
+			{"term": {'article_title': "dog"}},
+			{"term": {'article_title': "dogs"}},
+			{"term": {'article_title': "cat"}},
+			{"term": {'article_title': "cats"}},
+			{"term": {'article_title': "ovine"}},
+			{"term": {'article_title': "postpartum"}},
+			{"term": {'article_title': "guinea pig"}},
 			{"term": {'article_title': "rats"}}
 			]
 	return filt
@@ -715,7 +824,39 @@ def get_concept_string(conceptid_series):
 	
 	return result_string.strip()
 
-def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_year, fields_arr, cursor):
+def get_concept_query_string(full_conceptid_list):
+
+	query_string = ""
+	for item in full_conceptid_list:
+		if type(item) == list:
+			counter = 10
+			query_string += "( "
+			for concept in item:
+				query_string += concept + "^" + str(counter) + " OR "
+				if counter != 1:
+					counter -= 1
+			query_string = query_string.rstrip('OR ')
+			query_string += ") AND "
+		else:
+			query_string += item + " AND "
+	query_string = query_string.rstrip("AND ")
+	return query_string
+
+def get_article_type_query_string(concept_type_list, unmatched_terms):
+	if 'condition' in concept_type_list and ('treatment' in concept_type_list or 'treatment' in unmatched_terms):
+		return "( 889085^30 OR 889251^5 OR 889105^5 OR 889260^2 OR 889264^2)"
+	elif 'condition' in concept_type_list and unmatched_terms == '' and '380010' not in concept_type_list:
+		return "( 889254^15 OR 889251^12 )"
+	elif 'treatment' in concept_type_list:
+		return "( 889085^15 OR 889105^10 OR 889251^10 OR 889254^10 )"
+	elif 'anatomy' in concept_type_list:
+		return "( 889255^5 OR 889253^2 )"
+	elif 'prevention' in concept_type_list or 'prevention' in unmatched_terms or '380010' in concept_type_list:
+		return "( 889085^10 OR 889262^5 OR 889264^5 OR 889259^5 )"
+	else:
+		return ""
+
+def get_query(full_conceptid_list, unmatched_terms, query_types_list, journals, start_year, end_year, fields_arr, cursor):
 
 	es_query = {}
 	if unmatched_terms == '':
@@ -723,20 +864,23 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 							"must_not": get_article_type_filters(), \
 							"must": \
 								[{"query_string": {"fields" : fields_arr, \
-								 "query" : get_concept_query_string(full_conceptid_list)}}]}}, \
-								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2019"}}}, "weight" : 5}]}
+								 "query" : get_concept_query_string(full_conceptid_list)}}], \
+							"should": \
+								[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]}}, \
+								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2000"}}}, "weight" : 1.4}]}
+
 	else:
 		# Unmatched terms need to be formatted for lucene
 		es_query["function_score"] = {"query" : {"bool" : {\
 						"must_not": get_article_type_filters(), \
 						"must": \
 							[{"query_string": {"fields" : fields_arr, \
-							 "query" : get_concept_query_string(full_conceptid_list)}}, {"query_string": {\
-							"query" : get_unmatched_query_string(unmatched_terms)}}]}}, "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2019"}}}, "weight" : 5}]}
-						# "should": \
-						# 	[{"query_string": {"fields" : fields_arr, \
-						# 	"query" : unmatched_terms}}]}
-
+							 	"query" : get_concept_query_string(full_conceptid_list)}}, {"query_string": {\
+								"query" : get_unmatched_query_string(unmatched_terms)}}],
+						"should": \
+							[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]
+						}}, \
+						"functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2000"}}}, "weight" : 1.4}]}
 
 	if (len(journals) > 0) or start_year or end_year:
 		d = []
@@ -759,21 +903,6 @@ def get_query(full_conceptid_list, unmatched_terms, journals, start_year, end_ye
 
 	return es_query
 
-def get_concept_query_string(full_conceptid_list):
-
-	query_string = ""
-	for item in full_conceptid_list:
-		if type(item) == list:
-			query_string += "( "
-			for concept in item:
-				query_string += concept + " OR "
-			query_string = query_string.rstrip('OR ')
-			query_string += ") AND "
-		else:
-			query_string += item + " AND "
-	query_string = query_string.rstrip("AND ")
-
-	return query_string
 
 def get_unmatched_query_string(unmatched_terms):
 	query_string = ""
@@ -839,10 +968,13 @@ def get_flattened_query_concept_list(concept_list):
 	return flattened_query_concept_list
 
 def get_query_concept_types_df(flattened_concept_list, cursor):
-	concept_type_query_string = "select root_cid as conceptid, rel_type as concept_type from annotation2.concept_types where root_cid in %s"
+	concept_type_query_string = """
+		select root_acid as acid, rel_type as concept_type 
+		from annotation2.concept_types where active=1 and root_acid in %s
+	"""
 
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
-		(tuple(flattened_concept_list),), ["conceptid", "concept_type"])
+		(tuple(flattened_concept_list),), ["acid", "concept_type"])
 
 	return query_concept_type_df
 
@@ -856,8 +988,8 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		query = """
 
 			select 
-				treatment_acid 
-			from ml2.treatment_recs_final 
+				treatment_acid
+			from ml2.treatment_recs_final_1
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
 		"""
@@ -873,11 +1005,12 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			select 
 				root_acid as acid
 				,rel_type as concept_type
-			from annotation2.base_concept_types
-			where rel_type = %s
+			from annotation2.concept_types
+			where active=1 and rel_type = %s and root_acid not in (select treatment_acid from ml2.labelled_treatments where label=2)
 		"""
 
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid", "concept_type"])
+		
 		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='inner', on=['acid'])
 
 		return conceptid_df
@@ -885,7 +1018,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		concept_type_query_string = """
 			select root_cid as acid
 			from annotation2.concept_types
-			where rel_type=%s
+			where active=1 and rel_type=%s
 
 		"""
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid"])
@@ -893,27 +1026,27 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		return conceptid_df
 
 
-def get_related_conceptids(query_concept_list, original_query_concepts_list, unmatched_terms, filters, cursor):
+def get_related_conceptids(query_concept_list, original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor):
 	result_dict = dict()
 	es = es_util.get_es_client()
-
-	es_query = get_query(query_concept_list, unmatched_terms, \
+	es_query = get_query(query_concept_list, unmatched_terms, query_types_list, \
 						 	filters['journals'], filters['start_year'], filters['end_year']\
 						 	,["title_conceptids^10", "abstract_conceptids.*^0.5"], cursor)
 
 	scroller = es_util.ElasticScroll(es, es_query)
 
 	title_match_cids_df = pd.DataFrame()
-	# while scroller.has_next:
-	counter = 0
-	while counter < 2:
+	t = u2.Timer('scroller')
+	while scroller.has_next:
+	# counter = 0
+	# while counter < 2:
 		article_list = scroller.next()
 		if article_list is not None: 
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
-		counter += 1
-
+		# counter += 1
+	t.stop()
 	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
 	filter_concepts = ['11220']
 	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(filter_concepts) == False].copy()
@@ -1055,6 +1188,8 @@ def get_title_cids(sr):
 		if hit['_source']['title_conceptids'] is not None:
 			pmid = hit['_source']['pmid']
 			cid_list = list(set(hit['_source']['title_conceptids']))
+			if 'conclusions_cid' in hit['_source']:
+				cid_list.append(list(set(hit['_source']['conclusions_cid'])))
 			new_df = pd.DataFrame()
 			new_df['acid'] = cid_list
 			new_df['pmid'] = pmid

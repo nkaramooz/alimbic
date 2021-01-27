@@ -1,184 +1,135 @@
-from lxml import etree as ET
-import json
-from nltk.stem.wordnet import WordNetLemmatizer
-import sys 
-import codecs
-import snomed_annotator as ann
-import nltk.data
-import pandas as pd
-import multiprocessing as mp
-import utilities.utils as u, utilities.pglib as pg
-import os
-import datetime
-import copy
-import re
-import io
-import sqlalchemy as sqla
+"""A simple example of extracting relations between phrases and entities using
+spaCy's named entity recognizer and the dependency parse. Here, we extract
+money and currency values (entities labelled as MONEY) and then check the
+dependency tree to find the noun phrase they are referring to – for example:
+$9.4 million --> Net income.
+
+Compatible with: spaCy v2.0.0+
+Last tested with: v2.2.1
+"""
+from __future__ import unicode_literals, print_function
+
+from __future__ import unicode_literals, print_function
+
+import plac
+import random
+import warnings
+from pathlib import Path
+import spacy
+from spacy.util import minibatch, compounding
+import utilities.pglib as pg
+
+TEST_DATA = [
+        ('Gemcitabine for the management of atrial fibrillation'),
+        ('Antibiotics for cystic fibrosis'),
+        ('Losartan causes cystic fibrosis'),
+        ('Losartan induced cystic fibrosis'),
+        ('Amiodarone worsens symptoms in liver failure')
+    ]
+
+conn,cursor = pg.return_postgres_cursor()
+query = """
+    select spacy_label from ml2.manual_spacy_labels where ver=1
+"""
+
+labels_df = pg.return_df_from_query(cursor, query, None, ['spacy_label'])
+
+TRAIN_DATA = labels_df['spacy_label'].tolist()
+
+@plac.annotations(
+    model=("Model name. Defaults to blank 'en' model.", "option", "m", str),
+    output_dir=("Optional output directory", "option", "o", Path),
+    n_iter=("Number of training iterations", "option", "n", int),
+)
+def main(model=None, output_dir=None, n_iter=100):
+    """Load the model, set up the pipeline and train the entity recognizer."""
+    if model is not None:
+        nlp = spacy.load(model)  # load existing spaCy model
+        print("Loaded model '%s'" % model)
+    else:
+        nlp = spacy.blank("en")  # create blank Language class
+        print("Created blank 'en' model")
+
+    # create the built-in pipeline components and add them to the pipeline
+    # nlp.create_pipe works for built-ins that are registered with spaCy
+    if "ner" not in nlp.pipe_names:
+        ner = nlp.create_pipe("ner")
+        nlp.add_pipe(ner, last=True)
+    # otherwise, get it so we can add labels
+    else:
+        ner = nlp.get_pipe("ner")
+
+    # add labels
+    for _, annotations in TRAIN_DATA:
+        for ent in annotations.get("entities"):
+            ner.add_label(ent[2])
+
+    # get names of other pipes to disable them during training
+    pipe_exceptions = ["ner", "trf_wordpiecer", "trf_tok2vec"]
+    other_pipes = [pipe for pipe in nlp.pipe_names if pipe not in pipe_exceptions]
+    # only train NER
+    with nlp.disable_pipes(*other_pipes), warnings.catch_warnings():
+        # show warnings for misaligned entity spans once
+        warnings.filterwarnings("once", category=UserWarning, module='spacy')
+
+        # reset and initialize the weights randomly – but only if we're
+        # training a new model
+        if model is None:
+            nlp.begin_training()
+        for itn in range(n_iter):
+            random.shuffle(TRAIN_DATA)
+            losses = {}
+            # batch up the examples using spaCy's minibatch
+            batches = minibatch(TRAIN_DATA, size=compounding(4.0, 32.0, 1.001))
+            for batch in batches:
+                texts, annotations = zip(*batch)
+                nlp.update(
+                    texts,  # batch of texts
+                    annotations,  # batch of annotations
+                    drop=0.5,  # dropout - make it harder to memorise data
+                    losses=losses,
+                )
+            print("Losses", losses)
+
+    # test the trained model
+    for text, _ in TRAIN_DATA:
+        doc = nlp(text)
+        print("Entities", [(ent.text, ent.label_) for ent in doc.ents])
+        print("Tokens", [(t.text, t.ent_type_, t.ent_iob) for t in doc])
+
+    # save model to output directory
+    if output_dir is not None:
+        output_dir = Path(output_dir)
+        if not output_dir.exists():
+            output_dir.mkdir()
+        nlp.to_disk(output_dir)
+        print("Saved model to", output_dir)
+
+        # test the saved model
+        print("Loading from", output_dir)
+        nlp2 = spacy.load(output_dir)
+        for text in TEST_DATA:
+            doc = nlp2(text)
+            print("Entities", [(ent.text, ent.label_) for ent in doc.ents])
+            print("Tokens", [(t.text, t.ent_type_, t.ent_iob) for t in doc])
 
 
-def load_pubmed_local_2():
-	start_file = 500
-	folder_arr = ['resources/baseline']
-	number_of_processes = 8
-	
-	task_queue = mp.Queue()
+if __name__ == "__main__":
+    plac.call(main)
 
-	pool = []
-	
-	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,))
-		pool.append(p)
-		p.start()
+    # Expected output:
+    # Entities [('Shaka Khan', 'PERSON')]
+    # Tokens [('Who', '', 2), ('is', '', 2), ('Shaka', 'PERSON', 3),
+    # ('Khan', 'PERSON', 1), ('?', '', 2)]
+    # Entities [('London', 'LOC'), ('Berlin', 'LOC')]
+    # Tokens [('I', '', 2), ('like', '', 2), ('London', 'LOC', 3),
+    # ('and', '', 2), ('Berlin', 'LOC', 3), ('.', '', 2)]
 
-	for folder_path in folder_arr:
-		file_counter = 0
-
-		file_lst = os.listdir(folder_path)
-		file_lst.sort()
-
-		for filename in file_lst:
-			print('start_file')
-			abstract_counter = 0
-			file_path = folder_path + '/' + filename
-
-			file_num = int(re.findall('pubmed18n(.*).xml', filename)[0])
-
-			if file_num >= start_file:
-				print(filename)
-			
-				file_timer = u.Timer('file')
-
-				# tree = ET.parse(file_path)		
-				for event, element in ET.iterparse(file_path, tag="PubmedArticle"):
-					json_str = {}
-					params = (ET.tostring(element),json_str)
-					task_queue.put((get_journal_info, params))
-				
-					element.clear()
-					
-
-				file_abstract_counter = 0
-
-				file_timer.stop()
-				root.clear()
-				if file_num >= start_file+10:
-					break
-			print('end_file')	
-		if file_num >= start_file+10:
-			break
-
-	for i in range(number_of_processes):
-		task_queue.put('STOP')
-
-	for p in pool:
-		p.join()
-
-def doc_worker(input):
-	for func,args in iter(input.get, 'STOP'):
-		doc_calculate(func, args)
+    
+    # nlp2 = spacy.load('/home/nkaramooz/Documents/alimbic/ner')
+    # for text in TEST_DATA:
+    #     doc = nlp2(text)
+    #     print("Entities", [(ent.text, ent.label_) for ent in doc.ents])
+    #     print("Tokens", [(t.text, t.ent_type_, t.ent_iob) for t in doc])
 
 
-def doc_calculate(func, args):
-	func(*args)
-
-def get_article_ids(elem, json_str):
-	id_list_elem = elem.find('*/ArticleIdList')
-	article_id_dict = {}
-	for elem_id in id_list_elem:
-		if elem_id.attrib['IdType'] == 'pubmed':
-			article_id_dict['pmid'] = elem_id.text
-		else:
-			article_id_dict[elem_id.attrib['IdType']] = elem_id.text
-	json_str['article_ids'] = article_id_dict
-
-	return json_str
-
-def get_journal_info(elem, json_str):
-	elem = ET.parse(io.BytesIO(elem))
-	j_list = elem.findall('./MedlineCitation/Article/Journal')
-
-	try:
-		journal_elem = j_list[0]
-	except:
-		json_str['journal_title'] = None
-		json_str['journal_pub_year'] = None
-		json_str['journal_pub_month'] = None
-		json_str['journal_pub_day'] = None
-		json_str['journal_issn'] = None
-		json_str['journal_volume'] = None
-		json_str['journal_issue'] = None
-		json_str['journal_iso_abbrev'] = None
-		return json_str
-	
-	try:
-		issn_elem = journal_elem.findall('./ISSN')[0]
-		json_str['journal_issn'] = issn_elem.text
-		json_str['journal_issn_type'] = issn_elem.attrib
-	except:
-		json_str['journal_issn'] = None
-		json_str['journal_issn_type'] = None
-
-	try:
-		title_elem = journal_elem.findall('./Title')[0]
-		json_str['journal_title'] = title_elem.text
-	except:
-		json_str['journal_title'] = None
-
-	try:
-		iso_elem = journal_elem.find('./ISOAbbreviation')
-		json_str['journal_iso_abbrev'] = iso_elem.text 
-	except:
-		json_str['journal_iso_abbrev'] = None
-
-	try:
-		journal_volume_elem = journal_elem.find('./JournalIssue/Volume')
-		json_str['journal_volume'] = journal_volume_elem.text
-	except:
-		json_str['journal_volume'] = None
-
-	try:
-		journal_issue_elem = journal_elem.find('./JournalIssue/Issue')
-		json_str['journal_issue'] = journal_issue_elem.text
-	except:
-		json_str['journal_issue'] = None
-
-	try:
-		year_elem = journal_elem.findall('./JournalIssue/PubDate/Year')[0]
-		json_str['journal_pub_year'] = year_elem.text
-	except:
-		json_str['journal_pub_year'] = None
-
-	try:
-		month_elem = journal_elem.findall('./JournalIssue/PubDate/Month')[0]
-		json_str['journal_pub_month'] = month_elem.text
-	except:
-		json_str['journal_pub_month'] = None
-
-	try:
-		day_elem = journal_elem.findall('./JournalIssue/PubDate/Day')[0]
-		day_str['journal_pub_month'] = day_elem.text
-	except:
-		json_str['journal_pub_day'] = None
-	print(json_str)
-	return json_str		
-
-
-def write_jsonb():	
-	conn,cursor = pg.return_postgres_cursor()
-	engine = pg.return_sql_alchemy_engine()
-	json_str = {"root" : "test", "child" : ["ace", "beta", "kappa"], "parents" : {"car1" : "null", "car2" : "bambie"}, "tup" : (1, '4')}
-
-	json_str =json.dumps(json_str)
-	json_obj = json.loads(json_str)
-	cdf = pd.DataFrame([[json_obj]], columns=["field"])
-	cdf['pd'] = 7778
-	cdf.to_sql('tmp', engine, schema='annotation', if_exists='replace', index=False, dtype={'field' : sqla.types.JSON, 'pd' : sqla.types.String})
-
-	# select field->> 'root' from annotation.tmp
-	q = "select field from annotation.tmp"
-	ts_df = pg.return_df_from_query(cursor, q, None, ['field'])
-	u.pprint(type(ts_df['field'][0]['tup'][0]))
-
-load_pubmed_local_2()
-
-# write_jsonb()

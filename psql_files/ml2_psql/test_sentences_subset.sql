@@ -6,7 +6,7 @@ create table test_sentences_subset (
   id varchar(36)
   ,sentence_id varchar(36)
   ,section_ind integer
-  ,x_train_spec jsonb
+  ,x_train_gen jsonb
   ,x_train_mask jsonb
   ,label integer
   ,ver integer
@@ -17,7 +17,7 @@ insert into ml2.test_sentences_subset
     	id
     	,sentence_id
     	,section_ind
-    	,x_train_spec
+    	,x_train_gen
       ,x_train_mask
     	,label
     	,ver
@@ -31,7 +31,7 @@ insert into ml2.test_sentences_subset
     	id
     	,sentence_id
     	,section_ind
-    	,x_train_spec
+    	,x_train_gen
       ,x_train_mask
     	,label
     	,ver
