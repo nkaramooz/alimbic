@@ -27,6 +27,8 @@ custom_synonym_dict = {
 	,'mitral valve' : 'MV'
 	,'staphylococcus' : 'staph'
 	,'streptococcus' : 'strep'
+	,'examination' : 'exam'
+	,'ultrasonography' : 'ultrasound'
 }
 
 def create_custom_terms():

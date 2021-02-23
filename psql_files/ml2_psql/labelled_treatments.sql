@@ -40,3 +40,7 @@ insert into labelled_treatments
 			and t1.label = t2.label
 	where t2.label is null
 ;
+
+create index labelled_treatments_condition_acid_ind on labelled_treatments(condition_acid);
+create index labelled_treatments_treatment_acid_ind on labelled_treatments(treatment_acid);
+create index labelled_treatments_label_ind on labelled_treatments(label);

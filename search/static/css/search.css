@@ -67,7 +67,8 @@ input[type=number]::-webkit-outer-spin-button {
 
 
 .chevron {
-	vertical-align: baseline !important;
+	margin-left: 5px;
+	vertical-align: middle;
 }
 
 .filter-item {
@@ -75,8 +76,8 @@ input[type=number]::-webkit-outer-spin-button {
 }
 
 .rotate-down{
-  transform:rotate(90deg);
-  transition: 0.5s;
+	transform:rotate(90deg) !important;
+	transition: 0.5s !important;
 }
 
 .rotate-up{

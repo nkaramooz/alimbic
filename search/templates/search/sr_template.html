@@ -55,7 +55,7 @@
 				{% if a.abstract_hide is not None %}
 					<div class="expanded" id="expanded">
 						{% for item in a.abstract_hide %}
-							{% if item.0 != "text" %}
+							{% if item.0 != "text" or item.0 != "unlabelled" %}
 								<p>{{item.0}}</p>
 							{% endif %}
 							<p>{{item.1}}</p> <br>

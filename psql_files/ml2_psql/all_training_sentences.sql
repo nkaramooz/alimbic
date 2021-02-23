@@ -1,14 +1,15 @@
 set schema 'ml2';
 
-drop table if exists all_training_sentences;
+drop table if exists all_training_sentences_1;
 
-create table all_training_sentences as (
+create table all_training_sentences_1 as (
 	select
 		public.uuid_generate_v4()::text as id
 		,t1.sentence_id
 		,t2.section_ind
 		,t1.x_train_gen
 		,t1.x_train_mask
+		,t1.x_train_spec
 		,t1.condition_acid
 		,t1.treatment_acid
 		,t1.ver
@@ -19,5 +20,5 @@ create table all_training_sentences as (
 	on t1.sentence_id = t2.sentence_id
 );
 
-create index if not exists root_train_label_ind on all_training_sentences(label);
-create index if not exists root_id_train_ind on all_training_sentences(id);
+create index if not exists root_train_label_1_ind on all_training_sentences_1(label);
+create index if not exists root_id_train_1_ind on all_training_sentences_1(id);

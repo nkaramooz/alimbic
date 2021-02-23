@@ -53,7 +53,7 @@ insert into add_adid_acronym
                     ,active
                     ,row_number () over (partition by adid order by effectivetime desc) as row_num 
                 from annotation2.downstream_root_did
-                ) tb, unnest(string_to_array(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '-', ' '), ',', ''), '''', ''), ' '))
+                ) tb, unnest(string_to_array(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), '-', ' '), ',', ''), '''', ''), ' '))
                 with ordinality as f(word)
             where row_num = 1 and active = '1'
             ) nm

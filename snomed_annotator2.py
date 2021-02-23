@@ -65,7 +65,6 @@ def get_new_candidate_df(word, case_sensitive):
 	return new_candidate_df
 
 def get_wordnet_pos(ln_words):
-
 	tags = nltk.pos_tag(ln_words)
 	tag_dict = {"J" : wordnet.ADJ, "N" : wordnet.NOUN,
 		"V": wordnet.VERB, "R" : wordnet.ADV, "I" : wordnet.VERB}
@@ -75,32 +74,43 @@ def get_wordnet_pos(ln_words):
 		res.append(tag_dict.get(tag[1][0].upper(), wordnet.NOUN))
 	return res
 
+
+def get_lemmas(ln_words, case_sensitive):
+	pos_tag = get_wordnet_pos(ln_words)
+	lmtzr = WordNetLemmatizer()
+	ln_lemmas = []
+	for i,w in enumerate(ln_words):
+		
+		if not case_sensitive:
+			w = w.lower()
+		else:
+			if w.upper() != w:
+				w = w.lower()
+
+		if w.lower() != 'vs' and w.upper() != w:
+			if w != 'doses' and w != 'does':
+				w = lmtzr.lemmatize(w, pos_tag[i])
+			elif w == 'doses':
+				w = 'dose'
+			elif w == 'does':
+				w = 'do'
+		ln_lemmas.append(w)
+	return ln_lemmas
+
 def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
-	pos_tag = get_wordnet_pos(ln_words)
 
 	candidate_df_arr = []
 	results_df = pd.DataFrame()
 
-	lmtzr = WordNetLemmatizer()
-
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 
-	for index,word in enumerate(ln_words):
-		
-		# identify acronyms
+	ln_lemmas = get_lemmas(ln_words, case_sensitive)
 
-		if not case_sensitive:
-			word = word.lower()
-		else:
-			if word.upper() != word:
-				word = word.lower()
-
-		if word.lower() != 'vs' and word.upper() != word:
-			word = lmtzr.lemmatize(word, pos_tag[index])
+	for index,word in enumerate(ln_lemmas):
 
 		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
 		

@@ -13,8 +13,8 @@ create table train_sentences as (
         ,treatment_acid
     	,label
     	,ver
-    from ml2.all_training_sentences
-    -- where rand <= 0.99
+    from ml2.all_training_sentences_1
+    where rand <= 0.99
 );
 
 create index if not exists train_sentences_label_ind on train_sentences(label);

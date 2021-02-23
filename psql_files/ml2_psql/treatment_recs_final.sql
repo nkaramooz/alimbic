@@ -1,7 +1,7 @@
 set schema 'ml2';
-drop table if exists treatment_recs_final_1;
+drop table if exists treatment_recs_final_2;
 
-create table treatment_recs_final_1 as (
+create table treatment_recs_final_2 as (
 
 	select 
 		condition_acid
@@ -9,8 +9,8 @@ create table treatment_recs_final_1 as (
 		,avg(score)
 	from ml2.treatment_recs_staging
 	group by condition_acid, treatment_acid
-	having avg(score) > 0.5
+	having avg(score) >= 0.5
 );
 
-create index tx_recs_final_1_cid on treatment_recs_final_1(condition_acid);
-create index tx_recs_final_1_tid on treatment_recs_final_1(treatment_acid);
+create index tx_recs_final_2_cid on treatment_recs_final_2(condition_acid);
+create index tx_recs_final_2_tid on treatment_recs_final_2(treatment_acid);

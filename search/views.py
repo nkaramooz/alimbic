@@ -605,9 +605,28 @@ def post_search_text(request):
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
+			history_query = """
+				select 
+					treatment_json as treatment_dict
+					,diagnostic_json as diagnostic_dict
+					,condition_json as condition_dict
+					,cause_json as cause_dict
+				from search.query_logs
+				where query=%s
+				limit 1
+			"""
 
-			treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, \
-				original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor)
+			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
+				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
+
+			if len(query_logs_df.index) > 0:
+				treatment_dict = query_logs_df['treatment_dict'][0]
+				diagnostic_dict = query_logs_df['condition_dict'][0]
+				condition_dict = query_logs_df['condition_dict'][0]
+				cause_dict = query_logs_df['cause_dict'][0]
+			else:			
+				treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, \
+					original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor)
 
 			primary_cids = query_concepts_df['acid'].tolist()
 
@@ -642,6 +661,8 @@ def post_search_text(request):
 				'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
 				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
 				'calcs' : calcs_json})
+
+
 
 def get_ip_address(request):
 	ip = ''
@@ -729,12 +750,11 @@ def get_json(item_df, prev_json):
 			return prev_json
 
 def log_query (ip_address, query, primary_cids, unmatched_terms, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor):
-	query = """
+	insert_query = """
 		insert into search.query_logs
-		VALUES
-		(%s, %s, %s,%s, %s, %s,%s, %s, %s,%s, %s)
+		VALUES(%s, %s, %s,%s, %s, %s,%s, %s, %s,%s, %s, now())
 	"""
-	cursor.execute(query, (ip_address,query,json.dumps(primary_cids), \
+	cursor.execute(insert_query, (ip_address, query,json.dumps(primary_cids), \
 		unmatched_terms,filters['start_year'], filters['end_year'], json.dumps(filters['journals']), \
 		json.dumps(condition_dict), json.dumps(treatment_dict), json.dumps(diagnostic_dict), json.dumps(cause_dict)))
 
@@ -844,9 +864,12 @@ def get_concept_query_string(full_conceptid_list):
 
 def get_article_type_query_string(concept_type_list, unmatched_terms):
 	if 'condition' in concept_type_list and ('treatment' in concept_type_list or 'treatment' in unmatched_terms):
-		return "( 889085^30 OR 889251^5 OR 889105^5 OR 889260^2 OR 889264^2)"
-	elif 'condition' in concept_type_list and unmatched_terms == '' and '380010' not in concept_type_list:
+		return "( 889085^30 OR 889251^7 OR 889105^7 OR 889260^2 OR 889264^2 OR 889253^0.2)"
+	elif 'condition' in concept_type_list and unmatched_terms == '' and \
+		 '380010' not in concept_type_list and 'symptom' not in concept_type_list:
 		return "( 889254^15 OR 889251^12 )"
+	elif 'symptom' in concept_type_list:
+		return "( 889264^15 OR  889254^12 OR 889255^5 OR 889085^0.5 )"
 	elif 'treatment' in concept_type_list:
 		return "( 889085^15 OR 889105^10 OR 889251^10 OR 889254^10 )"
 	elif 'anatomy' in concept_type_list:
@@ -989,7 +1012,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 
 			select 
 				treatment_acid
-			from ml2.treatment_recs_final_1
+			from ml2.treatment_recs_final_2
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
 		"""

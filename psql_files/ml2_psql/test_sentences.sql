@@ -11,7 +11,7 @@ create table test_sentences as (
     	,x_train_mask
     	,label
     	,ver
-    from ml2.all_training_sentences
+    from ml2.all_training_sentences_1
     where rand > 0.99
 );
 
