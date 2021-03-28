@@ -29,6 +29,12 @@ custom_synonym_dict = {
 	,'streptococcus' : 'strep'
 	,'examination' : 'exam'
 	,'ultrasonography' : 'ultrasound'
+	,'percutaneous coronary intervention' : 'PCI'
+	,'kidney' : 'renal'
+	,'Angiotensin converting enzyme' : 'ACE'
+	,'stroke' : 'CVA'
+	,'beta' : 'β'
+	,'alpha' : 'α'
 }
 
 def create_custom_terms():

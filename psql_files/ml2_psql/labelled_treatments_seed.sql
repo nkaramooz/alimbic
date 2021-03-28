@@ -12,7 +12,10 @@ create table labelled_treatments_seed (
 
 INSERT INTO ml2.labelled_treatments_seed(condition_acid, treatment_acid, label)
 	VALUES 
-	('%', '707002', 0)
+	('%', '403118', 0)
+	,('%', '457249', 0)
+	,('%', '56367', 0)
+	,('%', '707002', 0)
 	,('%', '127638', 0)
 	,('%', '11758', 0)
 	,('%', '341471', 0)

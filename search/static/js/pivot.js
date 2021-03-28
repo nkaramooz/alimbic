@@ -40,8 +40,8 @@ $(document).ready(function() {
 			$('#search_box').val($('#search_box').val() + ' ' + form.find('#pivot_term').val());
 			$("#results").html(json);
 			$('#results').show();
-			var f = 'http://alimbic.com/search/' + jQuery.param(data1);
-			// var f = 'http://127.0.0.1:8000//search/' + jQuery.param(data1);
+			// var f = 'http://alimbic.com/search/' + jQuery.param(data1);
+			var f = 'http://192.168.4.36:8000/search/' + jQuery.param(data1);
       		history.pushState(data1, null, f);
 		},
 

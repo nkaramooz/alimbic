@@ -6,12 +6,16 @@ create table test_sentences as (
     select 
     	id
     	,sentence_id
+        ,sentence_tuples
+        ,condition_acid
+        ,treatment_acid
     	,section_ind
     	,x_train_gen
+        ,x_train_spec
     	,x_train_mask
     	,label
     	,ver
-    from ml2.all_training_sentences_1
+    from ml2.all_training_sentences
     where rand > 0.99
 );
 

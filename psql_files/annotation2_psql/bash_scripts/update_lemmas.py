@@ -1,14 +1,29 @@
 import sys
 sys.path.append('../../../utilities')
+sys.path.append('../../..')
 import pandas as pd
 import pglib as pg
 import sqlalchemy as sqla
+import snomed_annotator2 as ann2
+import utils2 as u
 from nltk.stem.wordnet import WordNetLemmatizer
+import sys
 
+def lemma(ln):
 
-def lemma(word):
-	lmtzr = WordNetLemmatizer()
-	return lmtzr.lemmatize(word)
+	term = ln['term']
+	term = term.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').rstrip()
+	word_ord = ln['word_ord']
+	ln_words = term.split()
+	ln_lemmas = ann2.get_lemmas(ln_words, True)
+	try:
+		return ln_lemmas[word_ord-1]
+	except:
+		print(term)
+		print(ln_words)
+		print(ln_lemmas)
+		u.pprint(ln)
+		sys.exit(0)
 
 def update_lemmas():
 	query = """
@@ -28,7 +43,7 @@ def update_lemmas():
 	new_candidate_df = pg.return_df_from_query(cursor, query, None, \
 		['adid', 'acid', 'term', 'term_lower', 'word', 'word_ord', 'term_length', 'is_acronym'])
 
-	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])]['word'].map(lemma)
+	new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as']), 'word'] = new_candidate_df.loc[~new_candidate_df.word.isin(['vs', 'as'])].apply(lemma, axis=1)
 	engine = pg.return_sql_alchemy_engine()
 
 	new_candidate_df.to_sql('lemmas', \

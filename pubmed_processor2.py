@@ -22,7 +22,7 @@ import regex as re
 from ftplib import FTP
 from bs4 import BeautifulSoup
 
-INDEX_NAME = 'pubmedx1.8'
+INDEX_NAME = 'pubmedx1.9'
 
 def doc_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -49,7 +49,8 @@ def index_doc_from_elem(elem, filename, issn_list):
 				json_str, article_text = get_article_info_2(elem, json_str)
 				
 				if ' a protocol for ' not in json_str['article_title'].lower() and \
-				 ' protocol for an ' not in json_str['article_title'].lower() and ' protocol for a ' not in json_str['article_title'].lower():
+				 ' protocol for an ' not in json_str['article_title'].lower() and ' protocol for a ' not in json_str['article_title'].lower() \
+				 and 'comment on' not in json_str['article_title'].lower():
 					if (not bool(set(json_str['article_type']) & \
 						set(['Letter', 'Editorial', 'Comment', 'Biography', 'Patient Education Handout', \
 							'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
@@ -63,6 +64,8 @@ def index_doc_from_elem(elem, filename, issn_list):
 					
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
 						sentence_annotations_df['ver'] = 0
+						sentence_concept_arr_df['ver'] = 0
+						sentence_tuples_df['ver'] = 0
 
 						if annotation_dict['abstract'] is not None:
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
@@ -123,31 +126,31 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 							try:
 								engine = pg.return_sql_alchemy_engine()
-								sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
+								sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
 									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-								sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
+								sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
 									if_exists='append', index=False)
-								sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
+								sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								engine.dispose()
 							except:
 								try:
 									engine = pg.return_sql_alchemy_engine()
-									sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
+									sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-									sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
+									sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
 										if_exists='append', index=False)
-									sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
+									sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									engine.dispose()
 								except:
 									try: 
 										engine = pg.return_sql_alchemy_engine()
-										sentence_tuples_df.to_sql('sentence_tuples_1_8', engine, schema='pubmed', \
+										sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
 											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-										sentence_annotations_df.to_sql('sentence_annotations_1_8', engine, schema='pubmed', \
+										sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
 											if_exists='append', index=False)
-										sentence_concept_arr_df.to_sql('sentence_concept_arr_1_8', engine, schema='pubmed', \
+										sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
 											if_exists='append', index=False)
 										engine.dispose()
 
@@ -249,7 +252,7 @@ def load_pubmed_local_2(start_file, folder_path):
 				"conclusions_did" : {"type" : "keyword"},
 				"objective_did" : {"type" : "keyword"},
 				"results_did" : {"type" : "keyword"},
-				"unlabelled_did" : {"type" : "keyword"}
+				"unlabelled_did" : {"type" : "keyword"},
 				"keywords_did" : {"type" : "keyword"}}}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
@@ -282,7 +285,7 @@ def load_pubmed_local_2(start_file, folder_path):
 					task_queue.put((index_doc_from_elem, params))
 					elem.clear()
 				query = """
-					INSERT INTO pubmed.indexed_files_1_8
+					INSERT INTO pubmed.indexed_files_1_9
 					VALUES
 					(%s, %s)
 					"""
@@ -612,27 +615,11 @@ def return_section_sentences(text, section, section_index, sentences_df):
 	return sentences_df
 
 
-def index_sentences(index_num):
-	conn, cursor = pg.return_postgres_cursor()
-
-	index_query = """
-		set schema 'annotation2';
-		create index sentences5_id_ind on sentences5(id);
-		create index sentences5_pmid_ind on sentences5(pmid);
-		create index sentences5_conceptid_ind on sentences5(conceptid);
-		create index sentences5_section_ind on sentences5(section);
-	"""
-
-	cursor.execute(index_query, None)
-	cursor.connection.commit()
-	conn.close()
-	cursor.close()	
-
 def get_start_file_num():
 	conn,cursor = pg.return_postgres_cursor()
 	conn, cursor = pg.return_postgres_cursor()
 	query = """
-		select max(file_num) from pubmed.indexed_files_1_8
+		select max(file_num) from pubmed.indexed_files_1_9
 	"""
 	cursor.execute(query)
 	max_num = cursor.fetchone()[0]
@@ -665,7 +652,7 @@ if __name__ == "__main__":
 	# print(sys.argv[1])
 	# if sys.argv[1] == 'update':
 	# conn, cursor = pg.return_postgres_cursor()
-	# query = "select max(file_num) from pubmed.indexed_files_1_8"
+	# query = "select max(file_num) from pubmed.indexed_files_1_9"
 	# cursor.execute(query)
 	# start_num = cursor.fetchone()[0] + 1
 	# cursor.close()
@@ -673,14 +660,15 @@ if __name__ == "__main__":
 	# 	load_pubmed_local_2(start_num, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov/pubmed/updatefiles')
 
 	start_file = get_start_file_num()
-	end_file = get_update_end_file_num(start_file) + 1
+	end_file = 1063
+	# end_file = get_update_end_file_num(start_file) + 1
 
 	while (start_file < end_file):
 		print(start_file)
-		load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		# load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov')
+		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov')
 		start_file += 5
-	# index_sentences(5)
+
 	
 
 nlm_cat_dict = {"a case report" :"methods"

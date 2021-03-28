@@ -34,7 +34,7 @@
 							</a></h6> -->
 						</div>
 						<div class="col s2" style="text-align: center;">
-							<h6><a target="_blank" href="http://localhost:9200/pubmedx1.8/_doc/{{a.id}}?pretty"> source </a> </h6>
+							<!-- <h6><a target="_blank" href="http://localhost:9200/pubmedx1.8/_doc/{{a.id}}?pretty"> source </a> </h6> -->
 						</div>
 						<div class="col s2 right-align">
 							<h6 class="journal-title"> {{a.journal_title}} </h6>
@@ -44,10 +44,8 @@
 				{% if a.abstract_show.1 != 'None' %}
 					<div class="preview-ellipsis" id="preview-ellipsis">
 
-						{% if a.abstract_show.0 == 'unlabelled' %}
-							<h5>abstract</h5>
-						{% else %}
-							<p>{{a.abstract_show.0}}</p>
+						{% if a.abstract_show.0 != 'unlabelled' %}
+							<h6><b>{{a.abstract_show.0}}</b></h6>
 						{% endif %}
 						<p>{{a.abstract_show.1}}</p><br>
 					</div>
@@ -55,8 +53,8 @@
 				{% if a.abstract_hide is not None %}
 					<div class="expanded" id="expanded">
 						{% for item in a.abstract_hide %}
-							{% if item.0 != "text" or item.0 != "unlabelled" %}
-								<p>{{item.0}}</p>
+							{% if item.0 != "text" and item.0 != "unlabelled" %}
+								<h6><b>{{item.0}}</b></h6>
 							{% endif %}
 							<p>{{item.1}}</p> <br>
 						{% endfor %}

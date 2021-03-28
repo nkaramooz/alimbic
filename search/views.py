@@ -17,7 +17,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 
 
-INDEX_NAME='pubmedx1.8'
+INDEX_NAME='pubmedx1.9'
 
 
 
@@ -544,7 +544,7 @@ def post_search_text(request):
 		es_query = {"from" : 0, \
 				 "size" : 100, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list, filters['journals'], filters['start_year'], filters['end_year'], \
-				 	["title_conceptids^10", "abstract_conceptids.*"], cursor)}
+				 	["title_cids^10", "abstract_conceptids.*"], cursor)}
 
 		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
@@ -600,7 +600,7 @@ def post_search_text(request):
 						 "size" : 25, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_conceptids^10", "abstract_conceptids.*"], cursor)}
+						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
 			
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
@@ -621,7 +621,7 @@ def post_search_text(request):
 
 			if len(query_logs_df.index) > 0:
 				treatment_dict = query_logs_df['treatment_dict'][0]
-				diagnostic_dict = query_logs_df['condition_dict'][0]
+				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
 				condition_dict = query_logs_df['condition_dict'][0]
 				cause_dict = query_logs_df['cause_dict'][0]
 			else:			
@@ -1012,10 +1012,11 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 
 			select 
 				treatment_acid
-			from ml2.treatment_recs_final_2
+			from ml2.treatment_recs_final_1
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
 		"""
+
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),), ["acid"])
 
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
@@ -1054,7 +1055,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 	es = es_util.get_es_client()
 	es_query = get_query(query_concept_list, unmatched_terms, query_types_list, \
 						 	filters['journals'], filters['start_year'], filters['end_year']\
-						 	,["title_conceptids^10", "abstract_conceptids.*^0.5"], cursor)
+						 	,["title_cids^10", "abstract_conceptids.*^0.5"], cursor)
 
 	scroller = es_util.ElasticScroll(es, es_query)
 
@@ -1196,8 +1197,8 @@ def get_conceptids_from_sr(sr):
 	conceptid_list = []
 
 	for hit in sr['hits']['hits']:
-		if hit['_source']['title_conceptids'] is not None:
-			conceptid_list.extend(hit['_source']['title_conceptids'])
+		if hit['_source']['title_cids'] is not None:
+			conceptid_list.extend(hit['_source']['title_cids'])
 		if hit['_source']['abstract_conceptids'] is not None:
 			for key1 in hit['_source']['abstract_conceptids']:
 				if hit['_source']['abstract_conceptids'][key1] is not None:
@@ -1208,9 +1209,9 @@ def get_title_cids(sr):
 
 	conceptid_df = pd.DataFrame(columns=['acid', 'pmid'])
 	for hit in sr['hits']['hits']:
-		if hit['_source']['title_conceptids'] is not None:
+		if hit['_source']['title_cids'] is not None:
 			pmid = hit['_source']['pmid']
-			cid_list = list(set(hit['_source']['title_conceptids']))
+			cid_list = list(set(hit['_source']['title_cids']))
 			if 'conclusions_cid' in hit['_source']:
 				cid_list.append(list(set(hit['_source']['conclusions_cid'])))
 			new_df = pd.DataFrame()

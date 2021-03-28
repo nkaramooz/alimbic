@@ -7,13 +7,12 @@ import nltk.data
 import numpy as np
 import time
 import utilities.pglib as pg
+import utilities.utils2 as u2
 import collections
 import os
 import random
 import sys
 import snomed_annotator2 as ann2
-import pickle as pk
-import sys
 from keras.preprocessing import sequence
 from keras import Sequential
 from keras.layers import Embedding, LSTM, Dense, Dropout, Flatten
@@ -35,12 +34,8 @@ import matplotlib.pyplot as plt
 from keras.wrappers.scikit_learn import KerasClassifier
 import sqlalchemy as sqla
 import multiprocessing as mp
-
-import warnings
-import plac
-from pathlib import Path
-import spacy
-from spacy.util import minibatch, compounding
+import datetime
+import tensorflow as tf
 
 
 # index 0 = filler
@@ -68,14 +63,14 @@ b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 
 
 def get_all_conditions_set():
-	query = "select root_acid from annotation2.base_concept_types where rel_type='condition'"
+	query = "select root_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom'"
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
 def get_all_treatments_set():
 	
-	query = "select root_acid from annotation2.base_concept_types where rel_type='treatment'"
+	query = "select root_acid from annotation2.concept_types where rel_type='treatment'"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
@@ -122,8 +117,8 @@ def train_data_generator_v2(batch_size, cursor):
 	
 		# new_version_0 = curr_version_0 + 1
 
-		query = "select id, x_train_gen, x_train_mask, label from ml2.train_sentences where ver = %s limit %s"
-		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_mask', 'label'])
+		query = "select id, x_train_gen, x_train_spec, x_train_mask, label from ml2.train_sentences where ver = %s limit %s"
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'x_train_mask', 'label'])
 
 		# query = "select id, x_train_gen, x_train_mask, label from ml2.all_training_sentences where label=1 and condition_acid in ('10609', '482311', '467', '210918', '125792', '181687') and ver = %s limit %s"
 		# train_df_1 = pg.return_df_from_query(cursor, query, (curr_version_1, batch_size/2), ['id', 'x_train_gen', 'x_train_mask', 'label'])
@@ -134,7 +129,7 @@ def train_data_generator_v2(batch_size, cursor):
 		# train_df = train_df_0.append(train_df_1)
 
 		x_train_gen = train_df['x_train_gen'].tolist()
-		# x_train_spec = train_df['x_train_spec'].tolist()
+		x_train_spec = train_df['x_train_spec'].tolist()
 		x_train_mask = train_df['x_train_mask'].tolist()
 
 
@@ -208,57 +203,74 @@ def train_data_generator_v2(batch_size, cursor):
 def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
-	embedding_size=300
+	embedding_size=500
 	batch_size = 1000
-	num_epochs = 40
+	num_epochs = 60
 
 	model_input_gen = Input(shape=(max_words,))
 	# model_input_spec = Input(shape=(max_words,))
 	model_mask = Input(shape=(max_words,))
 
-	first_model = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	first_model = Conv1D(filters=32, kernel_size=4, activation='relu')(first_model)
-	first_model = Dropout(0.5)(first_model)
-	first_model = MaxPooling1D(pool_size=2)(first_model)
-	first_model = Flatten()(first_model)
-	# first_model = layers.concatenate([first_model, model_mask])
+	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
+	# model_spec_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_spec)
+	model_mask_emb = Embedding(vocabulary_size+1, 50, trainable=True, mask_zero=True)(model_mask)
 
-	second_model = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	second_model = Conv1D(filters=32, kernel_size=8, activation='relu')(second_model)
-	second_model = Dropout(0.5)(second_model)
-	second_model = MaxPooling1D(pool_size=2)(second_model)
-	second_model = Flatten()(second_model)
-	# second_model = layers.concatenate([second_model, model_mask])
+	root_model_gen = layers.concatenate([model_gen_emb, model_mask_emb])
 
-	third_model = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	third_model = Conv1D(filters=32, kernel_size=16, activation='relu')(third_model)
-	third_model = Dropout(0.5)(third_model)
-	third_model = MaxPooling1D(pool_size=2)(third_model)
-	third_model = Flatten()(third_model)
-	# third_model = layers.concatenate([third_model, model_mask])
+	first_model_gen = Conv1D(filters=32, kernel_size=4, activation='relu')(root_model_gen)
+	first_model_gen = Dropout(0.5)(first_model_gen)
+	first_model_gen = MaxPooling1D(pool_size=4)(first_model_gen)
+	first_model_gen = LSTM(300, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(first_model_gen)
+	# first_model_gen = Flatten()(first_model_gen)
+
+	second_model_gen = Conv1D(filters=32, kernel_size=8, activation='relu')(root_model_gen)
+	second_model_gen = Dropout(0.5)(second_model_gen)
+	second_model_gen = MaxPooling1D(pool_size=4)(second_model_gen)
+	second_model_gen = LSTM(300, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(second_model_gen)
+	# second_model_gen = Flatten()(second_model_gen)
+
+	third_model_gen = Conv1D(filters=32, kernel_size=16, activation='relu')(root_model_gen)
+	third_model_gen = Dropout(0.5)(third_model_gen)
+	third_model_gen = MaxPooling1D(pool_size=4)(third_model_gen)
+	third_model_gen = LSTM(300, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(third_model_gen)
+	# third_model_gen = Flatten()(third_model_gen)
 
 
-	sub_first_model = layers.concatenate([first_model, model_mask])
-	sub_first_model = Dense(100, activation='relu', name='sub_first_dense')(sub_first_model)
-	# sub_first_model = Bidirectional(LSTM(100))(sub_first_model)
-	# sub_first_model = Flatten()(sub_first_model)
-	# sub_first_model = layers.concatenate([sub_first_model, model_mask])
+	# root_model_spec = layers.concatenate([model_spec_emb, model_mask_emb])
 
-	sub_second_model = layers.concatenate([second_model, model_mask])
-	sub_second_model = Dense(100, activation='relu', name='sub_second_dense')(sub_second_model)
-	# sub_second_model = Bidirectional(LSTM(100))(sub_second_model)
-	# sub_second_model = Flatten()(sub_second_model)
-	# sub_second_model = layers.concatenate([sub_second_model, model_mask])
+	# first_model_spec = Conv1D(filters=32, kernel_size=4, activation='relu')(root_model_spec)
+	# first_model_spec = Dropout(0.5)(first_model_spec)
+	# first_model_spec = MaxPooling1D(pool_size=4)(first_model_spec)
+	# first_model_spec = LSTM(100, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(first_model_spec)
+	
 
-	sub_third_model = layers.concatenate([third_model, model_mask])
-	sub_third_model = Dense(100, activation='relu', name='sub_third_dense')(sub_third_model)
-	# sub_third_model = Bidirectional(LSTM(100))(sub_third_model)
-	# sub_third_model = Flatten()(sub_third_model)
-	# sub_third_model = layers.concatenate([sub_third_model, model_mask])
+	# second_model_spec = Conv1D(filters=32, kernel_size=8, activation='relu')(root_model_spec)
+	# second_model_spec = Dropout(0.5)(second_model_spec)
+	# second_model_spec = MaxPooling1D(pool_size=4)(second_model_spec)
+	# second_model_spec = LSTM(100, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(second_model_spec)
 
-	final_model = layers.concatenate([sub_first_model, sub_second_model, sub_third_model])
-	final_model = Dense(50, activation='relu', name='merge_dense_100')(final_model)
-	# final_model = Dense(10, activation='relu', name='merge_dense_10')(final_model)
+
+	# third_model_spec = Conv1D(filters=32, kernel_size=16, activation='relu')(root_model_spec)
+	# third_model_spec = Dropout(0.5)(third_model_spec)
+	# third_model_spec = MaxPooling1D(pool_size=4)(third_model_spec)
+	# third_model_spec = LSTM(100, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(third_model_spec)
+
+
+
+	sub_final_gen = layers.concatenate([first_model_gen, second_model_gen, third_model_gen], axis=1)
+	sub_final_gen = LSTM(300, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(sub_final_gen)
+	sub_final_gen = Dense(100, activation='relu', name='sub_gen_dense')(sub_final_gen)
+	sub_final_gen = Dropout(0.3)(sub_final_gen)
+
+	# sub_final_spec = layers.concatenate([first_model_spec, second_model_spec, third_model_spec], axis=1)
+	# sub_final_spec = LSTM(200, dropout=0.2, recurrent_dropout=0.2, return_sequences=True)(sub_final_spec)
+	# sub_final_spec = Dense(100, activation='relu', name='sub_spec_dense')(sub_final_spec)
+	# sub_final_spec = Dropout(0.3)(sub_final_spec)
+
+	# final_model = layers.concatenate([sub_final_gen, sub_final_spec])
+	final_model = Dense(100, activation='relu', name='final_dense_50')(sub_final_gen)
+	final_model = Dropout(0.5)(final_model)
+	final_model = Flatten()(final_model)
 	pred = Dense(1, activation='sigmoid', name='merge_dense_pred')(final_model)
 	
 
@@ -272,12 +284,15 @@ def train_with_rnn(max_cnt):
              optimizer='adam', 
              metrics=['accuracy'])
 
-	checkpointer = ModelCheckpoint(filepath='./emb_300_generic_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_500_{epoch:02d}.hdf5', verbose=1)
 
-	
+	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:70}, steps_per_epoch =((max_cnt//batch_size)+1),
-	  callbacks=[checkpointer])
+	 epochs=num_epochs, class_weight={0:1, 1:92}, steps_per_epoch =((max_cnt//batch_size)+1),
+	  callbacks=[checkpointer, tensorboard_callback])
 
 
 
@@ -304,14 +319,14 @@ def parallel_treatment_recategorization_top(model_name):
 	all_treatments_set = get_all_treatments_set()
 
 
-	query = "select min(ver) from ml2.treatment_candidates"
+	query = "select min(ver) from ml2.treatment_candidates_1_9"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
 
 	while curr_version != new_version:
 		parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set)
-		query = "select min(ver) from ml2.treatment_candidates"
+		query = "select min(ver) from ml2.treatment_candidates_1_9"
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
 
 
@@ -335,7 +350,7 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_candidates
+		from ml2.treatment_candidates_1_9
 
 		where ver = %s limit 5000"""
 
@@ -348,7 +363,7 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 
 		update_query = """
 			set schema 'ml2';
-			UPDATE treatment_candidates
+			UPDATE treatment_candidates_1_9
 			SET ver = %s
 			where sentence_id = ANY(%s) and condition_acid = ANY(%s) and treatment_acid = ANY(%s);
 		"""
@@ -422,8 +437,8 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 
 mask_condition_marker = 1
 mask_treatment_marker = 2
-
-
+mask_generic_condition_marker = 3
+mask_generic_treatment_marker = 4
 # sample[0] = dict value of item
 # sample[1]: 1=target_condition, 2=target_treatment
 def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatments_set):
@@ -434,7 +449,8 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 	final_results = pd.DataFrame()
 	sample = [0]*max_words
 	sample_spec = [0]*max_words
-	mask = [0]*max_words
+	generic_mask = [0]*max_words
+	spec_mask = [0]*max_words
 	counter = 0
 
 	for index,words in enumerate(sentence['sentence_tuples']):		
@@ -442,19 +458,22 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 			continue
 		elif words[1] == condition_id and sample[counter-1] != target_condition_key:
 			sample[counter] = target_condition_key
-			sample_spec[counter] == get_word_index(words[1], cursor)
-			mask[counter] = mask_condition_marker
+			sample_spec[counter] = get_word_index(words[1], cursor)
+			generic_mask[counter] = mask_condition_marker
+			spec_mask[counter] = mask_condition_marker
 		elif (words[1] in conditions_set) and (sample[counter-1] == generic_condition_key):
 			continue
 		elif (words[1] in conditions_set) and (sample[counter-1] != generic_condition_key):
 			sample[counter] = generic_condition_key
 			sample_spec[counter] = get_word_index(words[1], cursor)
+			generic_mask[counter] = mask_generic_condition_marker
 		elif (words[1] == tx_id and (sample[counter-1] == target_treatment_key)):
 			continue
 		elif (words[1] == tx_id) and (sample[counter-1] != target_treatment_key):
 			sample[counter] = target_treatment_key
 			sample_spec[counter] = get_word_index(words[1], cursor)
-			mask[counter] = mask_treatment_marker
+			generic_mask[counter] = mask_treatment_marker
+			spec_mask[counter] = mask_treatment_marker
 		elif (words[1] in all_treatments_set) and (sample[counter-1] == generic_treatment_key):
 			continue
 		elif (words[1] in all_treatments_set) and (sample[counter-1] != generic_treatment_key):
@@ -480,7 +499,8 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 	cursor.close()
 	conn.close()
 	sentence['x_train_gen'] = sample
-	sentence['x_train_mask'] = mask
+	sentence['x_train_gen_mask'] = generic_mask
+	sentence['x_train_spec_mask'] = spec_mask
 	sentence['x_train_spec'] = sample_spec
 	return sentence
 
@@ -540,33 +560,33 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 
 
 
-def gen_datasets_top(write_type):
-	query = "select min(ver) as ver from ml2.labelled_treatments t1 where label=0 or label=1"
-	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
-	old_version = new_version-1
-	conditions_set = get_all_conditions_set()
-	treatments_set = get_all_treatments_set()
+# def gen_datasets_top(write_type):
+# 	query = "select min(ver) as ver from ml2.labelled_treatments t1 where label=0 or label=1"
+# 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
+# 	old_version = new_version-1
+# 	conditions_set = get_all_conditions_set()
+# 	treatments_set = get_all_treatments_set()
 
 
-	query = "select count(*) as cnt from ml2.labelled_treatments where label=0 or label=1"
-	max_counter = int(pg.return_df_from_query(cursor, query, None, ['cnt'])['cnt'][0])
+# 	query = "select count(*) as cnt from ml2.labelled_treatments where label=0 or label=1"
+# 	max_counter = int(pg.return_df_from_query(cursor, query, None, ['cnt'])['cnt'][0])
 
-	query = """
-			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
-		"""
-	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+# 	query = """
+# 			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
+# 		"""
+# 	labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 
 	
-	while (len(labels_df) > 0):
-		write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, write_type)
-		query = "UPDATE ml2.labelled_treatments set ver = %s where id = %s"
-		cursor.execute(query, (new_version, labels_df['id'].values[0]))
-		cursor.connection.commit()
+# 	while (len(labels_df) > 0):
+# 		write_sentence_vectors_from_labels(labels_df, conditions_set, treatments_set, write_type)
+# 		query = "UPDATE ml2.labelled_treatments set ver = %s where id = %s"
+# 		cursor.execute(query, (new_version, labels_df['id'].values[0]))
+# 		cursor.connection.commit()
 
-		query = """
-			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
-		"""
-		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+# 		query = """
+# 			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit 1
+# 		"""
+# 		labels_df = pg.return_df_from_query(cursor, query, (old_version,), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 
 
 def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set):
@@ -585,12 +605,12 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.sentence_id
 							,t1.section_ind
 							,t1.pmid
-						from pubmed.sentence_concept_arr_1_8 t1
-						join (select root_acid as condition_acid from annotation2.base_concept_types where rel_type='condition' or rel_type='symptom') t2
+						from pubmed.sentence_concept_arr_1_9 t1
+						join (select root_acid as condition_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
 						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
-						join pubmed.sentence_tuples_1_8 t4
+						join pubmed.sentence_tuples_1_9 t4
 							on t1.sentence_id = t4.sentence_id
 					"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
@@ -602,7 +622,6 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 	elif treatment_acid != '%':
 		condition_id_arr = [condition_acid]
 		condition_id_arr.extend(ann2.get_children(condition_acid, cursor))
-
 		tx_id_arr = [treatment_acid]
 		tx_id_arr.extend(ann2.get_children(treatment_acid, cursor))
 		sentences_query = """
@@ -613,16 +632,18 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 					,t1.sentence_id
 					,t1.section_ind
 					,t1.pmid
-				from pubmed.sentence_concept_arr_1_8 t1
+				from pubmed.sentence_concept_arr_1_9 t1
 				join (select acid as condition_acid from annotation2.downstream_root_cid where acid in %s) t2
 					on t2.condition_acid = ANY(t1.concept_arr::text[])
 				join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 					on t3.treatment_acid = ANY(t1.concept_arr::text[])
-				join pubmed.sentence_tuples_1_8 t4
+				join pubmed.sentence_tuples_1_9 t4
 					on t1.sentence_id = t4.sentence_id
 			"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
 				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
+
+
 	cursor.close()
 	conn.close()
 
@@ -667,7 +688,7 @@ def gen_datasets_mp(new_version):
 			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
 		"""
 		labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
-	
+		
 		
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
@@ -695,15 +716,14 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 	engine = pg.return_sql_alchemy_engine()
 
 	if len(sentences_df.index) > 0:
-		if write_type == 'gen':
+		if write_type == 'gen': 
 			sentences_df = sentences_df.apply(apply_get_generic_labelled_data, \
 				all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
-			# sentences_df['x_train_spec'] = sentences_df.apply(apply_get_specific_labelled_data, axis=1)
 
 			sentences_df['ver'] = 0
 			sentences_df = sentences_df[['sentence_id', 'sentence_tuples', 'condition_acid', 'treatment_acid',\
 			 'x_train_gen', 'x_train_mask', 'x_train_spec', 'label', 'ver']]
-			sentences_df.to_sql('training_sentences_with_version', engine, schema='ml2', if_exists='append', index=False, \
+			sentences_df.to_sql('training_sentences_staging', engine, schema='ml2', if_exists='append', index=False, \
 				dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_mask' : sqla.types.JSON, \
 					'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 		
@@ -718,9 +738,9 @@ def analyze_sentence(model_name, sentence, condition_id):
 	cache = ann2.get_cache(all_words, False)
 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, True, True)
-	print(sentence_tuples_df)
+	
 	model = load_model(model_name)
-
+	print(sentence_tuples_df)
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
@@ -739,8 +759,8 @@ def analyze_sentence(model_name, sentence, condition_id):
 			sample_spec_arr = np.array([sample_spec])
 			mask_arr = np.array([mask])
 
-			# res = float(model.predict([sample_gen_arr,sample_spec_arr, mask_arr]))
-			res = float(model.predict([sample_gen_arr, mask_arr]))
+			res = float(model.predict([sample_gen_arr, sample_spec_arr, mask_arr]))
+			# res = float(model.predict([sample_gen_arr, mask_arr]))
 			final_res.append((word[0], word[1], res))
 
 	print(final_res)
@@ -757,9 +777,9 @@ def print_contingency(model_name):
 
 	# should be OK to load into memory
 
-	testing_query = "select id, sentence_id, x_train_gen, x_train_mask, label from ml2.test_sentences_subset where ver=%s"
+	testing_query = "select id, sentence_id, sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_mask, label from ml2.test_sentences_subset where ver=%s"
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
-		['id', 'sentence_id', 'x_train_gen','x_train_mask', 'label'])
+		['id', 'sentence_id','sentence_tuples','condition_acid', 'treatment_acid', 'x_train_gen','x_train_mask', 'label'])
 
 	zero_zero = 0
 	zero_one = 0
@@ -777,10 +797,20 @@ def print_contingency(model_name):
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
 		elif((item['label'] == 1) and (res < 0.50)):
+			print("below label=1 and res < 0.50")
+			u2.pprint(item['condition_acid'])
+			u2.pprint(item['treatment_acid'])
+			u2.pprint(item['sentence_tuples'])
+			print("end")
 			one_zero += 1
 		elif ((item['label'] == 0) and (res < 0.50)):
 			zero_zero += 1
 		elif ((item['label'] == 0) and (res >= 0.50)):
+			print("below label=0, res >= 0.50")
+			u2.pprint(item['condition_acid'])
+			u2.pprint(item['treatment_acid'])
+			u2.pprint(item['sentence_tuples'])
+			print("end")
 			zero_one += 1
 
 
@@ -818,14 +848,14 @@ if __name__ == "__main__":
 	# sentence = "amiodarone improves symptoms in patients with covid-19"
 	# sentence = "neutralizing antibody therapy in covid-19"
 	# sentence = "inhaled treprostenil in covid-19"
-	# sentence = "Montelukast for the management of eosinophilic esophagitis"
-	sentence = "Pantoprazole-induced acute interstitial nephritis"
-	sentence = sentence.lower()
-	model_name = 'emb_300_generic_40.hdf5'
-	# model_name = 'emb_256_16.hdf5'
-	# model_name = 'alice1.hdf5'
-	condition_id = '10609'
-	analyze_sentence(model_name, sentence, condition_id)
+	# sentence = "Montelukast as a treatment for eosinophilic esophagitis"
+	# sentence = "amiodarone induced acute interstitial nephritis"
+	# sentence = sentence.lower()
+	# model_name = 'gen_500_60.hdf5'
+
+
+	# condition_id = '10609'
+	# analyze_sentence(model_name, sentence, condition_id)
 
 
 
@@ -834,44 +864,32 @@ if __name__ == "__main__":
 
 
 	# gen_datasets_mp(1)
+
 	# conn, cursor = pg.return_postgres_cursor()
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()
 	# conn.close()
-	# update_rnn('emb_256_generic_20.hdf5')
-
-	# V2 uses the specific + mask
-	# train_with_word2vec_v2()
 
 	# train_with_rnn(max_cnt)
-	# print_contingency('emb_300_generic_25.hdf5')
-	# print_contingency('emb_300_generic_26.hdf5')
-	# print_contingency('emb_300_generic_27.hdf5')
-	# print_contingency('emb_300_generic_28.hdf5')
-	# print_contingency('emb_300_generic_29.hdf5')
-	# print_contingency('emb_300_generic_30.hdf5')
-	# print_contingency('emb_300_generic_31.hdf5')
-	# print_contingency('emb_300_generic_32.hdf5')
-	# print_contingency('emb_300_generic_33.hdf5')
-	# print_contingency('emb_300_generic_34.hdf5')
-	# print_contingency('emb_300_generic_35.hdf5')
-	# print_contingency('emb_300_generic_36.hdf5')
-	# print_contingency('emb_300_generic_37.hdf5')
-	# print_contingency('emb_300_generic_38.hdf5')
-	# print_contingency('emb_300_generic_39.hdf5')
-	# print_contingency('emb_300_generic_40.hdf5')
-	# print_contingency('double-05.hdf5')
-	# print_contingency('double-06.hdf5')
-	# print_contingency('double-07.hdf5')
-	# print_contingency('double-08.hdf5')
-	# print_contingency('double-09.hdf5')
-	# print_contingency('double-10.hdf5')
-	# print_contingency('double-11.hdf5')
-	# print_contingency('double-12.hdf5')
-	# print_contingency('double-18.hdf5')
-	# print_contingency('double-19.hdf5')
-	# print_contingency('double-20.hdf5')
-	# print_contingency('model12.0601.hdf5')
-	# print_contingency('model12.0602.hdf5')
-	# print_contingency('model12.0603.hdf5')
+	# print_contingency('gen_500_40.hdf5')
+	# print_contingency('gen_500_41.hdf5')
+	# print_contingency('gen_500_42.hdf5')
+	# print_contingency('gen_500_43.hdf5')
+	# print_contingency('gen_500_44.hdf5')
+	# print_contingency('gen_500_45.hdf5')
+	# print_contingency('gen_500_46.hdf5')
+	# print_contingency('gen_500_47.hdf5')
+	# print_contingency('gen_500_48.hdf5')
+	# print_contingency('gen_500_49.hdf5')
+	# print_contingency('gen_500_50.hdf5')
+	# print_contingency('gen_500_51.hdf5')
+	print_contingency('gen_500_52.hdf5')
+	# print_contingency('gen_500_53.hdf5')
+	# print_contingency('gen_500_54.hdf5')
+	# print_contingency('gen_500_55.hdf5')
+	# print_contingency('gen_500_56.hdf5')
+	# print_contingency('gen_500_57.hdf5')
+	# print_contingency('gen_500_58.hdf5')
+	# print_contingency('gen_500_59.hdf5')
+	# print_contingency('gen_500_60.hdf5')

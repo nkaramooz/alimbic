@@ -5,6 +5,7 @@ import pandas as pd
 import pglib as pg
 import sqlalchemy as sqla
 import snomed_annotator2 as ann
+import utils2 as u
 from nltk.stem.wordnet import WordNetLemmatizer
 
 
@@ -14,7 +15,7 @@ def lemma(word):
 
 def lemmatize(row):
 	terms = row['term']
-	terms = terms.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ')
+	terms = terms.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').rstrip()
 
 	ln_words = terms.split()
 	lemmas = ann.get_lemmas(ln_words, True)

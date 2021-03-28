@@ -3,7 +3,7 @@ from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 # Create your views here.
 
-INDEX_NAME='pubmedx1.8'
+INDEX_NAME='pubmedx1.9'
 
 def return_es_host():
 	# return {'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}

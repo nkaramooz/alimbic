@@ -65,6 +65,7 @@ def get_new_candidate_df(word, case_sensitive):
 	return new_candidate_df
 
 def get_wordnet_pos(ln_words):
+	
 	tags = nltk.pos_tag(ln_words)
 	tag_dict = {"J" : wordnet.ADJ, "N" : wordnet.NOUN,
 		"V": wordnet.VERB, "R" : wordnet.ADV, "I" : wordnet.VERB}
@@ -88,13 +89,17 @@ def get_lemmas(ln_words, case_sensitive):
 				w = w.lower()
 
 		if w.lower() != 'vs' and w.upper() != w:
-			if w != 'doses' and w != 'does':
-				w = lmtzr.lemmatize(w, pos_tag[i])
-			elif w == 'doses':
+			if w == 'doses':
 				w = 'dose'
 			elif w == 'does':
 				w = 'do'
+			elif w == 'induces':
+				w = 'induce'
+			else:
+				w = lmtzr.lemmatize(w, pos_tag[i])
+
 		ln_lemmas.append(w)
+
 	return ln_lemmas
 
 def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
@@ -607,7 +612,8 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 		if bool_acr_check:
 			concepts_df = acronym_check(concepts_df)
 
-	concepts_df = concepts_df.drop_duplicates().copy()
+	concepts_df = concepts_df.drop_duplicates(subset=['acid', 'description_start_index', 'section_ind', 'ln_num']).copy()
+
 	conn = sqlite3.connect(':memory:')
 
 	if len(concepts_df.index) > 0:
@@ -721,7 +727,7 @@ def clean_text(line):
 	line = line.replace(')', '')
 	line = line.replace('\\', ' ')
 	line = line.replace('/', ' ')
-
+	line = line.replace('  ', ' ')
 	# This makes you lose the likelihood ratios
 	# line = re.sub("\(.*?\)","",line)
 	return line
@@ -856,18 +862,29 @@ if __name__ == "__main__":
 	query70="advanced primary cutaneous cutaneous T cell"
 	query71="cows walked on the prairie"
 	query72="Remdesivir for the Treatment of Covid-19 - Final Report."
+	query73="CAR T cell"
+	query74="antipsychotic"
+	query75="Efficacy and Safety of Once-Daily Insulin Degludec/Insulin Aspart versus Insulin Glargine (U100) for 52 Weeks in Insulin-Naïve Patients with Type 2 Diabetes"
+	query76="Over 12 years, 49 patients with hyperparathyroidism secondary to chronic renal failure under treatment with hemodialysis were treated with total parathyroidectomy"
+	query77="With nephrocalcinosis and without nephrocalcinosis (P < .01)"
+	query78="Hidradenitis suppurativa is a painful chronic inflammatory skin disease with few options for effective treatment"
+	query79="Indication for immunotherapy includes evidence of IgE mediated disease"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query72
+		# term = query79
+		term = "ACUTE myocardial infarction in adulthood acute myocardial infarction causes chest pain"
 		term = clean_text(term)
 		all_words = get_all_words_list(term)
-		cache = get_cache(all_words, False)
-		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-		res, g, s = annotate_text_not_parallel(item, cache, True, True, True)
+		cache = get_cache(all_words, True)
+		sentences_df = pd.DataFrame([['acute myocardial infarction in adulthood', 'title', 0,0], \
+			['acute myocardial infarction causes chest pain', 'abstract', 1,0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+		# item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+
+		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True)
 		u.pprint(g['sentence_tuples'].tolist())
 		d.stop()
 		counter += 1

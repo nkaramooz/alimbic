@@ -1,31 +1,49 @@
 set schema 'ml2';
-drop table if exists treatment_candidates;
+drop table if exists treatment_candidates_1_9;
 
+create table if not exists treatment_candidates_1_9 (
+	sentence_id varchar(40) not null
+	,condition_acid varchar(18) not null
+	,treatment_acid varchar(18) not null
+	,sentence_tuples json
+	,pmid varchar(18)
+	,year integer
+	,ver integer
+);
 
-create table treatment_candidates as (
+create index if not exists treatment_candidate_1_9_condition_acid_ind on treatment_candidates_1_9(condition_acid);
+create index if not exists treatment_candidate_1_9_sentence_id_ind on treatment_candidates_1_9(sentence_id);
+create index if not exists treatment_candidate_1_9_treatment_acid_ind on treatment_candidates_1_9(treatment_acid);
 
-	select distinct on (sentence_id, condition_acid, treatment_acid) sentence_id, condition_acid, treatment_acid, sentence_tuples, ver
+INSERT INTO treatment_candidates_1_9
+
+	select distinct on (sentence_id, condition_acid, treatment_acid) 
+		sentence_id, condition_acid, treatment_acid, sentence_tuples, pmid, year, ver
 	from (
  	select 
  		t1.sentence_id
  		,t1.condition_acid
  		,t3.treatment_acid
  		,t4.sentence_tuples
+ 		,t4.pmid
+ 		,t4.journal_pub_year::int as year
  		,0 as ver
- 	from (select distinct sentence_id, acid as condition_acid from pubmed.sentence_annotations_1_8) t1
- 	join ml2.cso t2 
- 		on t1.condition_acid = t2.acid
+ 	from (select distinct sentence_id, acid as condition_acid from pubmed.sentence_annotations_1_9 where ver=1) t1
+ 	join (select root_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom') t2 
+ 		on t1.condition_acid = t2.root_acid
  	join (select distinct sentence_id, acid as treatment_acid 
- 			from pubmed.sentence_annotations_1_8 
- 			where 
- 				acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in ('165831', '250976', '92218', '18621', '233259', '1779959'))) t3
+ 			from pubmed.sentence_annotations_1_9 
+ 			where ver=1 and 
+ 				acid in (select root_acid from annotation2.concept_types where rel_type='treatment')) t3
  		on t1.sentence_id = t3.sentence_id
- 	join pubmed.sentence_tuples_1_8 t4
+ 	join pubmed.sentence_tuples_1_9 t4
  		on t1.sentence_id = t4.sentence_id 
  		) t5
+;
 
-);
 
-create index treatment_candidate_condition_acid_ind on treatment_candidates(condition_acid);
-create index treatment_candidate_sentence_id_ind on treatment_candidates(sentence_id);
-create index treatment_candidate_treatment_acid_ind on treatment_candidates(treatment_acid);
+-- update pubmed.sentence_tuples_1_9 set ver=1 where ver != 1;
+-- update pubmed.sentence_annotations_1_9 set ver=1 where ver != 1;
+-- update pubmed.sentence_concept_arr_1_9 set ver=1 where ver != 1;
+
+
