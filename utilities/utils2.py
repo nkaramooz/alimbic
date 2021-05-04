@@ -120,7 +120,7 @@ def add_new_description(acid, new_description, cursor):
 				,adid
 				,term
 			from annotation2.lemmas
-			where term_lower = lower(%s) and acid=%s
+			where term = %s and acid=%s
 		"""
 		desc_df = pg.return_df_from_query(cursor, query, (new_description,acid), ['acid', 'adid', 'term'])
 

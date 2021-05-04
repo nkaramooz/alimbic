@@ -12,7 +12,8 @@ create table test_sentences as (
     	,section_ind
     	,x_train_gen
         ,x_train_spec
-    	,x_train_mask
+    	,x_train_gen_mask
+        ,x_train_spec_mask
     	,label
     	,ver
     from ml2.all_training_sentences

@@ -11,7 +11,8 @@ create table test_sentences_subset (
   ,section_ind integer
   ,x_train_gen jsonb
   ,x_train_spec jsonb
-  ,x_train_mask jsonb
+  ,x_train_gen_mask jsonb
+  ,x_train_spec_mask jsonb
   ,label integer
   ,ver integer
 );
@@ -26,7 +27,8 @@ insert into ml2.test_sentences_subset
     	,section_ind
     	,x_train_gen
       ,x_train_spec
-      ,x_train_mask
+      ,x_train_gen_mask
+      ,x_train_spec_mask
     	,label
     	,ver
     from ml2.test_sentences
@@ -44,7 +46,8 @@ insert into ml2.test_sentences_subset
     	,section_ind
     	,x_train_gen
       ,x_train_spec
-      ,x_train_mask
+      ,x_train_gen_mask
+      ,x_train_spec_mask
     	,label
     	,ver
     from ml2.test_sentences

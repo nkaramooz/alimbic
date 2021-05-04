@@ -15,8 +15,9 @@ create table all_training_sentences as (
 		,t1.sentence_tuples
 		,t2.section_ind
 		,t1.x_train_gen
-		,t1.x_train_mask
 		,t1.x_train_spec
+		,t1.x_train_gen_mask
+		,t1.x_train_spec_mask
 		,t1.condition_acid
 		,t1.treatment_acid
 		,t1.ver

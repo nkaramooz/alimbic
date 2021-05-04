@@ -22,7 +22,7 @@ custom_synonym_dict = {
 	,'pulmonary embolism' : 'PE'
 	,'patent foramen ovale' : 'PFO'
 	,'tumour necrosis factor' : 'TNF'
-	,'tumour necrosis factor' : 'TNF'
+	,'tumor necrosis factor' : 'TNF'
 	,'aortic valve' : 'AV'
 	,'mitral valve' : 'MV'
 	,'staphylococcus' : 'staph'

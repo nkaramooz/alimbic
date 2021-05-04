@@ -11,7 +11,7 @@ def get_new_update_files():
 	conn,cursor = pg.return_postgres_cursor()
 	conn, cursor = pg.return_postgres_cursor()
 	query = """
-		select max(file_num) from pubmed.indexed_files_1_8
+		select max(file_num) from pubmed.indexed_files_1_9
 	"""
 	cursor.execute(query)
 	max_num = cursor.fetchone()[0]

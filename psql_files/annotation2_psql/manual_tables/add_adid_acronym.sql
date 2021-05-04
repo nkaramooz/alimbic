@@ -53,7 +53,7 @@ insert into add_adid_acronym
                     ,active
                     ,row_number () over (partition by adid order by effectivetime desc) as row_num 
                 from annotation2.downstream_root_did
-                ) tb, unnest(string_to_array(regexp_replace(replace(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), ' -', ' '), '-', ' '), ',', ''), '''', ''), '\s+$', ''), ' '))
+                ) tb, unnest(string_to_array(regexp_replace(regexp_replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), ' -', ' '), '-', ' '), ',', ''), '''', ''), '   ', ' '), '  ', ' '), '\s+$', ''), '^\s+', ''), ' '))
                 with ordinality as f(word)
             where row_num = 1 and active = '1'
             ) nm
@@ -73,7 +73,7 @@ insert into add_adid_acronym
                     adid
                     ,acid
                     ,term
-                    ,lower(unnest(string_to_array(regexp_replace(replace(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), ' -', ' '), '-', ' '), ',', ''), '''', ''), '\s+$', ''), ' '))) as word
+                    ,lower(unnest(string_to_array(regexp_replace(regexp_replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), ' -', ' '), '-', ' '), ',', ''), '''', ''), '   ', ' '), '  ', ' '), '\s+$', ''), '^\s+', ''), ' '))) as word
                 from (
                     select 
                         adid

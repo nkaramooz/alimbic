@@ -24,3 +24,4 @@ all_sentences_*
 *.tsv
 *.txt
 *.bak
+logs/

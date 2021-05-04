@@ -20,7 +20,6 @@ import sys
 import sqlite3
 
 def get_new_candidate_df(word, case_sensitive):
-	#Knocks off a second off a sentence by selecting for word_ord=1
 	new_candidate_query = ""
 
 	if case_sensitive:
@@ -78,6 +77,7 @@ def get_wordnet_pos(ln_words):
 
 def get_lemmas(ln_words, case_sensitive):
 	pos_tag = get_wordnet_pos(ln_words)
+
 	lmtzr = WordNetLemmatizer()
 	ln_lemmas = []
 	for i,w in enumerate(ln_words):
@@ -93,8 +93,14 @@ def get_lemmas(ln_words, case_sensitive):
 				w = 'dose'
 			elif w == 'does':
 				w = 'do'
-			elif w == 'induces':
+			elif w == 'induces' or w == 'induced' or w == 'inducing':
 				w = 'induce'
+			elif w == 'bound' or w == 'binding' or w == 'binds':
+				w = 'bind'
+			elif w == 'controlled' or w == 'controlling' or w == 'controls':
+				w = 'control'
+			elif w == 'has':
+				w = 'have'
 			else:
 				w = lmtzr.lemmatize(w, pos_tag[i])
 
@@ -419,6 +425,7 @@ def add_names(results_df):
 def annotate_line_v2(sentence_df, case_sensitive, cache):
 	
 	line = clean_text(sentence_df['line'])
+
 	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, cache)
 
 	if annotation is not None:
@@ -567,26 +574,33 @@ def get_all_words_list(text):
 	lmtzr = WordNetLemmatizer()
 	for ln_num, line in enumerate(tokenized):
 		words = line.split()
+
 		for index,w in enumerate(words):
 			if w.upper() != w:
 				w = w.lower()
 
 			if w.lower() != 'vs':
 				w = lmtzr.lemmatize(w)
-			all_words.append(w)
 
-	return list(set(all_words))
+			if w not in all_words:
+				all_words.append(w)
+
+	return all_words
 
 def get_cache(all_words_list, case_sensitive):
 
-	cache = get_new_candidate_df(all_words_list, case_sensitive)
+	lemmas = get_lemmas(all_words_list, case_sensitive)
+
+	cache = get_new_candidate_df(lemmas, case_sensitive)
+
 	cache['points'] = 0
 
-	cache.loc[cache.word.isin(all_words_list), 'points'] = 1
+	cache.loc[cache.word.isin(lemmas), 'points'] = 1
+
 	csf = cache[['adid', 'term_length', 'points']].groupby(['adid', 'term_length'], as_index=False)['points'].sum()
 
 	candidate_dids = csf[csf['term_length'] == csf['points']]['adid'].tolist()
-	
+
 	cache = cache[cache['adid'].isin(candidate_dids)].copy()
 	cache = cache.drop(['points'], axis=1)
 	return cache
@@ -869,24 +883,29 @@ if __name__ == "__main__":
 	query77="With nephrocalcinosis and without nephrocalcinosis (P < .01)"
 	query78="Hidradenitis suppurativa is a painful chronic inflammatory skin disease with few options for effective treatment"
 	query79="Indication for immunotherapy includes evidence of IgE mediated disease"
+	query80="Randomized controlled trials of patients with acute myocardial infarction"
+	query81="right and left"
 	conn, cursor = pg.return_postgres_cursor()
 
 
 	counter = 0
 	while (counter < 1):
 		d = u.Timer('t')
-		# term = query79
-		term = "ACUTE myocardial infarction in adulthood acute myocardial infarction causes chest pain"
+		term = query81
+		# term = "Randomized controlled trials (RCT) of patients with acute myocardial infarction"
 		term = clean_text(term)
+
 		all_words = get_all_words_list(term)
+
 		cache = get_cache(all_words, True)
-		sentences_df = pd.DataFrame([['acute myocardial infarction in adulthood', 'title', 0,0], \
-			['acute myocardial infarction causes chest pain', 'abstract', 1,0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-		# item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+
+		sentences_df = pd.DataFrame([['Randomized controlled trials (RCT) of patients with acute myocardial infarction', 'title', 0,0]], \
+			columns=['line', 'section', 'section_ind', 'ln_num'])
+		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
 		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True)
 		u.pprint(g['sentence_tuples'].tolist())
-		d.stop()
+		# d.stop()
 		counter += 1
 	
 	

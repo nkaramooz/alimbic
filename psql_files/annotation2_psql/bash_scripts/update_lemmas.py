@@ -12,7 +12,7 @@ import sys
 def lemma(ln):
 
 	term = ln['term']
-	term = term.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').rstrip()
+	term = term.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').replace('   ', ' ').replace('  ', ' ').rstrip().lstrip()
 	word_ord = ln['word_ord']
 	ln_words = term.split()
 	ln_lemmas = ann2.get_lemmas(ln_words, True)
