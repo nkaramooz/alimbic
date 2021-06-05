@@ -1,14 +1,15 @@
 set schema 'ml2';
 
--- drop table if exists labelled_treatments;
+drop table if exists labelled_treatments;
 
--- create table labelled_treatments (
--- 	id varchar(40)
---   ,condition_acid varchar(40)
---   ,treatment_acid varchar(40)
---   ,label integer
---   ,ver integer
--- );
+create table labelled_treatments (
+	id varchar(40)
+  ,condition_acid varchar(40)
+  ,treatment_acid varchar(40)
+  ,label integer
+  ,ver integer
+  ,unique(condition_acid, treatment_acid)
+);
 
 
 insert into labelled_treatments 
@@ -24,6 +25,7 @@ insert into labelled_treatments
 			and t1.treatment_acid = t2.treatment_acid
 			and t1.label = t2.label
 		where t2.label is null
+	ON CONFLICT DO NOTHING
 ;
 
 insert into labelled_treatments
@@ -39,6 +41,7 @@ insert into labelled_treatments
 			and t1.treatment_acid = t2.treatment_acid
 			and t1.label = t2.label
 	where t2.label is null
+	ON CONFLICT DO NOTHING
 ;
 
 create index labelled_treatments_condition_acid_ind on labelled_treatments(condition_acid);

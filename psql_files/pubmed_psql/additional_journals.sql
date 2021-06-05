@@ -1,11 +1,11 @@
 set schema 'pubmed';
 
--- drop table if exists additional_journals;
--- create table additional_journals (
---   iso_abbrev varchar(40)
---   ,issn varchar(40)
---   ,type varchar(40)
--- );
+drop table if exists additional_journals;
+create table additional_journals (
+  iso_abbrev varchar(40)
+  ,issn varchar(40)
+  ,type varchar(40)
+);
 
 INSERT INTO additional_journals(iso_abbrev, issn, type)
 	VALUES
@@ -26,7 +26,23 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Am J Med Case Rep', '2374-2151', 'Print'),
 	('Am J Med Case Rep', '2374-216X', 'Electronic'),
 
-	('Respir Med Case Rep', '2213-0071', 'Electronic')
+	('Respir Med Case Rep', '2213-0071', 'Electronic'),
+	('Clin Med (Lond)', '1473-4893', 'Print'),
+	('Clin Med (Lond)', '1470-2118', 'Electronic'),
+	('Pediatr Emerg Care', '0749-5161', 'Print'),
+	('Pediatr Emerg Care', '1535-1815', 'Electronic'),
+	('Cardiovasc Intervent Radiol', '0174-1551', 'Print'),
+	('Cardiovasc Intervent Radiol', '1432-086X', 'Electronic'),
+	('J Vasc Interv Radiol', '1051-0443', 'Print'),
+	('J Vasc Interv Radiol', '1535-7732', 'Electronic'),
+	('Trends Cardiovasc Med', '1050-1738', 'Print'),
+	('Trends Cardiovasc Med', '1873-2615', 'Electronic'),
+	('Arch Cardiovasc Dis', '1875-2136', 'Print'),
+	('Arch Cardiovasc Dis', '1875-2128', 'Electronic'),
+	('Br J Cancer', '0007-0920', 'Print'),
+	('Br J Cancer', '1532-1827', 'Electronic'),
+	('Eur J Cancer', '0959-8049', 'Print'),
+	('Eur J Cancer', '1879-0852', 'Electronic')
 	;
 
 -- create index add_journals_issn_ind on additional_journals(issn);

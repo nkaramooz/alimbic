@@ -94,13 +94,15 @@ def get_lemmas(ln_words, case_sensitive):
 			elif w == 'does':
 				w = 'do'
 			elif w == 'induces' or w == 'induced' or w == 'inducing':
-				w = 'induce'
+				w = 'cause'
 			elif w == 'bound' or w == 'binding' or w == 'binds':
 				w = 'bind'
 			elif w == 'controlled' or w == 'controlling' or w == 'controls':
 				w = 'control'
 			elif w == 'has':
 				w = 'have'
+			elif w == 'cause' or w == 'causing' or w == 'causes' or w == 'caused':
+				w = 'cause'
 			else:
 				w = lmtzr.lemmatize(w, pos_tag[i])
 

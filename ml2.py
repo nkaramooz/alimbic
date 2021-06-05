@@ -35,6 +35,7 @@ import sqlalchemy as sqla
 import multiprocessing as mp
 import datetime
 import tensorflow as tf
+from gensim.models import Word2Vec
 
 
 # index 0 = filler
@@ -139,17 +140,17 @@ def train_data_generator_v2(batch_size, cursor):
 def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
-	embedding_size=500
+	embedding_size=300
 	batch_size = 1000
-	num_epochs = 60
+	num_epochs = 20
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	lstm_model = LSTM(500, recurrent_dropout=0.2, return_sequences=True)(model_gen_emb)
-	lstm_model = LSTM(500, recurrent_dropout=0.2, return_sequences=True)(lstm_model)
-	lstm_model = LSTM(500, recurrent_dropout=0.2)(lstm_model)
-	lstm_model = Dropout(0.5)(lstm_model)
-	lstm_model = Dense(500)(lstm_model)
+	lstm_model = LSTM(500, recurrent_dropout=0.4, return_sequences=True)(model_gen_emb)
+	lstm_model = LSTM(500, recurrent_dropout=0.4, return_sequences=True)(lstm_model)
+	lstm_model = LSTM(300, recurrent_dropout=0.2)(lstm_model)
+	lstm_model = Dropout(0.3)(lstm_model)
+	lstm_model = Dense(300)(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
 	
 	model = Model(inputs=[model_input_gen], outputs=[pred])
@@ -169,7 +170,7 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:93}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:65}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
@@ -362,6 +363,9 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 		elif (words[1] != 0) and (get_word_index(words[1], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[1], cursor)):
 			sample[counter] = get_word_index(words[1], cursor)
 			sample_spec[counter] = sample[counter]
+		elif (words[1] == 0) and (words[0] == 'caused' or words[0] == 'causing' or words[0] == 'causes' or words[0] == 'induce'):
+			sample[counter] = get_word_index('cause', cursor)
+			sample_spec[counter] = sample[counter]
 		elif (words[1] == 0) and (get_word_index(words[0], cursor) != UNK_ind) and (sample[counter-1] != get_word_index(words[0], cursor)):
 			sample[counter] = get_word_index(words[0], cursor)
 			sample_spec[counter] = sample[counter]
@@ -382,7 +386,7 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 	sentence['x_train_gen_mask'] = generic_mask
 	sentence['x_train_spec_mask'] = spec_mask
 	sentence['x_train_spec'] = sample_spec
-	print(sentence)
+
 	return sentence
 
 def word2vec_emb_top():
@@ -390,7 +394,6 @@ def word2vec_emb_top():
 	
 	all_conditions_set = None 
 	all_treatments_set = None
-
 
 	query = "select min(ver) from pubmed.sentence_tuples_1_9"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
@@ -401,7 +404,7 @@ def word2vec_emb_top():
 		parallel_word2vec_emb_bottom(old_version)
 		query = "select min(ver) from pubmed.sentence_tuples_1_9"
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
-		break
+		
 
 def emb_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -411,70 +414,124 @@ def emb_calculate(func, args):
 	func(*args)
 
 def batch_word2vec_emb(sentence_tuples_df):
-	# conn,cursor = pg.return_postgres_cursor()
-	# engine = pg.return_sql_alchemy_engine()
+	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
 	sentence_tuples_df['condition_acid'] = None
 	sentence_tuples_df['treatment_acid'] = None
-	print(sentence_tuples_df)
+
 
 	sentence_tuples_df = sentence_tuples_df.apply(apply_get_generic_labelled_data, \
 	 all_conditions_set=None, all_treatments_set=None, axis=1)
+	sentence_tuples_df = sentence_tuples_df[['sentence_id', 'x_train_spec']]
+	sentence_tuples_df.to_sql('w2v_emb_train', engine, schema='ml2', if_exists='append', \
+		index=False, dtype={'x_train_spec' : sqla.types.JSON})
+	
+	cursor.close()
+	conn.close()
+	engine.dispose()
 
-
-	# treatment_candidates_df.to_sql('treatment_recs_staging', engine, schema='ml2', if_exists='append', \
-	#  index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-
-	# cursor.close()
-	# conn.close()
-	# engine.dispose()
 
 def parallel_word2vec_emb_bottom(old_version):
+	new_version = old_version + 1
 	conn,cursor = pg.return_postgres_cursor()
-	number_of_processes = 1
+	number_of_processes = 48
 	task_queue = mp.Queue()
 	pool = []
 	for i in range(number_of_processes):
 		p = mp.Process(target=emb_worker, args=(task_queue,))
 		pool.append(p)
 		p.start()
+	
 	counter = 0
 	query = """
 		select 
 			sentence_id
 			,sentence_tuples
 		from pubmed.sentence_tuples_1_9
-		where ver = %s limit 1"""
+		where ver = %s limit 2000"""
 	sentence_tuples_df = pg.return_df_from_query(cursor, query, \
 				(old_version,), ['sentence_id', 'sentence_tuples'])
 
 	while (counter < number_of_processes) and (len(sentence_tuples_df.index) > 0):
 		params = (sentence_tuples_df,)
-		# print(sentence_tuples_df)
+		
 		task_queue.put((batch_word2vec_emb, params))
-		break
-		# update_query = """
-		# 	set schema 'ml2';
-		# 	UPDATE treatment_candidates_1_9
-		# 	SET ver = %s
-		# 	where sentence_id = ANY(%s) and condition_acid = ANY(%s) and treatment_acid = ANY(%s);
-		# """
-		# sentence_id_list = treatment_candidates_df['sentence_id'].tolist()
-		# condition_acid_list = treatment_candidates_df['condition_acid'].tolist()
-		# treatment_acid_list = treatment_candidates_df['treatment_acid'].tolist()
-		# new_version = old_version + 1
-		# cursor.execute(update_query, (new_version, sentence_id_list, condition_acid_list, treatment_acid_list))
+		
+		sentence_id_list = sentence_tuples_df['sentence_id'].tolist()
 
-		# cursor.connection.commit()
-		# treatment_candidates_df = pg.return_df_from_query(cursor, query, \
-		# 	(old_version,), ['sentence_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+		update_query = """
+			UPDATE pubmed.sentence_tuples_1_9
+			SET ver = %s
+			where sentence_id = ANY(%s);
+		"""
+		cursor.execute(update_query, (new_version, sentence_id_list))
+		cursor.connection.commit()
 
-		# counter += 1
+		query = """
+		select 
+			sentence_id
+			,sentence_tuples
+		from pubmed.sentence_tuples_1_9
+		where ver = %s limit 2000"""
+		sentence_tuples_df = pg.return_df_from_query(cursor, query, \
+					(old_version,), ['sentence_id', 'sentence_tuples'])
+		counter += 1		
 
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
 	for p in pool:
 		p.join()
+
+def build_w2v_embedding():
+	conn,cursor = pg.return_postgres_cursor()
+
+	model = Word2Vec(vector_size=500, window=5, min_count=1, negative=15, epochs=5, workers=20)
+	# sentences = W2VSentenceIterator()
+
+	# model.build_vocab(sentences)
+	# print("build_vocab complete")
+	sentences = W2VSentenceIterator()
+	model.train(total_examples=14867495, epochs=5)
+
+
+	model.save('embedding_500.05.07.bin')
+
+class W2VSentenceIterator:
+	def __init__(self):
+		conn,cursor = pg.return_postgres_cursor()
+		self.conn = conn
+		self.cursor = cursor
+		# self.counter = 0
+		
+		# max_len = "select count(*) as cnt from ml2.w2v_emb_train_w_ver"
+		# max_len = int(pg.return_df_from_query(cursor, max_len, None, ['cnt'])['cnt'].values[0])
+		# self.max_len = max_len
+
+	def __iter__(self):
+		while True:
+			curr_version = "select min(ver) as ver from ml2.w2v_emb_train_w_ver"
+			curr_version = int(pg.return_df_from_query(self.cursor, curr_version, None, ['ver'])['ver'].values[0])
+			sent_query = "select sentence_id, x_train_spec from ml2.w2v_emb_train_w_ver where ver=%s limit 1"
+			sentences_df = pg.return_df_from_query(self.cursor, sent_query, (curr_version,), ['sentence_id', 'x_train_spec'])
+			sentences_list = sentences_df['x_train_spec'].tolist()
+			sentence_id_list = sentences_df['sentence_id'].tolist()
+		
+			# # Need to convert 
+			# for c1,i in enumerate(sentences_list):
+			# 	for c2,j in enumerate(i):
+			# 		sentences_list[c1][c2]=str(j)
+
+			update_query = """
+				UPDATE ml2.w2v_emb_train_w_ver set ver=%s where sentence_id=ANY(%s);
+			"""
+			# self.cursor.execute(update_query, (curr_version+1, sentence_id_list))
+			# self.cursor.connection.commit()
+			# self.counter += 1
+			# print(sentences_list)
+			yield sentences_list[0]
+			
+
 
 # used for analyzing sentence
 def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
@@ -593,7 +650,7 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, 'gen')
 
 def gen_datasets_mp(new_version):
-	number_of_processes = 40
+	number_of_processes = 48
 	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
@@ -678,7 +735,7 @@ def analyze_sentence(model_name, sentence, condition_id):
 	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, True, True)
 	
 	model = load_model(model_name)
-	print(sentence_tuples_df)
+
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
@@ -694,6 +751,7 @@ def analyze_sentence(model_name, sentence, condition_id):
 			sample_gen,sample_spec, mask = get_labelled_data_sentence_generic_v2_custom(sentence_tuples_df, condition_id, word[1], \
 				all_conditions_set, all_treatments_set)
 			sample_gen_arr = np.array([sample_gen])
+			print(sample_gen_arr)
 			# sample_spec_arr = np.array([sample_spec])
 			# mask_arr = np.array([mask])
 
@@ -770,27 +828,50 @@ def print_contingency(model_name):
 
 if __name__ == "__main__":
 	
-	# sentence = "Montelukast as a treatment for eosinophilic esophagitis"
+	# sentence = "Montelukast as a treatment for acute interstitial nephritis"
 	# sentence = "metoprolol improves cough in severe acute interstitial nephritis caused by amiodarone"
 	# sentence = "Rare allergic reaction of the kidney: sitagliptin-induced acute tubulointerstitial nephritis"
 	# sentence = "Acute Interstitial Nephritis Associated with Sofosbuvir and Daclatasvir"
-	# sentence = sentence.lower()
-	# model_name = 'gen_500_24.hdf5'
+	# sentence = "Acute Interstitial Nephritis caused by Sofosbuvir and Daclatasvir"
+	# sentence = "Acute Interstitial Nephritis associated with Sofosbuvir"
+	# sentence = "Sofosbuvir and Daclatasvir causes Acute Interstitial Nephritis"
+	sentence = "Amiodarone induced acute interstitial nephritis"
+	# sentence = "amiodarone for acute interstitial nephritis"
+	sentence = sentence.lower()
+	model_name = 'gen_500_07.hdf5'
 
+	# 8 can get the associated with concept
+	condition_id = '10609'
+	analyze_sentence(model_name, sentence, condition_id)
 
-	# condition_id = '10609'
-	# analyze_sentence(model_name, sentence, condition_id)
+	# word2vec_emb_top()
+	# build_w2v_embedding()
 
-	word2vec_emb_top()
+	
 
+	# sent_query = "select sentence_id, x_train_spec from ml2.w2v_emb_train_w_ver where ver=%s limit 1"
+	# sentences_df = pg.return_df_from_query(cursor, sent_query, (0,), ['sentence_id', 'x_train_spec'])
+	# sentences_list = sentences_df['x_train_spec'].tolist()
+	# sentence_id_list = sentences_df['sentence_id'].tolist()
+		
+		# # Need to convert 
+	# for c1,i in enumerate(sentences_list):
+	# 	for c2,j in enumerate(i):
+	# 		sentences_list[c1][c2]=str(j)
+	# print(sentences_list)
 
+	# model = Word2Vec(vector_size=500, window=5, min_count=1, negative=15, epochs=5, workers=20)
+	# model.build_vocab(sentences_list)
+	# print(model)
 	# parallel_treatment_recategorization_top('../double-19.hdf5')
 	# parallel_treatment_recategorization_top('emb_300_generic_40.hdf5')
 
 
 	# gen_datasets_mp(1)
 
+	
 	# conn, cursor = pg.return_postgres_cursor()
+
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()

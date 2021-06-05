@@ -7,7 +7,7 @@ create table base_concept_types as (
 		ac.acid :: varchar(40) as root_acid
 		,concept_type :: text as rel_type
 		,1 as active
-		,now() :: timestamp as effectivetime
+		,'2000-12-16 11:15:33.438623' :: timestamp as effectivetime
 		from (
 			select
 			conceptid
@@ -19,6 +19,7 @@ create table base_concept_types as (
 					when supertypeid = '49755003' then 'condition' --therapeutic diet
 				when supertypeid = '226077000' then 'treatment' --therapeutic diet
 				when supertypeid = '105958000' then 'treatment'
+				when supertypeid = '105590001' then 'treatment' -- substance
 				when supertypeid = '373873005' then 'treatment' -- pharmaceutical / biologic product
 				when supertypeid = '417176000' then 'treatment' -- growth substance
 				when supertypeid = '17948008' then 'treatment' -- hematopoietic factor

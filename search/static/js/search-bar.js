@@ -333,6 +333,7 @@ $(document).ready(function() {
           'Arthritis Rheumatol': null,
           'Am. J. Med.': null,
           'JAMA Otolaryngol Head Neck Surg': null,
+          'J Am Coll Cardiol' : null,
         },
         limit: Infinity,
         minLength: 1

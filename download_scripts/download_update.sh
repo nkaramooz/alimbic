@@ -1,13 +1,13 @@
 # !/bin/bash
 
-rm ~/Documents/alimbic/resources/pubmed_update/ftp.ncbi.nlm.nih.gov/* -r
-csfd=$(python get_update_filenames.py)
-for i in $csfd
-do
-wget ftp://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/$i
-done
-gunzip ./*.gz || exit 1
-mv -f ./*.xml ~/Documents/alimbic/resources/pubmed_update/ftp.ncbi.nlm.nih.gov/
+# rm ~/Documents/alimbic/resources/pubmed_update/ftp.ncbi.nlm.nih.gov/* -r
+# csfd=$(python get_update_filenames.py)
+# for i in $csfd
+# do
+# wget ftp://ftp.ncbi.nlm.nih.gov/pubmed/updatefiles/$i
+# done
+# gunzip ./*.gz || exit 1
+# mv -f ./*.xml ~/Documents/alimbic/resources/pubmed_update/ftp.ncbi.nlm.nih.gov/
 
 
 echo "start pubmed_processor"

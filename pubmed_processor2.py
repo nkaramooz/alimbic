@@ -660,13 +660,13 @@ if __name__ == "__main__":
 	# 	load_pubmed_local_2(start_num, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov/pubmed/updatefiles')
 
 	start_file = get_start_file_num()
-	end_file = 1063
-	# end_file = get_update_end_file_num(start_file) + 1
+	# end_file = 1063
+	end_file = get_update_end_file_num(start_file) + 1
 
 	while (start_file < end_file):
 		print(start_file)
-		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		# load_pubmed_local_2(start_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
 		start_file += 5
 
 	

@@ -257,16 +257,16 @@ def post_concept_override(request):
 		message = ""
 		query = """
 			select
-				source_acid as item
+				child_acid as item
 				,t3.term as item_name
-				,destination_acid as parent
+				,parent_acid as parent
 				,t2.term as parent_name
-			from snomed2.full_relationship_acid t1
-			join annotation2.downstream_root_did t2
-			on t1.destination_acid = t2.acid
-			join annotation2.downstream_root_did t3
-			on t1.source_acid = t3.acid
-			where source_acid = %s
+			from snomed2.transitive_closure_acid t1
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+			on t1.parent_acid = t2.acid
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+			on t1.child_acid = t3.acid
+			where child_acid = %s
 		"""
 		df = pg.return_df_from_query(cursor, query, (acid,), ['item', 'item_name', 'parent', 'parent_name'])
 		if len(df.index) == 0:
@@ -276,16 +276,16 @@ def post_concept_override(request):
 
 		query = """
 			select
-				source_acid as child
+				child_acid as child
 				,t3.term as child_name
-				,destination_acid as item
+				,parent_acid as item
 				,t2.term as item_name
-			from snomed2.full_relationship_acid t1
-			join annotation2.downstream_root_did t2
-			on t1.destination_acid = t2.acid
-			join annotation2.downstream_root_did t3
-			on t1.source_acid = t3.acid
-			where destination_acid = %s
+			from snomed2.transitive_closure_acid t1
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+			on t1.parent_acid = t2.acid
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+			on t1.child_acid = t3.acid
+			where parent_acid = %s
 		"""
 		df = pg.return_df_from_query(cursor, query, (acid,), ['child', 'child_name', 'item', 'item_name'])
 
@@ -600,7 +600,7 @@ def post_search_text(request):
 						 "size" : 25, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
+						 	,["title_cids^10", "abstract_conceptids.*^1.4"], cursor)}
 			
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
@@ -890,7 +890,7 @@ def get_query(full_conceptid_list, unmatched_terms, query_types_list, journals, 
 								 "query" : get_concept_query_string(full_conceptid_list)}}], \
 							"should": \
 								[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]}}, \
-								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2000"}}}, "weight" : 1.4}]}
+								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "1990"}}}, "weight" : 1.4}]}
 
 	else:
 		# Unmatched terms need to be formatted for lucene
@@ -903,7 +903,7 @@ def get_query(full_conceptid_list, unmatched_terms, query_types_list, journals, 
 						"should": \
 							[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]
 						}}, \
-						"functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "2000"}}}, "weight" : 1.4}]}
+						"functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "1990"}}}, "weight" : 1.4}]}
 
 	if (len(journals) > 0) or start_year or end_year:
 		d = []
@@ -1061,15 +1061,15 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 
 	title_match_cids_df = pd.DataFrame()
 	t = u2.Timer('scroller')
-	while scroller.has_next:
-	# counter = 0
-	# while counter < 2:
+	# while scroller.has_next:
+	counter = 0
+	while counter < 2:
 		article_list = scroller.next()
 		if article_list is not None: 
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
-		# counter += 1
+		counter += 1
 	t.stop()
 	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
 	filter_concepts = ['11220']
