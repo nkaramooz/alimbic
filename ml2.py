@@ -103,12 +103,12 @@ def get_word_from_ind(index):
 def train_data_generator_v2(batch_size, cursor):
 
 	while True:
-		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.train_sentences", \
+		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.train_sentences_limited", \
 			None, ['ver'])['ver'][0])
 
 		new_version = curr_version + 1
 		
-		query = "select id, x_train_gen, x_train_spec, x_train_gen_mask, x_train_spec_mask, label from ml2.train_sentences where ver = %s limit %s"
+		query = "select id, x_train_gen, x_train_spec, x_train_gen_mask, x_train_spec_mask, label from ml2.train_sentences_limited where ver = %s limit %s"
 		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'x_train_gen_mask', 'x_train_spec_mask', 'label'])
 
 		x_train_gen = train_df['x_train_gen'].tolist()
@@ -122,7 +122,7 @@ def train_data_generator_v2(batch_size, cursor):
 		try:
 			id_df = train_df['id'].tolist()
 			query = """
-				UPDATE ml2.train_sentences
+				UPDATE ml2.train_sentences_limited
 				SET ver = %s
 				where id = ANY(%s);
 			"""
@@ -146,9 +146,9 @@ def train_with_rnn(max_cnt):
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	lstm_model = LSTM(500, recurrent_dropout=0.4, return_sequences=True)(model_gen_emb)
-	lstm_model = LSTM(500, recurrent_dropout=0.4, return_sequences=True)(lstm_model)
-	lstm_model = LSTM(300, recurrent_dropout=0.2)(lstm_model)
+	lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(model_gen_emb)
+	lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(lstm_model)
+	lstm_model = LSTM(300, recurrent_dropout=0.3)(lstm_model)
 	lstm_model = Dropout(0.3)(lstm_model)
 	lstm_model = Dense(300)(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
@@ -170,23 +170,23 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:65}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:70}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
 
-def update_rnn(model_name):
+def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=300
-	batch_size = 1000
-	num_epochs = 20
+	batch_size = 300
+	num_epochs = 10
 	model = load_model(model_name)
 
-	checkpointer = ModelCheckpoint(filepath='./emb_256_generic_update{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./emb_500_update_{epoch:02d}.hdf5', verbose=1)
 
 	
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:65}, steps_per_epoch =((4900263//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:10}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
 	
@@ -211,7 +211,7 @@ def parallel_treatment_recategorization_top(model_name):
 
 def parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set):
 	conn,cursor = pg.return_postgres_cursor()
-	number_of_processes = 48
+	number_of_processes = 40
 
 	task_queue = mp.Queue()
 
@@ -289,10 +289,10 @@ def apply_get_generic_labelled_data(row, all_conditions_set, all_treatments_set)
 def apply_score(row, model):
 	gen = np.array([row['x_train_gen']])
 	# spec = np.array([row['x_train_spec']])
-	mask = np.array([row['x_train_mask']])
+	# mask = np.array([row['x_train_mask']])
 
 
-	res = float(model.predict([gen,mask])[0][0])
+	res = float(model.predict([gen])[0][0])
 	return res
 
 
@@ -827,7 +827,7 @@ def print_contingency(model_name):
 
 
 if __name__ == "__main__":
-	
+	# caused by and associated with not working well
 	# sentence = "Montelukast as a treatment for acute interstitial nephritis"
 	# sentence = "metoprolol improves cough in severe acute interstitial nephritis caused by amiodarone"
 	# sentence = "Rare allergic reaction of the kidney: sitagliptin-induced acute tubulointerstitial nephritis"
@@ -835,14 +835,22 @@ if __name__ == "__main__":
 	# sentence = "Acute Interstitial Nephritis caused by Sofosbuvir and Daclatasvir"
 	# sentence = "Acute Interstitial Nephritis associated with Sofosbuvir"
 	# sentence = "Sofosbuvir and Daclatasvir causes Acute Interstitial Nephritis"
-	sentence = "Amiodarone induced acute interstitial nephritis"
+	# sentence = "Amiodarone induced acute interstitial nephritis"
+	# sentence = "acute interstitial nephritis caused by amiodarone"
 	# sentence = "amiodarone for acute interstitial nephritis"
-	sentence = sentence.lower()
-	model_name = 'gen_500_07.hdf5'
+	
+	# sentence = "acute interstitial nephritis associated with aerosolized pentamidine"
+	# sentence = "hepatic and splenic blush on computed tomography in children following blunt force acute interstitial nephritis"
+	# sentence = "Acute interstitial nephritis induced by midazolam and abolished by flumazenil"
+	# sentence = "Acute interstitial nephritis resolved after with ipecac"
+	# sentence = "Effect of dexamethasone on complication rate and mortality in patients with acute interstitial nephritis"
+	# sentence = sentence.lower()
+	# model_name = 'emb_500_update_04.hdf5'
+	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
-	condition_id = '10609'
-	analyze_sentence(model_name, sentence, condition_id)
+	# condition_id = '10609'
+	# analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -864,7 +872,7 @@ if __name__ == "__main__":
 	# model.build_vocab(sentences_list)
 	# print(model)
 	# parallel_treatment_recategorization_top('../double-19.hdf5')
-	# parallel_treatment_recategorization_top('emb_300_generic_40.hdf5')
+	parallel_treatment_recategorization_top('emb_500_update_04.hdf5')
 
 
 	# gen_datasets_mp(1)
@@ -876,6 +884,6 @@ if __name__ == "__main__":
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()
 	# conn.close()
-
+	# update_rnn('gen_500_20.hdf5', max_cnt)
 	# train_with_rnn(max_cnt)
 	# print_contingency('gen_500_24.hdf5')

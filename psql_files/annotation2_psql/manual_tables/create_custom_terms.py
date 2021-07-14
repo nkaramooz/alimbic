@@ -8,6 +8,7 @@ custom_term_synonym_dict = {
 	,'agent' : 'drug'
 	,'antagonist' : 'blocker'
 	,'antagonist' : 'antagonism'
+	,'antagonist' : 'inhibitor'
 	,'blocker' : 'blockade'
 	,'blocker' : 'antagonist'
 	,'therapy' : 'agent'
@@ -46,6 +47,11 @@ custom_term_synonym_dict = {
 	,'heart' : 'cardiac'
 	,'transplant' : 'transplantation'
 	,'blocker' : 'blockade'
+	,'ulcer' : 'ulceration'
+	,'venous thromboembolism' : 'VTE'
+	,'deep venous thrombosis' : 'DVT'
+	,'Epidermal growth factor receptor' : 'EGFR'
+	,'clavulanic acid' : 'clavulanate'
 
 }
 
@@ -83,6 +89,30 @@ def create_custom_phrases():
 	cursor.close()
 	conn.close()
 
+def repair_of_phrases():
+	conn,cursor = pg.return_postgres_cursor()
+	query = """
+		insert into annotation2.custom_terms
+		select
+			public.uuid_generate_v4() as did
+			,t1.acid
+			,t1.term
+			,now() as effectivetime
+		from (
+			select
+				acid 
+				,concat(replace(lower(term), 'repair of ', ''), ' repair') as term
+			from annotation2.downstream_root_did where term ilike 'repair of %'
+		) t1
+		left join (select term from annotation2.downstream_root_did) t2
+			on t1.term = lower(t2.term)
+		ON CONFLICT (acid, term) DO NOTHING
+	"""
+	cursor.execute(query, None)
+	cursor.connection.commit()
+	cursor.close()
+	conn.close()
+
 # def create_custom_terms():
 # 	conn,cursor = pg.return_postgres_cursor()
 
@@ -115,4 +145,5 @@ def create_custom_phrases():
 
 if __name__ == "__main__":
 	create_custom_phrases()
+	repair_of_phrases()
 	# create_custom_terms()

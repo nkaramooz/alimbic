@@ -42,8 +42,8 @@ INSERT INTO treatment_candidates_1_9
 ;
 
 
-update pubmed.sentence_tuples_1_9 set ver=1 where ver != 1;
-update pubmed.sentence_annotations_1_9 set ver=1 where ver != 1;
-update pubmed.sentence_concept_arr_1_9 set ver=1 where ver != 1;
+-- update pubmed.sentence_tuples_1_9 set ver=1;
+-- update pubmed.sentence_annotations_1_9 set ver=1;
+-- update pubmed.sentence_concept_arr_1_9 set ver=1;
 
 

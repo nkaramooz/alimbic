@@ -42,8 +42,32 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Br J Cancer', '0007-0920', 'Print'),
 	('Br J Cancer', '1532-1827', 'Electronic'),
 	('Eur J Cancer', '0959-8049', 'Print'),
-	('Eur J Cancer', '1879-0852', 'Electronic')
+	('Eur J Cancer', '1879-0852', 'Electronic'),
+	('Clin J Gastroenterol', '1865-7257', 'Print'),
+	('Clin J Gastroenterol', '1865-7265', 'Electronic'),
+	('Clin J Gastroenterol', '1865-7257', 'Print'),
+	('Clin J Gastroenterol', '1865-7265', 'Electronic'),
+	('Clin Gastroenterol Hepatol', '1542-3565', 'Print'),
+	('Clin Gastroenterol Hepatol', '1542-7714', 'Electronic'),
+	('Am J Gastroenterol', '0002-9270', 'Print'),
+	('Am J Gastroenterol', '1572-0241', 'Electronic'),
+	('World J Surg Oncol', '1477-7819', 'Electronic'),
+	('Australas Radiol', '0004-8461', 'Print'),
+	('Australas Radiol', '1440-1673', 'Electronic'),
+	('Rev Urol', '1523-6161', 'Print'),
+	('Rev Urol', '2153-8182', 'Electronic'),
+	('Nat Clin Pract Urol', '1743-4270', 'Print'),
+	('Nat Clin Pract Urol', '1743-4289', 'Electronic'),
+	('Indian J Orthop', '0019-5413', 'Print'),
+	('Indian J Orthop', '1998-3727', 'Electronic'),
+	('Am J Manag Care', '1088-0224', 'Print'),
+	('Am J Manag Care', '1936-2692', 'Electronic'),
+	('Prim Care', '0095-4543', 'Print'),
+	('Prim Care', '1558-299X', 'Electronic'),
+	('Pediatr Rev', '0191-9601', 'Print'),
+	('Pediatr Rev', '1526-3347', 'Electronic'),
+	('PLoS One', '1932-6203', 'Electronic')
 	;
 
--- create index add_journals_issn_ind on additional_journals(issn);
--- create index add_journals_iso_abbrev_ind on additional_journals(iso_abbrev);
+create index add_journals_issn_ind on additional_journals(issn);
+create index add_journals_iso_abbrev_ind on additional_journals(iso_abbrev);

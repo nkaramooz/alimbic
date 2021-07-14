@@ -103,6 +103,14 @@ def get_lemmas(ln_words, case_sensitive):
 				w = 'have'
 			elif w == 'cause' or w == 'causing' or w == 'causes' or w == 'caused':
 				w = 'cause'
+			elif w == 'computed' or w == 'computing' or w=='computes':
+				w='compute'
+			elif w == 'whiting':
+				pass
+			elif w=='pylori':
+				pass
+			elif w=='enrolling' or w=='enroll' or w=='enrolled' or w=='enrolls':
+				w='enroll'
 			else:
 				w = lmtzr.lemmatize(w, pos_tag[i])
 
@@ -578,11 +586,6 @@ def get_all_words_list(text):
 		words = line.split()
 
 		for index,w in enumerate(words):
-			if w.upper() != w:
-				w = w.lower()
-
-			if w.lower() != 'vs':
-				w = lmtzr.lemmatize(w)
 
 			if w not in all_words:
 				all_words.append(w)
@@ -701,6 +704,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 								,adid
 								,case when acid='-1' then term else acid end as final_ann
 							from ln_df
+							group by sentence_id,section,section_ind,ln_num, description_start_index, description_end_index, final_ann
 						"""
 						sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
 
@@ -887,27 +891,32 @@ if __name__ == "__main__":
 	query79="Indication for immunotherapy includes evidence of IgE mediated disease"
 	query80="Randomized controlled trials of patients with acute myocardial infarction"
 	query81="right and left"
-	conn, cursor = pg.return_postgres_cursor()
+	query82="hepatic and splenic blush on computed tomography in children following blunt force acute interstitial nephritis"
+	query83="White matter lesions (WMLs) are commonly found on brain MRI of migraine patients"
+	query84="Helicobacter pylori"
+	# conn, cursor = pg.return_postgres_cursor()
 
-
+	
 	counter = 0
+	# print(clean_text("Dysphagia")
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query81
-		# term = "Randomized controlled trials (RCT) of patients with acute myocardial infarction"
+		term = query84
+
 		term = clean_text(term)
 
 		all_words = get_all_words_list(term)
-
+		print(all_words)
 		cache = get_cache(all_words, True)
 
-		sentences_df = pd.DataFrame([['Randomized controlled trials (RCT) of patients with acute myocardial infarction', 'title', 0,0]], \
+		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
 			columns=['line', 'section', 'section_ind', 'ln_num'])
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
 		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True)
 		u.pprint(g['sentence_tuples'].tolist())
-		# d.stop()
+		u.pprint(res)
+
 		counter += 1
 	
 	
