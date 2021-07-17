@@ -52,6 +52,7 @@ custom_term_synonym_dict = {
 	,'deep venous thrombosis' : 'DVT'
 	,'Epidermal growth factor receptor' : 'EGFR'
 	,'clavulanic acid' : 'clavulanate'
+	,'antimuscarinic drug' : 'muscarinic receptor antagonist'
 
 }
 

@@ -68,8 +68,8 @@ def get_all_conditions_set():
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
+
 def get_all_treatments_set():
-	
 	query = "select root_acid from annotation2.concept_types where rel_type='treatment' and active=1"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
@@ -86,6 +86,7 @@ def get_word_index(word, cursor):
 	else:
 		return int(ind_df['rn'][0])
 
+
 def get_word_from_ind(index):
 	if index == UNK_ind:
 		return 'UNK'
@@ -94,10 +95,6 @@ def get_word_from_ind(index):
 		query = "select word from ml2.word_counts_50k where rn = %s limit 1"
 		word_df = pg.return_df_from_query(cursor, query, (index,), ['word'])
 		return str(word_df['word'][0])
-
-
-
-
 
 
 def train_data_generator_v2(batch_size, cursor):
@@ -174,7 +171,6 @@ def train_with_rnn(max_cnt):
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
-
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=300
@@ -189,24 +185,87 @@ def update_rnn(model_name, max_cnt):
 	 epochs=num_epochs, class_weight={0:1, 1:10}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
-	
 
-def parallel_treatment_recategorization_top(model_name):
+def gen_treatment_predictions_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
-	
-	all_conditions_set = get_all_conditions_set() 
-	all_treatments_set = get_all_treatments_set()
-
-
-	query = "select min(ver) from ml2.treatment_candidates_1_9"
+	query = "select min(ver) from ml2.treatment_dataset_staging"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
 
 	while curr_version != new_version:
-		parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set)
-		query = "select min(ver) from ml2.treatment_candidates_1_9"
+		gen_treatment_predictions_bottom(model_name, old_version, conn, cursor)
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
+	conn.close()
+	cursor.close()
+
+
+def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
+	number_of_processes = 4
+
+	task_queue = mp.Queue()
+
+	pool = []
+	for i in range(number_of_processes):
+		p = mp.Process(target=recat_worker, args=(task_queue,))
+		pool.append(p)
+		p.start()
+
+	counter = 0
+
+	query = """
+		select 
+			entry_id
+			,x_train_gen
+			,condition_acid
+			,treatment_acid
+			,sentence_tuples
+		from ml2.treatment_dataset_staging
+		where ver = %s limit 1000
+	"""
+
+	treatment_candidates_df = pg.return_df_from_query(cursor, query, \
+				(old_version,), ['entry_id','x_train_gen', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+
+	while (counter < number_of_processes) and (len(treatment_candidates_df.index) > 0):
+		params = (model_name, treatment_candidates_df)
+		task_queue.put((batch_treatment_predictions, params))
+
+		update_query = """
+			set schema 'ml2';
+			UPDATE ml2.treatment_dataset_staging
+			SET ver = %s
+			where entry_id = ANY(%s);
+		"""
+
+		entry_id_list = treatment_candidates_df['entry_id'].tolist()
+		new_version = old_version + 1
+		cursor.execute(update_query, (new_version, entry_id_list))
+		cursor.connection.commit()
+		treatment_candidates_df = pg.return_df_from_query(cursor, query, \
+			(old_version,), ['entry_id', 'x_train_gen', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+
+		counter += 1
+
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	for p in pool:
+		p.join()
+	
+
+def batch_treatment_predictions(model_name, treatment_candidates_df):
+	model = load_model(model_name)
+	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
+
+	treatment_candidates_df['score'] = treatment_candidates_df.apply(apply_score, model=model, axis=1)
+	treatment_candidates_df.to_sql('treatment_recs_staging', engine, schema='ml2', if_exists='append', \
+	 index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+
+	cursor.close()
+	conn.close()
+	engine.dispose()
 
 
 def parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set):
@@ -225,16 +284,16 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 
 	query = """
 		select 
-			sentence_id
+			entry_id
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_candidates_1_9
+		from ml2.treatment_candidates_with_entry_id
 
 		where ver = %s limit 5000"""
 
 	treatment_candidates_df = pg.return_df_from_query(cursor, query, \
-				(old_version,), ['sentence_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+				(old_version,), ['entry_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
 
 	while (counter < number_of_processes) and (len(treatment_candidates_df.index) > 0):
 		params = (model_name, treatment_candidates_df, all_conditions_set, all_treatments_set)
@@ -242,9 +301,9 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 
 		update_query = """
 			set schema 'ml2';
-			UPDATE treatment_candidates_1_9
+			UPDATE treatment_candidates_with_entry_id
 			SET ver = %s
-			where sentence_id = ANY(%s) and condition_acid = ANY(%s) and treatment_acid = ANY(%s);
+			where entry_id = ANY(%s);
 		"""
 
 		# update_query = """
@@ -254,15 +313,13 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 		# 	where sentence_id = ANY(%s) and treatment_acid = ANY(%s);
 		# """
 
-		sentence_id_list = treatment_candidates_df['sentence_id'].tolist()
-		condition_acid_list = treatment_candidates_df['condition_acid'].tolist()
-		treatment_acid_list = treatment_candidates_df['treatment_acid'].tolist()
+		entry_id_list = treatment_candidates_df['entry_id'].tolist()
 		new_version = old_version + 1
-		cursor.execute(update_query, (new_version, sentence_id_list, condition_acid_list, treatment_acid_list))
-		# cursor.execute(update_query, (new_version, sentence_id_list, treatment_acid_list))
+		cursor.execute(update_query, (new_version, entry_id_list))
+
 		cursor.connection.commit()
 		treatment_candidates_df = pg.return_df_from_query(cursor, query, \
-			(old_version,), ['sentence_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+			(old_version,), ['entry_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
 
 		counter += 1
 
@@ -300,8 +357,6 @@ def batch_treatment_recategorization(model_name, treatment_candidates_df, all_co
 	model = load_model(model_name)
 	conn,cursor = pg.return_postgres_cursor()
 	engine = pg.return_sql_alchemy_engine()
-	conditions_set = get_all_conditions_set()
-	treatments_set = get_all_treatments_set()
 
 	treatment_candidates_df = treatment_candidates_df.apply(apply_get_generic_labelled_data, \
 	 all_conditions_set=all_conditions_set, all_treatments_set=all_treatments_set, axis=1)
@@ -389,147 +444,6 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 
 	return sentence
 
-def word2vec_emb_top():
-	conn,cursor = pg.return_postgres_cursor()
-	
-	all_conditions_set = None 
-	all_treatments_set = None
-
-	query = "select min(ver) from pubmed.sentence_tuples_1_9"
-	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
-	old_version = new_version-1
-	curr_version = old_version
-
-	while curr_version != new_version:
-		parallel_word2vec_emb_bottom(old_version)
-		query = "select min(ver) from pubmed.sentence_tuples_1_9"
-		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
-		
-
-def emb_worker(input):
-	for func,args in iter(input.get, 'STOP'):
-		emb_calculate(func, args)
-
-def emb_calculate(func, args):
-	func(*args)
-
-def batch_word2vec_emb(sentence_tuples_df):
-	conn,cursor = pg.return_postgres_cursor()
-	engine = pg.return_sql_alchemy_engine()
-	sentence_tuples_df['condition_acid'] = None
-	sentence_tuples_df['treatment_acid'] = None
-
-
-	sentence_tuples_df = sentence_tuples_df.apply(apply_get_generic_labelled_data, \
-	 all_conditions_set=None, all_treatments_set=None, axis=1)
-	sentence_tuples_df = sentence_tuples_df[['sentence_id', 'x_train_spec']]
-	sentence_tuples_df.to_sql('w2v_emb_train', engine, schema='ml2', if_exists='append', \
-		index=False, dtype={'x_train_spec' : sqla.types.JSON})
-	
-	cursor.close()
-	conn.close()
-	engine.dispose()
-
-
-def parallel_word2vec_emb_bottom(old_version):
-	new_version = old_version + 1
-	conn,cursor = pg.return_postgres_cursor()
-	number_of_processes = 48
-	task_queue = mp.Queue()
-	pool = []
-	for i in range(number_of_processes):
-		p = mp.Process(target=emb_worker, args=(task_queue,))
-		pool.append(p)
-		p.start()
-	
-	counter = 0
-	query = """
-		select 
-			sentence_id
-			,sentence_tuples
-		from pubmed.sentence_tuples_1_9
-		where ver = %s limit 2000"""
-	sentence_tuples_df = pg.return_df_from_query(cursor, query, \
-				(old_version,), ['sentence_id', 'sentence_tuples'])
-
-	while (counter < number_of_processes) and (len(sentence_tuples_df.index) > 0):
-		params = (sentence_tuples_df,)
-		
-		task_queue.put((batch_word2vec_emb, params))
-		
-		sentence_id_list = sentence_tuples_df['sentence_id'].tolist()
-
-		update_query = """
-			UPDATE pubmed.sentence_tuples_1_9
-			SET ver = %s
-			where sentence_id = ANY(%s);
-		"""
-		cursor.execute(update_query, (new_version, sentence_id_list))
-		cursor.connection.commit()
-
-		query = """
-		select 
-			sentence_id
-			,sentence_tuples
-		from pubmed.sentence_tuples_1_9
-		where ver = %s limit 2000"""
-		sentence_tuples_df = pg.return_df_from_query(cursor, query, \
-					(old_version,), ['sentence_id', 'sentence_tuples'])
-		counter += 1		
-
-	for i in range(number_of_processes):
-		task_queue.put('STOP')
-
-	for p in pool:
-		p.join()
-
-def build_w2v_embedding():
-	conn,cursor = pg.return_postgres_cursor()
-
-	model = Word2Vec(vector_size=500, window=5, min_count=1, negative=15, epochs=5, workers=20)
-	# sentences = W2VSentenceIterator()
-
-	# model.build_vocab(sentences)
-	# print("build_vocab complete")
-	sentences = W2VSentenceIterator()
-	model.train(total_examples=14867495, epochs=5)
-
-
-	model.save('embedding_500.05.07.bin')
-
-class W2VSentenceIterator:
-	def __init__(self):
-		conn,cursor = pg.return_postgres_cursor()
-		self.conn = conn
-		self.cursor = cursor
-		# self.counter = 0
-		
-		# max_len = "select count(*) as cnt from ml2.w2v_emb_train_w_ver"
-		# max_len = int(pg.return_df_from_query(cursor, max_len, None, ['cnt'])['cnt'].values[0])
-		# self.max_len = max_len
-
-	def __iter__(self):
-		while True:
-			curr_version = "select min(ver) as ver from ml2.w2v_emb_train_w_ver"
-			curr_version = int(pg.return_df_from_query(self.cursor, curr_version, None, ['ver'])['ver'].values[0])
-			sent_query = "select sentence_id, x_train_spec from ml2.w2v_emb_train_w_ver where ver=%s limit 1"
-			sentences_df = pg.return_df_from_query(self.cursor, sent_query, (curr_version,), ['sentence_id', 'x_train_spec'])
-			sentences_list = sentences_df['x_train_spec'].tolist()
-			sentence_id_list = sentences_df['sentence_id'].tolist()
-		
-			# # Need to convert 
-			# for c1,i in enumerate(sentences_list):
-			# 	for c2,j in enumerate(i):
-			# 		sentences_list[c1][c2]=str(j)
-
-			update_query = """
-				UPDATE ml2.w2v_emb_train_w_ver set ver=%s where sentence_id=ANY(%s);
-			"""
-			# self.cursor.execute(update_query, (curr_version+1, sentence_id_list))
-			# self.cursor.connection.commit()
-			# self.counter += 1
-			# print(sentences_list)
-			yield sentences_list[0]
 			
 
 
@@ -586,6 +500,57 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 	cursor.close()
 	conn.close()
 	return sample_gen, sample_spec, generic_mask
+
+def gen_datasets_mp(new_version):
+	number_of_processes = 48
+	old_version = new_version-1
+	conditions_set = get_all_conditions_set()
+	treatments_set = get_all_treatments_set()
+
+	task_queue = mp.Queue()
+	pool = []
+
+	for i in range(number_of_processes):
+		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set))
+		pool.append(p)
+		p.start()
+
+	conn,cursor = pg.return_postgres_cursor()
+
+	query = """
+			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
+			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
+		"""
+	labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+	
+
+	while len(labels_df.index) > 0:
+		for index,item in labels_df.iterrows():
+			params = (item['condition_acid'], item['treatment_acid'], item['label'])
+			task_queue.put((gen_datasets_mp_bottom, params))
+
+		query = "UPDATE ml2.labelled_treatments set ver = %s where id in %s"
+		cursor.execute(query, (new_version, tuple(labels_df['id'].values.tolist())))
+		cursor.connection.commit()
+
+		query = """
+			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
+		"""
+		labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+		
+		
+	for i in range(number_of_processes):
+		task_queue.put('STOP')
+
+	for p in pool:
+		p.join()
+
+	for p in pool:
+		p.close()
+
+	cursor.close()
+	conn.close()
+
 
 def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set):
 	conn,cursor = pg.return_postgres_cursor()
@@ -649,9 +614,27 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 		sentences_df['label'] = label
 		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, 'gen')
 
-def gen_datasets_mp(new_version):
-	number_of_processes = 48
+
+def gen_treatment_data_top():
+	conn,cursor = pg.return_postgres_cursor()
+	
+	all_conditions_set = get_all_conditions_set() 
+	all_treatments_set = get_all_treatments_set()
+
+
+	query = "select min(ver) from ml2.treatment_candidates_1_9"
+	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
+	curr_version = old_version
+
+	while curr_version != new_version:
+		gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set)
+		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
+
+
+		
+def gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set):
+	number_of_processes = 35
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
 
@@ -665,28 +648,38 @@ def gen_datasets_mp(new_version):
 
 	conn,cursor = pg.return_postgres_cursor()
 
-	query = """
-			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
-			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
+	get_query = """
+		select 
+			entry_id
+			,condition_acid
+			,treatment_acid
+			,sentence_tuples
+		from ml2.treatment_candidates_1_9
+
+		where ver = %s limit 1000"""
+
+	treatment_candidates_df = pg.return_df_from_query(cursor, get_query, \
+				(old_version,), ['entry_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+
+	counter = 0
+
+	while (counter < number_of_processes) and (len(treatment_candidates_df.index) > 0):
+		params = (treatment_candidates_df,)
+		task_queue.put((gen_treatment_dataset, params))
+		update_query = """
+			set schema 'ml2';
+			UPDATE treatment_candidates_1_9
+			SET ver = %s
+			where entry_id = ANY(%s);
 		"""
-	labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
-	
-
-	while len(labels_df.index) > 0:
-		for index,item in labels_df.iterrows():
-			params = (item['condition_acid'], item['treatment_acid'], item['label'])
-			task_queue.put((gen_datasets_mp_bottom, params))
-
-		query = "UPDATE ml2.labelled_treatments set ver = %s where id in %s"
-		cursor.execute(query, (new_version, tuple(labels_df['id'].values.tolist())))
+		cursor.execute(update_query, (new_version, treatment_candidates_df['entry_id'].values.tolist(), ))
 		cursor.connection.commit()
 
-		query = """
-			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
-		"""
-		labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
-		
-		
+		treatment_candidates_df = pg.return_df_from_query(cursor, get_query, \
+				(old_version,), ['entry_id', 'condition_acid', 'treatment_acid', 'sentence_tuples'])
+
+		counter += 1
+
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
@@ -699,12 +692,29 @@ def gen_datasets_mp(new_version):
 	cursor.close()
 	conn.close()
 
+def gen_treatment_dataset(treatment_candidates_df, all_conditions_set, all_treatments_set):
+	conn,cursor = pg.return_postgres_cursor()
+	engine = pg.return_sql_alchemy_engine()
+
+	treatment_candidates_df = treatment_candidates_df.apply(apply_get_generic_labelled_data, \
+	 all_conditions_set=all_conditions_set, all_treatments_set=all_treatments_set, axis=1)
+	treatment_candidates_df['ver'] = 0
+	treatment_candidates_df.to_sql('treatment_dataset_staging', engine, schema='ml2', if_exists='append', \
+	 index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON})
+
+	cursor.close()
+	conn.close()
+	engine.dispose()
+
+
 def gen_dataset_worker(input, conditions_set, treatments_set):
 	for func,args in iter(input.get, 'STOP'):
 		gen_dataset_calculate(func, args, conditions_set, treatments_set)
 
+
 def gen_dataset_calculate(func, args, conditions_set, treatments_set):
 	func(*args, conditions_set, treatments_set)
+
 
 def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, write_type):
 	conn,cursor = pg.return_postgres_cursor()
@@ -726,8 +736,8 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 		conn.close()
 		engine.dispose()
 
-def analyze_sentence(model_name, sentence, condition_id):
 
+def analyze_sentence(model_name, sentence, condition_id):
 	term = ann2.clean_text(sentence)
 	all_words = ann2.get_all_words_list(term)
 	cache = ann2.get_cache(all_words, False)
@@ -739,8 +749,6 @@ def analyze_sentence(model_name, sentence, condition_id):
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
-	
-
 	final_res = []
 
 	for ind,word in enumerate(sentence_tuples_df['sentence_tuples'][0]):
@@ -750,6 +758,7 @@ def analyze_sentence(model_name, sentence, condition_id):
 
 			sample_gen,sample_spec, mask = get_labelled_data_sentence_generic_v2_custom(sentence_tuples_df, condition_id, word[1], \
 				all_conditions_set, all_treatments_set)
+			# t1= [49996,1709,1271,1289,12,500,6,49999,9,49998,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 			sample_gen_arr = np.array([sample_gen])
 			print(sample_gen_arr)
 			# sample_spec_arr = np.array([sample_spec])
@@ -781,8 +790,6 @@ def print_contingency(model_name):
 	zero_one = 0
 	one_zero = 0
 	one_one = 0
-
-
 
 	for ind,item in sentences_df.iterrows():
 		x_train_gen = np.array([item['x_train_gen']])
@@ -844,6 +851,9 @@ if __name__ == "__main__":
 	# sentence = "Acute interstitial nephritis induced by midazolam and abolished by flumazenil"
 	# sentence = "Acute interstitial nephritis resolved after with ipecac"
 	# sentence = "Effect of dexamethasone on complication rate and mortality in patients with acute interstitial nephritis"
+	# sentence = "Enteral nutrition tube placement assisted by ultrasonography in patients with acute interstitial nephritis"
+	# sentence = "acute interstitial nephritis following catheter ablation for atrial fibrillation"
+	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
 	# sentence = sentence.lower()
 	# model_name = 'emb_500_update_04.hdf5'
 	# model_name = 'gen_500_20.hdf5'
@@ -872,9 +882,11 @@ if __name__ == "__main__":
 	# model.build_vocab(sentences_list)
 	# print(model)
 	# parallel_treatment_recategorization_top('../double-19.hdf5')
-	parallel_treatment_recategorization_top('emb_500_update_04.hdf5')
 
+	# parallel_treatment_recategorization_top('emb_500_update_04.hdf5')
 
+	# gen_treatment_data_top()
+	# gen_treatment_predictions_top('emb_500_update_04.hdf5')
 	# gen_datasets_mp(1)
 
 	

@@ -29,7 +29,7 @@ class ElasticScroll():
 	def next(self):
 		if not self.initialized:
 			pages = self.es.search(index=INDEX_NAME, scroll='5m', \
-				size=500, request_timeout=100000, body={"query" : self.query})
+				size=500, request_timeout=100000, body=self.query)
 			self.sid = pages['_scroll_id']
 			self.scroll_size = pages['hits']['total']['value']
 			self.initialized = True

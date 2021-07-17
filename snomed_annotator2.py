@@ -111,6 +111,8 @@ def get_lemmas(ln_words, case_sensitive):
 				pass
 			elif w=='enrolling' or w=='enroll' or w=='enrolled' or w=='enrolls':
 				w='enroll'
+			elif w=='fasting':
+				pass
 			else:
 				w = lmtzr.lemmatize(w, pos_tag[i])
 

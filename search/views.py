@@ -633,10 +633,11 @@ def post_search_text(request):
 						 "size" : 100, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
-
+						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
+						 "aggs" : {'tmp' : {"terms" : {"field" : "title_cids"}}}}
+			print(full_query_concepts_list)
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
-
+			# print(sr)
 			# history_query = """
 			# 	select 
 			# 		treatment_json as treatment_dict
@@ -1099,23 +1100,52 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 def get_related_conceptids(query_concept_list, original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor):
 	result_dict = dict()
 	es = es_util.get_es_client()
-	es_query = get_query(query_concept_list, unmatched_terms, query_types_list, \
-						 	filters['journals'], filters['start_year'], filters['end_year']\
-						 	,["title_cids^10", "abstract_conceptids.*^0.5"], cursor)
+
+	# es_query = get_query(query_concept_list, unmatched_terms, query_types_list, \
+	# 					 	filters['journals'], filters['start_year'], filters['end_year']\
+	# 					 	,["title_cids^10", "abstract_conceptids.*^0.5"], cursor)
+
+	t = u2.Timer("aggregates")
+	es_query = {
+						 "size" : 0, \
+						 "query": get_query(query_concept_list, unmatched_terms, query_types_list \
+						 	,filters['journals'], filters['start_year'], filters['end_year'] \
+						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
+						 "aggs" : {'title_cids' : {"terms" : {"field" : "title_cids", "size" : 40000}}}}
+
+	sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+
+	# print(sr['aggregations']['title_cids']['buckets'])
+	tmp_df = pd.DataFrame()
+	# print(sr['aggregations']['title_cids']['buckets'])
+	res = sr['aggregations']['title_cids']['buckets']
+	for i in range(len(res)):
+	# 	print(i)
+	# 	print(j)
+		tmp_df = tmp_df.append(pd.DataFrame([[res[i]['key'],res[i]['doc_count']]], columns=['acid', 'doc_count']))
+	# u2.pprint(tmp_df)
+	t.stop()
+	es_query = { "size" : 0,
+						 "query": get_query(query_concept_list, unmatched_terms, query_types_list \
+						 	,filters['journals'], filters['start_year'], filters['end_year'] \
+						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
+						 "aggs" : {'tmp' : {"terms" : {"field" : "title_cids", "size" : 15}}}}
 
 	scroller = es_util.ElasticScroll(es, es_query)
 
 	title_match_cids_df = pd.DataFrame()
 	t = u2.Timer('scroller')
-	# while scroller.has_next:
-	counter = 0
-	while counter < 2:
+
+	while scroller.has_next:
+	# counter = 0
+	# while counter < 1:
 		article_list = scroller.next()
+
 		if article_list is not None: 
 			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
 		else:
 			break
-		counter += 1
+		# counter += 1
 	t.stop()
 	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
 	filter_concepts = ['11220']
