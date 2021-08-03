@@ -16,7 +16,7 @@ insert into full_relationship_acid
 	,t1.typeid
 	,t1.active
 	from snomed2.full_relationship t1
-	join annotation2.upstream_root_cid t2
+	join annotation.upstream_root_cid t2
 	on t1.sourceid = t2.cid
-	join annotation2.upstream_root_cid t3
+	join annotation.upstream_root_cid t3
 	on t1.destinationid = t3.cid

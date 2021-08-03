@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 drop table if exists concept_counts;
 create table concept_counts(

@@ -58,7 +58,7 @@ def add_new_concept(concept_name, cursor):
 				existing_acid = inactive_conflict_df['acid']
 				error = False
 				query = """
-					insert into annotation2.inactive_concepts (acid, active, effectivetime)
+					insert into annotation.inactive_concepts (acid, active, effectivetime)
 						VALUES(%s, 't', now())
 					"""
 				cursor.execute(query, (existing_acid,))
@@ -68,7 +68,7 @@ def add_new_concept(concept_name, cursor):
 				error = True
 		else:
 			query = """
-				insert into annotation2.new_concepts (cid, did, term, effectivetime)
+				insert into annotation.new_concepts (cid, did, term, effectivetime)
 					VALUES(public.uuid_generate_v4(), public.uuid_generate_v4(), %s, now())
 			"""
 			cursor.execute(query, (concept_name,))
@@ -79,17 +79,17 @@ def add_new_concept(concept_name, cursor):
 	return error, message, conflict_df
 
 def remove_concept(acid, cursor):
-	error = False
+	error = "Complete"
 
 	try:
 		query = """
-			insert into annotation2.inactive_concepts (acid, active, effectivetime)
+			insert into annotation.inactive_concepts (acid, active, effectivetime)
 			VALUES (%s, 'f', now())
 		"""	
-		cursor.execute(query, (acid))
+		cursor.execute(query, (acid,))
 		cursor.connection.commit()
 	except:
-		error = True
+		error = "Error"
 
 	return error
 
@@ -103,7 +103,7 @@ def add_new_description(acid, new_description, cursor):
 	query = """
 		select 
 			acid
-		from annotation2.upstream_root_did
+		from annotation.upstream_root_did
 		where acid = %s
 	"""
 	acid_df = pg.return_df_from_query(cursor, query, (acid,), ['acid'])
@@ -119,7 +119,7 @@ def add_new_description(acid, new_description, cursor):
 				acid
 				,adid
 				,term
-			from annotation2.lemmas
+			from annotation.lemmas
 			where term = %s and acid=%s
 		"""
 		desc_df = pg.return_df_from_query(cursor, query, (new_description,acid), ['acid', 'adid', 'term'])
@@ -132,7 +132,7 @@ def add_new_description(acid, new_description, cursor):
 			# Now you know the acid exists and description does not exist
 			acid = int(acid)
 			query = """
-				insert into annotation2.root_new_desc (did,acid,term,active,effectivetime)
+				insert into annotation.root_new_desc (did,acid,term,active,effectivetime)
 					VALUES(public.uuid_generate_v4(), %s, %s,'t', now())
 			"""
 			cursor.execute(query, (acid, new_description))
@@ -161,7 +161,7 @@ def change_relationship(child_acid, parent_acid, rel_action, cursor):
 	return error, message
 
 def get_cid_from_acid(acid, cursor):
-	query = "select cid from annotation2.downstream_root_cid where acid = %s"
+	query = "select cid from annotation.downstream_root_cid where acid = %s"
 	df = pg.return_df_from_query(cursor,query, (acid,), ['acid'])
 	if len(df.index) > 0:
 		return df['acid'][0]
@@ -172,7 +172,7 @@ def check_acid(acid, cursor):
 	query = """
 		select
 			cid
-		from annotation2.downstream_root_cid
+		from annotation.downstream_root_cid
 		where acid = %s
 	"""
 	df = pg.return_df_from_query(cursor,query, (acid,), ['acid'])
@@ -185,7 +185,7 @@ def check_acid(acid, cursor):
 def change_concept_type(acid, rel_type, state, cursor):
 	if check_acid(acid, cursor):
 		query = """
-			insert into annotation2.concept_types_app
+			insert into annotation.concept_types_app
 				VALUES(%s, %s, %s, now())
 		"""
 		cursor.execute(query, (acid, rel_type, state))
@@ -202,24 +202,24 @@ def change_concept_type(acid, rel_type, state, cursor):
 
 def remove_adid(adid, cursor):
 	# first check to make sure adid exists
-	error = False
+	error = "No error"
 	adid_df = get_existing_adid(adid, cursor)
 
 	if len(adid_df.index) > 0:
 		query = """
-			insert into annotation2.root_desc_inactive(adid,term,active,effectivetime)
+			insert into annotation.root_desc_inactive(adid,term,active,effectivetime)
 				select
 					adid
 					,term
 					,'f' as active
 					,now() as effectivetime
-				from annotation2.lemmas
+				from annotation.lemmas
 				where adid = %s
 		"""
 		cursor.execute(query, (adid,))
 		cursor.connection.commit()
 	else:
-		error = True
+		error = "Error"
 	return error
 
 def add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor):
@@ -266,7 +266,7 @@ def get_existing_adid(adid, cursor):
 	query = """
 		select 
 			adid
-		from annotation2.lemmas
+		from annotation.lemmas
 		where adid = %s
 	"""
 	adid_df = pg.return_df_from_query(cursor, query, (adid,), ['adid'])
@@ -278,7 +278,7 @@ def check_existing_concept(concept_name, cursor):
 			acid
 			,adid
 			,term
-		from annotation2.downstream_root_did
+		from annotation.downstream_root_did
 		where term = %s
 	"""
 	conflict_df = pg.return_df_from_query(cursor, query, (concept_name,), ['acid', 'adid', 'term'])
@@ -291,9 +291,9 @@ def check_inactive_concepts(concept_name, cursor):
 			t1.acid
 			,t2.adid
 			,t2.term
-		from annotation2.inactive_concepts t1
-		left join annotation2.upstream_root_did t2
-		on t1.acid = t2.acid::varchar(36)
+		from annotation.inactive_concepts t1
+		left join annotation.upstream_root_did t2
+		on t1.acid = t2.acid
 		where t2.term = %s
 	"""
 	conflict_df = pg.return_df_from_query(cursor, query, (concept_name,), ['acid', 'adid', 'term'])
@@ -308,7 +308,7 @@ def acronym_override(adid, is_acronym, cursor):
 
 	if len(df.index) > 0:
 		modify_acronym_query = """
-			set schema 'annotation2';
+			set schema 'annotation';
 			INSERT INTO acronym_override (id, adid, is_acronym, effectivetime)
 			VALUES (public.uuid_generate_v4(), %s, %s, now())
 		"""

@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 drop table if exists custom_terms;
 create table if not exists custom_terms (

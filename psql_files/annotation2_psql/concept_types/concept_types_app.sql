@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 create table concept_types_app (
  	 root_acid varchar(40)

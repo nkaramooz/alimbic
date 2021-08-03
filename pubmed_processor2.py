@@ -3087,24 +3087,26 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 		if json_str['journal_pub_year'] is not None:
 
-			if ((int(json_str['journal_pub_year']) >= 1980) and json_str['lang'] != 'fre'):
+			if ((int(json_str['journal_pub_year']) >= 1990) and json_str['lang'] == 'eng'):
 				json_str, article_text = get_article_info_2(elem, json_str)
-				
+					
 				if ' a protocol for ' not in json_str['article_title'].lower() and \
-				 ' protocol for an ' not in json_str['article_title'].lower() and ' protocol for a ' not in json_str['article_title'].lower() \
-				 and 'comment on' not in json_str['article_title'].lower():
+					 ' protocol for an ' not in json_str['article_title'].lower() and \
+					 ' protocol for a ' not in json_str['article_title'].lower() and \
+					 'comment on' not in json_str['article_title'].lower() and \
+					 'corrigendum' not in json_str['article_title'].lower():
 					if (not bool(set(json_str['article_type']) & \
 						set(['Letter', 'Editorial', 'Comment', 'Commentary', 'Biography', 'Patient Education Handout', \
-							'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
-							'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
-							'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
-							'Portrait', 'Video-Audio Media', 'Webcast']))):
-						
+								'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
+								'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
+								'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
+								'Portrait', 'Video-Audio Media', 'Webcast']))):
+							
 						json_str = get_pmid(elem, json_str)
 						json_str = get_article_ids(elem, json_str)					
 						json_str['citations_pmid'] = get_article_citations(elem)
 						pmid = json_str['pmid']
-						
+							
 
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
 						sentence_annotations_df['ver'] = 0
@@ -3118,7 +3120,7 @@ def index_doc_from_elem(elem, filename, issn_list):
 						else:
 							json_str['abstract_conceptids'] = None
 							json_str['abstract_dids'] = None
-						
+							
 						if annotation_dict['title'] is not None:
 							title_cids = annotation_dict['title']['cids']
 							title_dids = annotation_dict['title']['dids']
@@ -3150,16 +3152,16 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 						json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 						json_str['filename'] = filename
-						
+							
 						json_str =json.dumps(json_str)
 						json_obj = json.loads(json_str)
-					
+						
 
 						es = u.get_es_client()
 						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 
 						query_result = es.search(index=INDEX_NAME, body=get_article_query)
-						
+							
 						if query_result['hits']['total']['value'] == 0:
 							try:
 								es.index(index=INDEX_NAME, body=json_obj)
@@ -3204,51 +3206,23 @@ def index_doc_from_elem(elem, filename, issn_list):
 										u.pprint(sentence_annotations_df)
 										u.pprint(sentence_concept_arr_df)
 
-						# Below should delete old annotations and update with new ones in tables
-						# Basically drop segments with that pmid and then append these values						
+							# Below should delete old annotations and update with new ones in tables
+							# Basically drop segments with that pmid and then append these values						
 						elif query_result['hits']['total']['value'] >= 1:
 							article_id = query_result['hits']['hits'][0]['_id']
 							es.index(index=INDEX_NAME, id=article_id, body=json_obj)
-							# conn, cursor = pg.return_postgres_cursor()
-
-							# query = """
-							# 	DELETE FROM pubmed.sentence_tuples
-							# 	where pmid = %s
-							# """
-							# cursor.execute(query, (pmid,))
-							# cursor.connection.commit()
-
-							# query = """
-							# 	DELETE FROM pubmed.sentence_annotations
-							# 	where pmid = %s
-							# """
-							# cursor.execute(query, (pmid,))
-							# cursor.connection.commit()
-
-							# query = """
-							# 	DELETE FROM pubmed.sentence_concept_arr
-							# 	where pmid = %s
-							# """
-							# cursor.execute(query, (pmid,))
-							# cursor.connection.commit()
-							# cursor.close()
-							# conn.close()
+							# I tried to update the tables if repeat article being indexed, but this was slow
+							# As a result, tables and elasticsearch may be slightly incongruent
 				
 
 def load_pubmed_local_2(start_file, end_file, folder_path):
 	es = u.get_es_client()
 	number_of_processes = 48
 
-	# cursors = []
-	# for i in range(number_of_processes):
-	# 	conn, cursor = pg.return_postgres_cursor()
-	# 	cursors.append((conn,cursor))
-
 	task_queue = mp.Queue()
 
 	pool = []
 	for i in range(number_of_processes):
-		# p = mp.Process(target=doc_worker, args=(task_queue, cursors[i][0], cursors[i][1]))
 		p = mp.Process(target=doc_worker, args=(task_queue,))
 		pool.append(p)
 		p.start()
@@ -3692,22 +3666,20 @@ if __name__ == "__main__":
 
 
 
-	# start_file = get_start_file_num()
-	# start_file = 659
-	# end_file = 1062
-
-	# while (start_file <= end_file):
-		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		# load_pubmed_local_2(start_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		# load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
-		# start_file += 5
-
 	start_file = get_start_file_num()
-	end_file = 1259
-	
+	end_file = 1062
+
 	while (start_file <= end_file):
-		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
 		start_file += 5
+
+	# start_file = get_start_file_num()
+	# end_file = 1259
+	
+	# while (start_file <= end_file):
+	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+	# 	start_file += 5
 
 
 

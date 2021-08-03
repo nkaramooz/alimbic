@@ -39,7 +39,7 @@ custom_term_synonym_dict = {
 	,'aortic valve' : 'AV'
 	,'mitral valve' : 'MV'
 	,'percutaneous coronary intervention' : 'PCI'
-	,'angiotensin converting enzyme' : 'ACE'
+	,'angiotensin-converting enzyme' : 'ACE'
 	,'superior mesenteric vein' : 'SMV'
 	,'inferior mesenteric vein' : 'IMV'
 	,'myocardial infarction' : 'MI'
@@ -53,6 +53,7 @@ custom_term_synonym_dict = {
 	,'Epidermal growth factor receptor' : 'EGFR'
 	,'clavulanic acid' : 'clavulanate'
 	,'antimuscarinic drug' : 'muscarinic receptor antagonist'
+	,'varicella-zoster' : 'VZV'
 
 }
 
@@ -61,7 +62,7 @@ def create_custom_phrases():
 
 	for key,value in custom_term_synonym_dict.items():
 		query = """
- 			insert into annotation2.custom_terms
+ 			insert into annotation.custom_terms
 			select 
 				public.uuid_generate_v4() as did
 				,t2.acid
@@ -71,17 +72,17 @@ def create_custom_phrases():
 				(select 
 					acid
 					,adid
-					,replace(lower(term), %s, %s) as term
+					,regexp_replace(lower(term), concat(concat('\m', %s),'\M'), %s, 'g') as term
 				from 
 					(select 
 						acid
 						,adid
 						,term 
-					from annotation2.downstream_root_did 
-					where term ilike concat('%%',%s, '%%')
+					from annotation.downstream_root_did 
+					where term ~* concat(concat('\m', %s), '\M')
 				) t1 
-				where term not ilike concat('%%', %s, '%%')) t2 
-			left join annotation2.downstream_root_did t3 
+				where term not ilike concat(concat('\m', %s), '\M')) t2 
+			left join annotation.downstream_root_did t3 
 				on t2.acid=t3.acid and t2.term=t3.term where t3.term is null
 			ON CONFLICT (acid, term) DO NOTHING
 		"""
@@ -93,7 +94,7 @@ def create_custom_phrases():
 def repair_of_phrases():
 	conn,cursor = pg.return_postgres_cursor()
 	query = """
-		insert into annotation2.custom_terms
+		insert into annotation.custom_terms
 		select
 			public.uuid_generate_v4() as did
 			,t1.acid
@@ -103,9 +104,9 @@ def repair_of_phrases():
 			select
 				acid 
 				,concat(replace(lower(term), 'repair of ', ''), ' repair') as term
-			from annotation2.downstream_root_did where term ilike 'repair of %'
+			from annotation.downstream_root_did where term ilike 'repair of %'
 		) t1
-		left join (select term from annotation2.downstream_root_did) t2
+		left join (select term from annotation.downstream_root_did) t2
 			on t1.term = lower(t2.term)
 		ON CONFLICT (acid, term) DO NOTHING
 	"""
@@ -119,7 +120,7 @@ def repair_of_phrases():
 
 # 	for key,value in custom_word_synonym_dict.items():
 # 		query = """
-# 		insert into annotation2.custom_terms
+# 		insert into annotation.custom_terms
 # 			select 
 # 				t1.did
 # 				,t2.acid
@@ -129,10 +130,10 @@ def repair_of_phrases():
 # 				select 
 # 					public.uuid_generate_v4() as did
 # 					,adid as adid
-# 				from annotation2.lemmas t1
+# 				from annotation.lemmas t1
 # 				where t1.word = %s
 # 			) t1
-# 			join annotation2.lemmas t2
+# 			join annotation.lemmas t2
 # 			on t1.adid = t2.adid
 # 		ON CONFLICT (acid, term) DO NOTHING
 # 		"""

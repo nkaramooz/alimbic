@@ -204,8 +204,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
-			left join annotation2.downstream_root_cid t2
+			from annotation.lemmas t1
+			left join annotation.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where t1.acid = %s
 		"""
@@ -224,8 +224,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
-			left join annotation2.downstream_root_cid t2
+			from annotation.lemmas t1
+			left join annotation.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where adid = %s
 		"""
@@ -244,8 +244,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
-			left join annotation2.downstream_root_cid t2
+			from annotation.lemmas t1
+			left join annotation.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where term_lower = lower(%s)
 		"""
@@ -262,9 +262,9 @@ def post_concept_override(request):
 		# 		,parent_acid as parent
 		# 		,t2.term as parent_name
 		# 	from snomed2.transitive_closure_acid t1
-		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
 		# 	on t1.parent_acid = t2.acid
-		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
 		# 	on t1.child_acid = t3.acid
 		# 	where child_acid = %s
 		# """
@@ -275,9 +275,9 @@ def post_concept_override(request):
 			,destination_acid as parent
 			,t2.term as parent_name
 		from snomed2.full_relationship_acid t1
-		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+		join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
 			on t1.destination_acid = t2.acid
-		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+		join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
 			on t1.source_acid = t3.acid
 		where source_acid = %s and typeid='116680003' and active='1'
 
@@ -295,9 +295,9 @@ def post_concept_override(request):
 		# 		,parent_acid as item
 		# 		,t2.term as item_name
 		# 	from snomed2.transitive_closure_acid t1
-		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
 		# 	on t1.parent_acid = t2.acid
-		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
 		# 	on t1.child_acid = t3.acid
 		# 	where parent_acid = %s
 		# """
@@ -308,9 +308,9 @@ def post_concept_override(request):
 				,destination_acid as item
 				,t3.term as item_name
 			from snomed2.full_relationship_acid t1
-			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+			join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
 				on t1.source_acid = t2.acid
-			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+			join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
 				on t1.destination_acid = t3.acid
 			where destination_acid = %s and typeid='116680003' and active='1'
 
@@ -596,7 +596,7 @@ def post_search_text(request):
 		# if query.upper() != query:
 		query = query.lower()
 
-		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
+		raw_query = "select acid from annotation.lemmas where term_lower=%s limit 1"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["acid"])
 		
 
@@ -700,7 +700,7 @@ def treatment_expansion(treatment_list, condition_list, cursor):
 	# expanded_treatments = ann2.query_expansion(treatment_list, cursor)
 	query = """
 		select t1.treatment_acid
-		from ml2.treatment_recs_final_1 t1
+		from ml2.treatment_recs_final_2 t1
 		where t1.condition_acid in %s and t1.treatment acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in %s)
 	"""
 
@@ -1040,7 +1040,7 @@ def get_flattened_query_concept_list(concept_list):
 def get_query_concept_types_df(flattened_concept_list, cursor):
 	concept_type_query_string = """
 		select root_acid as acid, rel_type as concept_type 
-		from annotation2.concept_types where active=1 and root_acid in %s
+		from annotation.concept_types where active=1 and root_acid in %s
 	"""
 
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
@@ -1059,7 +1059,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 
 			select 
 				treatment_acid
-			from ml2.treatment_recs_final_1
+			from ml2.treatment_recs_final_2
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
 		"""
@@ -1076,7 +1076,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			select 
 				root_acid as acid
 				,rel_type as concept_type
-			from annotation2.concept_types
+			from annotation.concept_types
 			where active=1 and rel_type = %s and root_acid not in (select treatment_acid from ml2.labelled_treatments where label=2)
 		"""
 
@@ -1088,7 +1088,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	else:
 		concept_type_query_string = """
 			select root_cid as acid
-			from annotation2.concept_types
+			from annotation.concept_types
 			where active=1 and rel_type=%s
 
 		"""

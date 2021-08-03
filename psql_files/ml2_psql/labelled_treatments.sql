@@ -44,6 +44,6 @@ insert into labelled_treatments
 	ON CONFLICT DO NOTHING
 ;
 
--- create index labelled_treatments_condition_acid_ind on labelled_treatments(condition_acid);
--- create index labelled_treatments_treatment_acid_ind on labelled_treatments(treatment_acid);
--- create index labelled_treatments_label_ind on labelled_treatments(label);
+create index labelled_treatments_condition_acid_ind on labelled_treatments(condition_acid);
+create index labelled_treatments_treatment_acid_ind on labelled_treatments(treatment_acid);
+create index labelled_treatments_label_ind on labelled_treatments(label);

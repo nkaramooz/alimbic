@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 drop table if exists base_concept_types;
 
@@ -180,7 +180,7 @@ create table base_concept_types as (
 	when term like '%(disorder)%' then 'condition' end as concept_type
 	from snomed2.active_descriptions
 	) f 
-join annotation2.downstream_root_cid ac
+join annotation.downstream_root_cid ac
 on f.conceptid = ac.cid
 where concept_type is not null
 );

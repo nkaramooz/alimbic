@@ -17,7 +17,7 @@ create table test_sentences as (
     	,label
     	,ver
     from ml2.all_training_sentences
-    where rand > 0.999
+    where rand > 0.99
 );
 
 create index if not exists test_sentences_label_ind on test_sentences(label);

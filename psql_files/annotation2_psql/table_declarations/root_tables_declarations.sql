@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 
 drop table if exists upstream_root_cid cascade;
@@ -56,14 +56,14 @@ create index concurrently root_desc_inactive_term_ind on root_desc_inactive(term
 
 drop table if exists inactive_concepts cascade;
 create table inactive_concepts(
-	acid varchar(40) not null
+	acid integer not null
 	,active boolean not null
 	,effectivetime timestamp not null
 );
 create index concurrently inactive_concepts_acid_ind on inactive_concepts(acid);
 
 
-drop table if exists annotation2.new_concepts;
+drop table if exists annotation.new_concepts;
 create table new_concepts(
 	cid varchar(36) not null
 	,did varchar(36) not null
@@ -93,5 +93,5 @@ create table if not exists manual_snomed_ignore (
 );
 create index concurrently manual_snomed_ignore_cid_ind on manual_snomed_ignore(cid);
 
-create sequence annotation2.acid increment by 1 start 1 owned by annotation2.upstream_root_cid.acid;
-create sequence annotation2.adid increment by 1 start 1 owned by annotation2.upstream_root_did.adid;
+create sequence annotation.acid increment by 1 start 1 owned by annotation.upstream_root_cid.acid;
+create sequence annotation.adid increment by 1 start 1 owned by annotation.upstream_root_did.adid;

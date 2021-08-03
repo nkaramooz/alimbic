@@ -188,7 +188,7 @@ def update_rnn(model_name, max_cnt):
 
 def gen_treatment_predictions_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
-	query = "select min(ver) from ml2.treatment_dataset_staging"
+	query = "select min(ver) from ml2.treatment_dataset_subset_staging"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
@@ -220,7 +220,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_dataset_staging
+		from ml2.treatment_dataset_subset_staging
 		where ver = %s limit 1000
 	"""
 
@@ -233,7 +233,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 
 		update_query = """
 			set schema 'ml2';
-			UPDATE ml2.treatment_dataset_staging
+			UPDATE ml2.treatment_dataset_subset_staging
 			SET ver = %s
 			where entry_id = ANY(%s);
 		"""
@@ -686,8 +686,7 @@ def gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_
 	for p in pool:
 		p.join()
 
-	for p in pool:
-		p.close()
+	for p in pool:		p.close()
 
 	cursor.close()
 	conn.close()
@@ -854,13 +853,15 @@ if __name__ == "__main__":
 	# sentence = "Enteral nutrition tube placement assisted by ultrasonography in patients with acute interstitial nephritis"
 	# sentence = "acute interstitial nephritis following catheter ablation for atrial fibrillation"
 	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
-	# sentence = sentence.lower()
-	# model_name = 'emb_500_update_04.hdf5'
+	# sentence = "We report a case of relapse of mucosal acute interstitial nephritis after aggresive immunotherapy for ankylosing spondylitis with requirement for secondary prophylaxis with amphotericin B to prevent reactivation"
+	sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
+	sentence = sentence.lower()
+	model_name = 'emb_500_update_04.hdf5'
 	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
-	# condition_id = '10609'
-	# analyze_sentence(model_name, sentence, condition_id)
+	condition_id = '10609'
+	analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()

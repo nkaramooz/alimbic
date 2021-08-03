@@ -59,17 +59,17 @@ def active_cleaned_selected_concept_descriptions_prelim():
 
 	engine = pg.return_sql_alchemy_engine()
 	desc_df.to_sql('cleaned_selected_descriptions_prelim', engine, \
-		schema='annotation2', if_exists='replace', index=False)
+		schema='annotation', if_exists='replace', index=False)
 
-def active_cleaned_distinct_terms():
-	conn,cursor = pg.return_postgres_cursor()
-	engine = pg.return_sql_alchemy_engine()
-	dist_query = "select distinct on (conceptid, term) \
-		id, conceptid, term from annotation.active_cleaned_selected_concept_descriptions"
-	dist_df = pg.return_df_from_query(cursor, dist_query, None, ["id", "conceptid", "term"])
-	print("query complete")
-	dist_df.to_sql('active_cleaned_selected_concept_descriptions', engine, \
-		schema='annotation', if_exists='replace')
+# def active_cleaned_distinct_terms():
+# 	conn,cursor = pg.return_postgres_cursor()
+# 	engine = pg.return_sql_alchemy_engine()
+# 	dist_query = "select distinct on (conceptid, term) \
+# 		id, conceptid, term from annotation.active_cleaned_selected_concept_descriptions"
+# 	dist_df = pg.return_df_from_query(cursor, dist_query, None, ["id", "conceptid", "term"])
+# 	print("query complete")
+# 	dist_df.to_sql('active_cleaned_selected_concept_descriptions', engine, \
+# 		schema='annotation', if_exists='replace')
 
 
 if __name__ == "__main__":

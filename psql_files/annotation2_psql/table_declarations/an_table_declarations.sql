@@ -1,15 +1,15 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 
--- drop table if exists cleaned_selected_descriptions_prelim cascade;
--- create table cleaned_selected_descriptions_prelim(
---   did varchar(18) not null
---   ,cid varchar(18) not null
---   ,term varchar(400) not null
---   ,PRIMARY KEY(did)
--- );
--- create index concurrently cleaned_selected_descriptions_prelim_did_ind on cleaned_selected_descriptions_prelim(did);
--- create index concurrently cleaned_selected_descriptions_prelim_cid_ind on cleaned_selected_descriptions_prelim(cid);
+drop table if exists cleaned_selected_descriptions_prelim cascade;
+create table cleaned_selected_descriptions_prelim(
+  did varchar(18) not null
+  ,cid varchar(18) not null
+  ,term varchar(400) not null
+  ,PRIMARY KEY(did)
+);
+create index concurrently cleaned_selected_descriptions_prelim_did_ind on cleaned_selected_descriptions_prelim(did);
+create index concurrently cleaned_selected_descriptions_prelim_cid_ind on cleaned_selected_descriptions_prelim(cid);
 
 
 drop table if exists cleaned_selected_descriptions_de_duped;

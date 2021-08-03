@@ -68,7 +68,9 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Pediatr Rev', '1526-3347', 'Electronic'),
 	('PLoS One', '1932-6203', 'Electronic'),
 	('Circ Arrhythm Electrophysiol', '1941-3149', 'Print'),
-	('Circ Arrhythm Electrophysiol', '1941-3084', 'Electronic')
+	('Circ Arrhythm Electrophysiol', '1941-3084', 'Electronic'),
+	('Urol Case Rep', '2214-4420', 'Undetermined'),
+	('J Med Case Rep', '1752-1947', 'Undetermined')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

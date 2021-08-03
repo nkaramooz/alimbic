@@ -3,7 +3,7 @@ set schema 'snomed2';
 insert into active_selected_concepts 
 	select
 		cid
-		, NOW() as effectivetime
+		,now() as effectivetime
 	from snomed2.selected_concepts s
 	join (
 		select id, active 

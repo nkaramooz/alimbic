@@ -32,8 +32,8 @@ def get_new_candidate_df(word, case_sensitive):
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation2.lemmas tb1
-			join annotation2.first_word tb2
+			from annotation.lemmas tb1
+			join annotation.first_word tb2
 			  on tb1.adid = ANY(tb2.adid_agg)
 			where tb2.word in %s
 		"""
@@ -50,8 +50,8 @@ def get_new_candidate_df(word, case_sensitive):
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation2.lemmas tb1
-			join annotation2.first_word tb2
+			from annotation.lemmas tb1
+			join annotation.first_word tb2
 			  on tb1.adid = ANY(tb2.adid_agg)
 			where lower(tb2.word) in %s
 		"""
@@ -422,7 +422,7 @@ def add_names(results_df):
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
-		search_query = "select acid, term from annotation2.preferred_concept_names \
+		search_query = "select acid, term from annotation.preferred_concept_names \
 			where acid in %s"
 
 		params = (tuple(results_df['acid']),)
@@ -512,63 +512,64 @@ def get_concept_synonyms_df_from_series(conceptid_series, cursor):
 
 def query_expansion(conceptid_series, cursor):
 	conceptid_tup = tuple(conceptid_series.tolist())
+	if len(conceptid_tup) > 0:
+		child_query = """
+			select 
+				child_acid
+				,parent_acid
+			from (
+				select
+					parent_acid,
+	    			child_acid,
+	    			cnt,
+	    			row_number() over (partition by parent_acid order by cnt desc) as rn
+				from
+				(
+					select 
+						parent_acid
+	            		,child_acid
+	            		,ct.cnt
+					from (
+						select child_acid, parent_acid
+						from snomed2.transitive_closure_acid where parent_acid in %s
+					) tb1
+					join annotation.concept_counts ct
+			  		on tb1.child_acid = ct.concept
+	    		) tb2
+			) tb3
+			where rn <= 50
 
+		"""
 
-	child_query = """
-		select 
-			child_acid
-			,parent_acid
-		from (
-			select
-				parent_acid,
-    			child_acid,
-    			cnt,
-    			row_number() over (partition by parent_acid order by cnt desc) as rn
-			from
-			(
-				select 
-					parent_acid
-            		,child_acid
-            		,ct.cnt
-				from (
-					select child_acid, parent_acid
-					from snomed2.transitive_closure_acid where parent_acid in %s
-				) tb1
-				join annotation2.concept_counts ct
-		  		on tb1.child_acid = ct.concept
-    		) tb2
-		) tb3
-		where rn <= 50
+		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
+			["child_acid", "parent_acid"])
 
-	"""
+		results_list = []
 
-	child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
-		["child_acid", "parent_acid"])
+		for item in conceptid_series:
+			temp_res = [item]
+			added_other = False
+			# JUST CHANGED PARENTHESES location
 
-	results_list = []
+			if len(child_df[child_df['parent_acid'] == item].index) > 0:
+				temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
+				added_other = True
 
-	for item in conceptid_series:
-		temp_res = [item]
-		added_other = False
-		# JUST CHANGED PARENTHESES location
+			if added_other:
+				results_list.append(temp_res)
+			else:
+				results_list.extend(temp_res)
 
-		if len(child_df[child_df['parent_acid'] == item].index) > 0:
-			temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
-			added_other = True
-
-		if added_other:
-			results_list.append(temp_res)
-		else:
-			results_list.extend(temp_res)
-
-	return results_list
+		return results_list
+	else:
+		return []
 
 def get_children(conceptid, cursor):
 	child_query = """
 		select 
 			child_acid
 		from snomed2.transitive_closure_acid tb1
-		left join annotation2.concept_counts tb2
+		left join annotation.concept_counts tb2
 			on tb1.child_acid = tb2.concept
 		where tb1.parent_acid = %s and tb2.cnt is not null
 		order by tb2.cnt desc

@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 drop table if exists concept_types;
 
@@ -30,7 +30,7 @@ insert into concept_types
 				,rel_type
 				,active
 				,effectivetime
-			from annotation2.base_concept_types
+			from annotation.base_concept_types
 
 			union
 
@@ -39,12 +39,12 @@ insert into concept_types
 				,rel_type
 				,active
 				,effectivetime
-			from annotation2.concept_types_app
+			from annotation.concept_types_app
 			) t1
 		) t2
 	where row_num = 1
 ;
 
-create index if not exists concept_types_root_acid_ind on annotation2.concept_types(root_acid);
-create index if not exists concept_types_rel_type_ind on annotation2.concept_types(rel_type);
-create index if not exists concept_types_active_ind on annotation2.concept_types(active);
+create index if not exists concept_types_root_acid_ind on annotation.concept_types(root_acid);
+create index if not exists concept_types_rel_type_ind on annotation.concept_types(rel_type);
+create index if not exists concept_types_active_ind on annotation.concept_types(active);

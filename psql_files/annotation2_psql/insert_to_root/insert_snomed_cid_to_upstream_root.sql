@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 insert into upstream_root_cid
 	select 
@@ -6,7 +6,7 @@ insert into upstream_root_cid
 		,cid
 		,'t' as active
 		,effectivetime
-	from annotation2.cleaned_selected_descriptions_de_duped
-	where cid not in (select cid from annotation2.snomed_cid_ignore)
+	from annotation.cleaned_selected_descriptions_de_duped
+	where cid not in (select cid from annotation.snomed_cid_ignore)
 	ON CONFLICT (cid) DO NOTHING
 ;

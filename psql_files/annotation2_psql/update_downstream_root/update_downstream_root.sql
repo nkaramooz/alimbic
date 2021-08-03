@@ -1,4 +1,4 @@
-set schema 'annotation2';
+set schema 'annotation';
 
 
 drop table if exists downstream_root_cid cascade;
@@ -40,7 +40,7 @@ insert into downstream_root_cid
 			,t1.cid
 			,case when t1.effectivetime < t3.effectivetime then t3.active else t1.active end as active
 			,case when t1.effectivetime < t3.effectivetime then t3.effectivetime else t1.effectivetime end as effectivetime
-		from annotation2.upstream_root_cid t1
+		from annotation.upstream_root_cid t1
 		left join (
 			select 
 				acid
@@ -52,7 +52,7 @@ insert into downstream_root_cid
 					,active
 					,effectivetime
 					,row_number() over (partition by acid order by effectivetime desc) as row_num
-				from annotation2.inactive_concepts
+				from annotation.inactive_concepts
 			) t2
 			where row_num = 1
 		) t3
@@ -78,7 +78,7 @@ insert into downstream_root_did
 			,t1.term
 			,case when t1.effectivetime < t3.effectivetime then t3.active else t1.active end as active
 			,case when t1.effectivetime < t3.effectivetime then t3.effectivetime else t1.effectivetime end as effectivetime
-		from annotation2.upstream_root_did t1
+		from annotation.upstream_root_did t1
 		left join (
 			select 
 				adid
@@ -90,12 +90,12 @@ insert into downstream_root_did
 					,active
 					,effectivetime
 					,row_number () over (partition by adid order by effectivetime desc) as row_num
-				from annotation2.root_desc_inactive
+				from annotation.root_desc_inactive
 				) t2
 			where row_num=1
 		) t3
 		on t1.adid = t3.adid
 	) t4
-	where active='t' and acid not in (select acid from annotation2.downstream_root_cid where active='f')
+	where active='t' and acid not in (select acid from annotation.downstream_root_cid where active='f')
 	ON CONFLICT(did, term) DO NOTHING
 ;
