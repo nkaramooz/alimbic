@@ -6,7 +6,7 @@ create table description_counts (
   ,cnt integer
 );
 
-create index description_counts_adid_ind on annotation2.description_counts(adid);
+create index description_counts_adid_ind on annotation.description_counts(adid);
 
 insert into annotation.description_counts
 	select

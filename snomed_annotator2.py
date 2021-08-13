@@ -387,7 +387,7 @@ def resolve_conflicts(results_df):
 	# 	u.pprint(final_results)
 	# 	u.pprint("STOP")
 	# 	sys.exit(0)
-		# conc_count_query = "select acid, count from annotation2.concept_counts where acid in %s"
+		# conc_count_query = "select acid, count from annotation.concept_counts where acid in %s"
 		# params = (tuple(conflicted_df['acid']),)
 		# cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
 
@@ -590,7 +590,7 @@ def get_all_words_list(text):
 
 		for index,w in enumerate(words):
 
-			if w not in all_words:
+			if w not in all_words and w.strip() != '':
 				all_words.append(w)
 
 	return all_words

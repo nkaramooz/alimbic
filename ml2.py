@@ -63,14 +63,14 @@ b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 
 
 def get_all_conditions_set():
-	query = "select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom') and active=1"
+	query = "select root_acid from annotation.concept_types where (rel_type='condition' or rel_type='symptom') and active=1"
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
 
 def get_all_treatments_set():
-	query = "select root_acid from annotation2.concept_types where rel_type='treatment' and active=1"
+	query = "select root_acid from annotation.concept_types where rel_type='treatment' and active=1"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
@@ -100,12 +100,12 @@ def get_word_from_ind(index):
 def train_data_generator_v2(batch_size, cursor):
 
 	while True:
-		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.train_sentences_limited", \
+		curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.train_sentences", \
 			None, ['ver'])['ver'][0])
 
 		new_version = curr_version + 1
 		
-		query = "select id, x_train_gen, x_train_spec, x_train_gen_mask, x_train_spec_mask, label from ml2.train_sentences_limited where ver = %s limit %s"
+		query = "select id, x_train_gen, x_train_spec, x_train_gen_mask, x_train_spec_mask, label from ml2.train_sentences where ver = %s limit %s"
 		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'x_train_gen_mask', 'x_train_spec_mask', 'label'])
 
 		x_train_gen = train_df['x_train_gen'].tolist()
@@ -119,7 +119,7 @@ def train_data_generator_v2(batch_size, cursor):
 		try:
 			id_df = train_df['id'].tolist()
 			query = """
-				UPDATE ml2.train_sentences_limited
+				UPDATE ml2.train_sentences
 				SET ver = %s
 				where id = ANY(%s);
 			"""
@@ -138,7 +138,7 @@ def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
 	embedding_size=300
-	batch_size = 1000
+	batch_size = 500
 	num_epochs = 20
 
 	model_input_gen = Input(shape=(max_words,))
@@ -147,7 +147,7 @@ def train_with_rnn(max_cnt):
 	lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(lstm_model)
 	lstm_model = LSTM(300, recurrent_dropout=0.3)(lstm_model)
 	lstm_model = Dropout(0.3)(lstm_model)
-	lstm_model = Dense(300)(lstm_model)
+	lstm_model = Dense(100)(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
 	
 	model = Model(inputs=[model_input_gen], outputs=[pred])
@@ -517,11 +517,12 @@ def gen_datasets_mp(new_version):
 
 	conn,cursor = pg.return_postgres_cursor()
 
-	query = """
+	get_query = """
 			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
-			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
+			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) 
+			and treatment_acid in (select root_acid from annotation.concept_types where rel_type='treatment') limit %s
 		"""
-	labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+	labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 	
 
 	while len(labels_df.index) > 0:
@@ -529,14 +530,11 @@ def gen_datasets_mp(new_version):
 			params = (item['condition_acid'], item['treatment_acid'], item['label'])
 			task_queue.put((gen_datasets_mp_bottom, params))
 
-		query = "UPDATE ml2.labelled_treatments set ver = %s where id in %s"
-		cursor.execute(query, (new_version, tuple(labels_df['id'].values.tolist())))
+		update_query = "UPDATE ml2.labelled_treatments set ver = %s where id in %s"
+		cursor.execute(update_query, (new_version, tuple(labels_df['id'].values.tolist())))
 		cursor.connection.commit()
 
-		query = """
-			select t1.id, condition_acid, treatment_acid, label, ver from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) limit %s
-		"""
-		labels_df = pg.return_df_from_query(cursor, query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+		labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 		
 		
 	for i in range(number_of_processes):
@@ -569,9 +567,9 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.section_ind
 							,t1.pmid
 						from pubmed.sentence_concept_arr_1_9 t1
-						join (select root_acid as condition_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
+						join (select root_acid as condition_acid from annotation.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
-						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
+						join (select acid as treatment_acid from annotation.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
 						join pubmed.sentence_tuples_1_9 t4
 							on t1.sentence_id = t4.sentence_id
@@ -596,9 +594,9 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 					,t1.section_ind
 					,t1.pmid
 				from pubmed.sentence_concept_arr_1_9 t1
-				join (select acid as condition_acid from annotation2.downstream_root_cid where acid in %s) t2
+				join (select acid as condition_acid from annotation.downstream_root_cid where acid in %s) t2
 					on t2.condition_acid = ANY(t1.concept_arr::text[])
-				join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
+				join (select acid as treatment_acid from annotation.downstream_root_cid where acid in %s) t3
 					on t3.treatment_acid = ANY(t1.concept_arr::text[])
 				join pubmed.sentence_tuples_1_9 t4
 					on t1.sentence_id = t4.sentence_id
@@ -854,14 +852,14 @@ if __name__ == "__main__":
 	# sentence = "acute interstitial nephritis following catheter ablation for atrial fibrillation"
 	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
 	# sentence = "We report a case of relapse of mucosal acute interstitial nephritis after aggresive immunotherapy for ankylosing spondylitis with requirement for secondary prophylaxis with amphotericin B to prevent reactivation"
-	sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
-	sentence = sentence.lower()
-	model_name = 'emb_500_update_04.hdf5'
+	# sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
+	# sentence = sentence.lower()
+	# model_name = 'emb_500_update_04.hdf5'
 	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
-	condition_id = '10609'
-	analyze_sentence(model_name, sentence, condition_id)
+	# condition_id = '10609'
+	# analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -891,12 +889,12 @@ if __name__ == "__main__":
 	# gen_datasets_mp(1)
 
 	
-	# conn, cursor = pg.return_postgres_cursor()
+	conn, cursor = pg.return_postgres_cursor()
 
-	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
-	# 		None, ['cnt'])['cnt'][0])
-	# cursor.close()
-	# conn.close()
+	max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
+			None, ['cnt'])['cnt'][0])
+	cursor.close()
+	conn.close()
 	# update_rnn('gen_500_20.hdf5', max_cnt)
-	# train_with_rnn(max_cnt)
+	train_with_rnn(max_cnt)
 	# print_contingency('gen_500_24.hdf5')

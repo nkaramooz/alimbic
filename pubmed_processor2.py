@@ -3089,19 +3089,21 @@ def index_doc_from_elem(elem, filename, issn_list):
 
 			if ((int(json_str['journal_pub_year']) >= 1990) and json_str['lang'] == 'eng'):
 				json_str, article_text = get_article_info_2(elem, json_str)
-					
-				if ' a protocol for ' not in json_str['article_title'].lower() and \
+				
+				# Some abstracts in Pubmed don't have titles
+				# Exclude protocols 
+				if (json_str['article_title'] is not None and json_str['article_title'] != '') and ('a protocol for ' not in json_str['article_title'].lower() and \
 					 ' protocol for an ' not in json_str['article_title'].lower() and \
 					 ' protocol for a ' not in json_str['article_title'].lower() and \
 					 'comment on' not in json_str['article_title'].lower() and \
-					 'corrigendum' not in json_str['article_title'].lower():
+					 'corrigendum' not in json_str['article_title'].lower()):
 					if (not bool(set(json_str['article_type']) & \
 						set(['Letter', 'Editorial', 'Comment', 'Commentary', 'Biography', 'Patient Education Handout', \
 								'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
 								'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
 								'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
 								'Portrait', 'Video-Audio Media', 'Webcast']))):
-							
+						
 						json_str = get_pmid(elem, json_str)
 						json_str = get_article_ids(elem, json_str)					
 						json_str['citations_pmid'] = get_article_citations(elem)
@@ -3321,7 +3323,7 @@ def get_abstract_conceptids_2(abstract_dict, article_text):
 	all_words = ann2.get_all_words_list(cleaned_text)
 		
 	cache = ann2.get_cache(all_words, True)
-	
+
 	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache)
 	sentence_annotations_df['pmid'] = abstract_dict['pmid']
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
@@ -3666,20 +3668,21 @@ if __name__ == "__main__":
 
 
 
-	start_file = get_start_file_num()
-	end_file = 1062
-
-	while (start_file <= end_file):
-		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
-		start_file += 5
-
 	# start_file = get_start_file_num()
-	# end_file = 1259
-	
+	# start_file=797
+	# end_file = 1062
+
 	# while (start_file <= end_file):
-	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
 	# 	start_file += 5
+
+	start_file = get_start_file_num()
+	end_file = 1371
+	
+	while (start_file <= end_file):
+		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		start_file += 5
 
 
 
