@@ -36,7 +36,7 @@ def update_lemmas():
 			,word_ord
 			,term_length
 			,is_acronym 
-		from annotation.add_adid_acronym
+		from annotation2.add_adid_acronym
 		"""
 	conn, cursor = pg.return_postgres_cursor()
 
@@ -47,10 +47,10 @@ def update_lemmas():
 	engine = pg.return_sql_alchemy_engine()
 
 	new_candidate_df.to_sql('lemmas', \
-		engine, schema='annotation', if_exists='replace', index=False)
+		engine, schema='annotation2', if_exists='replace', index=False)
 
 	index_query = """
-		set schema 'annotation';
+		set schema 'annotation2';
 		create index lemmas_cid_ind on lemmas(acid);
 		create index lemmas_did_ind on lemmas(adid);
 		create index lemmas_term_ind on lemmas(term);

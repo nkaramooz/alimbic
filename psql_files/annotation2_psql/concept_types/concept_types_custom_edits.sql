@@ -1,36 +1,36 @@
 -- inactivate or activate certain branches of graph
 
-insert into annotation2.concept_types_app
-	select 
-		child_acid as acid
-		,'diagnostic' as rel_type
-		,0 as active
-		,now() as effectivetime
-	from snomed2.transitive_closure_acid 
-	where parent_acid='14122'
-;
-
-
-insert into annotation2.concept_types_app
-	VALUES 
-	('14122', 'diagnostic', 0, now())
-;
-
-
 -- insert into annotation2.concept_types_app
 -- 	select 
 -- 		child_acid as acid
--- 		,'treatment' as rel_type
+-- 		,'diagnostic' as rel_type
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='345359'
+-- 	where parent_acid='14122'
 -- ;
 
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('345359', 'treatment', 0, now())
+-- 	('14122', 'diagnostic', 0, now())
+-- ;
+
+
+insert into annotation2.concept_types_app
+	select 
+		child_acid as acid
+		,'treatment' as rel_type
+		,0 as active
+		,now() as effectivetime
+	from snomed2.transitive_closure_acid 
+	where parent_acid='317969'
+;
+
+
+-- insert into annotation2.concept_types_app
+-- 	VALUES 
+-- 	('317969', 'treatment', 0, now())
 -- ;
 
 -- insert into annotation2.concept_types_app
@@ -77,7 +77,7 @@ insert into annotation2.concept_types_app
 -- ;
 
 
--- insert into annotation2.concept_types_app
+-- insert into annotation.concept_types_app
 -- 	VALUES 
 -- 	('107780', 'anatomy', 0, now())
 -- ;

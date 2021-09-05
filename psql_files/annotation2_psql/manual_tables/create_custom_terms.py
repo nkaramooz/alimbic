@@ -11,14 +11,11 @@ custom_term_synonym_dict = {
 	,'antagonist' : 'inhibitor'
 	,'blocker' : 'blockade'
 	,'blocker' : 'antagonist'
-	,'therapy' : 'agent'
 	,'regurgitation' : 'insufficiency'
 	,'transplantation' : 'transplant'
 	,'vagus' : 'vagal'
 	,'and' : 'plus'
 	,'hypokinetic' : 'hypokinesis'
-	,'with' : 'and'
-	,'and' : 'with'
 	,'myeloid' : 'myelogenous'
 	,'staphylococcus' : 'staph'
 	,'streptococcus' : 'strep'
@@ -46,7 +43,6 @@ custom_term_synonym_dict = {
 	,'acute myocardial infarction' : 'AMI'
 	,'heart' : 'cardiac'
 	,'transplant' : 'transplantation'
-	,'blocker' : 'blockade'
 	,'ulcer' : 'ulceration'
 	,'venous thromboembolism' : 'VTE'
 	,'deep venous thrombosis' : 'DVT'
@@ -54,6 +50,7 @@ custom_term_synonym_dict = {
 	,'clavulanic acid' : 'clavulanate'
 	,'antimuscarinic drug' : 'muscarinic receptor antagonist'
 	,'varicella-zoster' : 'VZV'
+	,'echocardiography' : 'echocardiogram'
 
 }
 
@@ -62,7 +59,7 @@ def create_custom_phrases():
 
 	for key,value in custom_term_synonym_dict.items():
 		query = """
- 			insert into annotation.custom_terms
+ 			insert into annotation2.custom_terms
 			select 
 				public.uuid_generate_v4() as did
 				,t2.acid
@@ -78,15 +75,17 @@ def create_custom_phrases():
 						acid
 						,adid
 						,term 
-					from annotation.downstream_root_did 
+					from annotation2.downstream_root_did 
 					where term ~* concat(concat('\m', %s), '\M')
+					and term not ilike concat('%%', %s, '%%', %s)
+
 				) t1 
-				where term not ilike concat(concat('\m', %s), '\M')) t2 
-			left join annotation.downstream_root_did t3 
+			) t2 
+			left join annotation2.downstream_root_did t3 
 				on t2.acid=t3.acid and t2.term=t3.term where t3.term is null
 			ON CONFLICT (acid, term) DO NOTHING
 		"""
-		cursor.execute(query, (key,value,key,value))
+		cursor.execute(query, (key, value, key, key, key))
 		cursor.connection.commit()
 	cursor.close()
 	conn.close()
@@ -94,7 +93,7 @@ def create_custom_phrases():
 def repair_of_phrases():
 	conn,cursor = pg.return_postgres_cursor()
 	query = """
-		insert into annotation.custom_terms
+		insert into annotation2.custom_terms
 		select
 			public.uuid_generate_v4() as did
 			,t1.acid
@@ -104,9 +103,9 @@ def repair_of_phrases():
 			select
 				acid 
 				,concat(replace(lower(term), 'repair of ', ''), ' repair') as term
-			from annotation.downstream_root_did where term ilike 'repair of %'
+			from annotation2.downstream_root_did where term ilike 'repair of %'
 		) t1
-		left join (select term from annotation.downstream_root_did) t2
+		left join (select term from annotation2.downstream_root_did) t2
 			on t1.term = lower(t2.term)
 		ON CONFLICT (acid, term) DO NOTHING
 	"""
@@ -115,35 +114,6 @@ def repair_of_phrases():
 	cursor.close()
 	conn.close()
 
-# def create_custom_terms():
-# 	conn,cursor = pg.return_postgres_cursor()
-
-# 	for key,value in custom_word_synonym_dict.items():
-# 		query = """
-# 		insert into annotation.custom_terms
-# 			select 
-# 				t1.did
-# 				,t2.acid
-# 				,replace(lower(t2.term), %s, %s) as term
-# 				,now() as effectivetime
-# 			from (
-# 				select 
-# 					public.uuid_generate_v4() as did
-# 					,adid as adid
-# 				from annotation.lemmas t1
-# 				where t1.word = %s
-# 			) t1
-# 			join annotation.lemmas t2
-# 			on t1.adid = t2.adid
-# 		ON CONFLICT (acid, term) DO NOTHING
-# 		"""
-# 		cursor.execute(query, (key, value, key))
-# 		cursor.connection.commit()
-# 	cursor.close()
-# 	conn.close()
-
-# below will only work on descendants of treatments
-# Need relationship by acid built first
 
 if __name__ == "__main__":
 	create_custom_phrases()

@@ -8,6 +8,8 @@ create table test_sentences_subset (
   ,sentence_tuples jsonb
   ,condition_acid varchar(36)
   ,treatment_acid varchar(36)
+  ,og_condition_acid varchar(36)
+  ,og_treatment_acid varchar(36)
   ,section_ind integer
   ,x_train_gen jsonb
   ,x_train_spec jsonb
@@ -24,6 +26,8 @@ insert into ml2.test_sentences_subset
       ,sentence_tuples
       ,condition_acid
       ,treatment_acid
+      ,og_condition_acid
+      ,og_treatment_acid
     	,section_ind
     	,x_train_gen
       ,x_train_spec
@@ -43,6 +47,8 @@ insert into ml2.test_sentences_subset
       ,sentence_tuples
       ,condition_acid
       ,treatment_acid
+      ,og_condition_acid
+      ,og_treatment_acid
     	,section_ind
     	,x_train_gen
       ,x_train_spec

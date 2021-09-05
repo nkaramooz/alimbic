@@ -1,8 +1,17 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 drop table if exists base_concept_types;
 
-create table base_concept_types as (
+
+create table base_concept_types (
+  	root_acid varchar(40)
+	,rel_type text
+	,active integer
+	,effectivetime timestamp
+);
+
+
+insert into base_concept_types
 		select
 		ac.acid :: varchar(40) as root_acid
 		,concept_type :: text as rel_type
@@ -180,7 +189,7 @@ create table base_concept_types as (
 	when term like '%(disorder)%' then 'condition' end as concept_type
 	from snomed2.active_descriptions
 	) f 
-join annotation.downstream_root_cid ac
+join annotation2.downstream_root_cid ac
 on f.conceptid = ac.cid
 where concept_type is not null
 );

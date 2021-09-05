@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 insert into snomed_synonyms
 	select 
@@ -21,8 +21,8 @@ insert into snomed_synonyms
 	    	when t4.supertypeid = '123037004' then 5
 	    	when t4.supertypeid = '363787002' then 6
 	    	else 7 end as syn_rank
-	from annotation.cleaned_selected_descriptions_de_duped t1
-	join annotation.cleaned_selected_descriptions_de_duped t2
+	from annotation2.cleaned_selected_descriptions_de_duped t1
+	join annotation2.cleaned_selected_descriptions_de_duped t2
 	  on t1.term = t2.term and t1.cid != t2.cid
 	join snomed2.curr_transitive_closure_f t3
 	on t1.cid = t3.subtypeid and t3.supertypeid in ('123037004', '404684003', '308916002',
@@ -32,5 +32,5 @@ insert into snomed_synonyms
 	on t2.cid = t4.subtypeid and t4.supertypeid in ('123037004', '404684003', '308916002',
 		'272379006', '363787002', '410607006', '373873005', '78621006', '260787004',
 		'71388002', '362981000', '105590001', '254291000', '123038009', '370115009', '48176007')
-	where t1.did not in (select t5.did from annotation.acronym_override t4 join annotation.upstream_root_did t5 on t4.adid=t5.adid::varchar(36))
+
 ;

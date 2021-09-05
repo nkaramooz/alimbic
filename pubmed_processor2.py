@@ -3098,7 +3098,7 @@ def index_doc_from_elem(elem, filename, issn_list):
 					 'comment on' not in json_str['article_title'].lower() and \
 					 'corrigendum' not in json_str['article_title'].lower()):
 					if (not bool(set(json_str['article_type']) & \
-						set(['Letter', 'Editorial', 'Comment', 'Commentary', 'Biography', 'Patient Education Handout', \
+						set(['Letter', 'Erratum to', 'Editorial', 'Comment', 'Commentary', 'Biography', 'Patient Education Handout', \
 								'News', 'Published Erratum', 'Clinical Trial Protocol', 'Retraction of Publication',\
 								'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
 								'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
@@ -3668,14 +3668,13 @@ if __name__ == "__main__":
 
 
 
-	# start_file = get_start_file_num()
-	# start_file=797
-	# end_file = 1062
+	start_file = get_start_file_num()
+	end_file = 1062
 
-	# while (start_file <= end_file):
-	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
-	# 	start_file += 5
+	while (start_file <= end_file):
+		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
+		start_file += 5
 
 	start_file = get_start_file_num()
 	end_file = 1371

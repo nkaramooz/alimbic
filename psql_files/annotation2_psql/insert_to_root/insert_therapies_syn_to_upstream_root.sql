@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 insert into upstream_root_did
 	select 
@@ -8,8 +8,8 @@ insert into upstream_root_did
 		,t1.term
 		,'t' as active
 		,t1.effectivetime
-	from annotation.therapies_synonyms t1
-	join annotation.upstream_root_cid t2
+	from annotation2.therapies_synonyms t1
+	join annotation2.upstream_root_cid t2
 		on t1.cid = t2.cid
 	ON CONFLICT (acid, term) DO NOTHING
 ;

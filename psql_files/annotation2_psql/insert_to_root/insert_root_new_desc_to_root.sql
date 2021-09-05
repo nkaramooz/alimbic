@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 insert into upstream_root_did
 	select
@@ -23,7 +23,7 @@ insert into upstream_root_did
 				,active
 				,effectivetime
 				,row_number () over (partition by did order by effectivetime desc) as row_num
-			from annotation.root_new_desc
+			from annotation2.root_new_desc
 			) t1
 		where row_num = 1
 	) t2

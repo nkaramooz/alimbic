@@ -14,6 +14,8 @@ create table train_sentences as (
         ,x_train_spec_mask
         ,condition_acid
         ,treatment_acid
+        ,og_condition_acid
+        ,og_treatment_acid
     	,label
     	,ver
     from ml2.all_training_sentences

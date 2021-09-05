@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 
 drop table if exists add_adid_acronym;
@@ -52,7 +52,7 @@ insert into add_adid_acronym
                     ,term
                     ,active
                     ,row_number () over (partition by adid order by effectivetime desc) as row_num 
-                from annotation.downstream_root_did
+                from annotation2.downstream_root_did
                 ) tb, unnest(string_to_array(regexp_replace(regexp_replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(term, ' - ', ' '), '.', ''), '- ', ' '), ' -', ' '), '-', ' '), ',', ''), '''', ''), '   ', ' '), '  ', ' '), '\s+$', ''), '^\s+', ''), ' '))
                 with ordinality as f(word)
             where row_num = 1 and active = '1'
@@ -81,7 +81,7 @@ insert into add_adid_acronym
                         ,term
                         ,active
                         ,row_number () over (partition by adid order by effectivetime desc) as row_num 
-                    from annotation.downstream_root_did
+                    from annotation2.downstream_root_did
                     ) tb
                 where row_num = 1 and active = '1'
                 ) nm
@@ -92,13 +92,13 @@ insert into add_adid_acronym
     left join (
             select 
                 tb3.adid, tb1.is_acronym
-            from annotation.acronym_override tb1
+            from annotation2.acronym_override tb1
             join (
                     select id, row_number() over (partition by adid order by effectivetime desc) as rn_num
-                    from annotation.acronym_override group by id
+                    from annotation2.acronym_override group by id
                 ) tb2 
             on tb1.id = tb2.id
-            join annotation.downstream_root_did tb3
+            join annotation2.downstream_root_did tb3
             on tb1.adid = tb3.adid
             where tb2.rn_num = 1
         ) acr

@@ -9,6 +9,8 @@ create table test_sentences as (
         ,sentence_tuples
         ,condition_acid
         ,treatment_acid
+        ,og_condition_acid
+        ,og_treatment_acid
     	,section_ind
     	,x_train_gen
         ,x_train_spec

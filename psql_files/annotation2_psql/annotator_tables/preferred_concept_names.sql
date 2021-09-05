@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 drop table if exists preferred_concept_names;
 create table preferred_concept_names as (
@@ -14,13 +14,14 @@ create table preferred_concept_names as (
 				tb2.acid
 				,tb1.adid
 				,row_number() over (partition by acid order by cnt desc) as rn_num
-			from annotation.description_counts tb1
-			join annotation.downstream_root_did tb2
+			from annotation2.description_counts tb1
+			join annotation2.downstream_root_did tb2
 			on tb1.adid = tb2.adid
+			where tb2.term != upper(tb2.term) and term not ilike '%therapy therapy'
 			) tb3
 		where rn_num = 1
 		) tb4
-	join annotation.downstream_root_did tb5
+	join annotation2.downstream_root_did tb5
 	on tb5.adid = tb4.adid
 );
 

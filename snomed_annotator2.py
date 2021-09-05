@@ -32,8 +32,8 @@ def get_new_candidate_df(word, case_sensitive):
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation.lemmas tb1
-			join annotation.first_word tb2
+			from annotation2.lemmas tb1
+			join annotation2.first_word tb2
 			  on tb1.adid = ANY(tb2.adid_agg)
 			where tb2.word in %s
 		"""
@@ -50,8 +50,8 @@ def get_new_candidate_df(word, case_sensitive):
 				,word_ord
 				,term_length
 				,is_acronym
-			from annotation.lemmas tb1
-			join annotation.first_word tb2
+			from annotation2.lemmas tb1
+			join annotation2.first_word tb2
 			  on tb1.adid = ANY(tb2.adid_agg)
 			where lower(tb2.word) in %s
 		"""
@@ -422,7 +422,7 @@ def add_names(results_df):
 		return None
 	else:
 		# Using old table since augmented tables include the acronyms
-		search_query = "select acid, term from annotation.preferred_concept_names \
+		search_query = "select acid, term from annotation2.preferred_concept_names \
 			where acid in %s"
 
 		params = (tuple(results_df['acid']),)
@@ -473,7 +473,7 @@ def get_annotated_tuple(c_df):
 		return None
 
 def get_concept_synonyms_list_from_list(concept_list, cursor):
-	query = "select synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
+	query = "select synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
 	synonym_df = pg.return_df_from_query(cursor, query, (tuple(concept_list),), ["synonym_conceptid"])
 	concept_list.extend(synonym_df['synonym_conceptid'].tolist())
 	return list(set(concept_list))
@@ -482,7 +482,7 @@ def get_concept_synonyms_list_from_series(conceptid_series, cursor):
 
 	conceptid_list = tuple(conceptid_series.tolist())
 	
-	query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
+	query = "select reference_conceptid, synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
 
 	synonym_df = pg.return_df_from_query(cursor, query, (conceptid_list,), \
 	 ["reference_conceptid", "synonym_conceptid"])
@@ -503,7 +503,7 @@ def get_concept_synonyms_list_from_series(conceptid_series, cursor):
 
 def get_concept_synonyms_df_from_series(conceptid_series, cursor):
 	conceptid_list = tuple(conceptid_series.tolist())
-	query = "select reference_conceptid, synonym_conceptid from annotation.concept_terms_synonyms where reference_conceptid in %s"
+	query = "select reference_conceptid, synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
 
 	synonym_df = pg.return_df_from_query(cursor, query, (conceptid_list,), \
 	 ["reference_conceptid", "synonym_conceptid"])
@@ -533,7 +533,7 @@ def query_expansion(conceptid_series, cursor):
 						select child_acid, parent_acid
 						from snomed2.transitive_closure_acid where parent_acid in %s
 					) tb1
-					join annotation.concept_counts ct
+					join annotation2.concept_counts ct
 			  		on tb1.child_acid = ct.concept
 	    		) tb2
 			) tb3
@@ -569,7 +569,7 @@ def get_children(conceptid, cursor):
 		select 
 			child_acid
 		from snomed2.transitive_closure_acid tb1
-		left join annotation.concept_counts tb2
+		left join annotation2.concept_counts tb2
 			on tb1.child_acid = tb2.concept
 		where tb1.parent_acid = %s and tb2.cnt is not null
 		order by tb2.cnt desc
@@ -865,7 +865,7 @@ if __name__ == "__main__":
 	query50="Reduced plasma concentrations of nitrogen oxide in individuals with essential hypertension"
 	query51="protein kinase C"
 	query52="Renal replacement therapy"
-	query53="Methotrexate can improve joint pain in rheumatoid arthritis" ## NEED TO FIX THIS. NOT ANNOTATING CORRECTLY
+	query53="Methotrexate can improve joint pain in rheumatoid arthritis"
 	query54="coronavirus disease 2019"
 	query55="glycoside hydrolase (GH) family"
 	query56="Vitamin C sepsis"
@@ -904,7 +904,7 @@ if __name__ == "__main__":
 	# print(clean_text("Dysphagia")
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query84
+		term = query53
 
 		term = clean_text(term)
 

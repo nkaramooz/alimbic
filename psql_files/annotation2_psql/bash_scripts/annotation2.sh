@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "here we go"
-psql -d alimbic -c "drop table annotation.cleaned_selected_descriptions_prelim;"
+psql -d alimbic -c "drop table annotation2.cleaned_selected_descriptions_prelim;"
 echo "running manual_description_filters.py"
 python /home/nkaramooz/Documents/alimbic/manual_description_filters.py
 

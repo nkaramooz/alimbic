@@ -63,14 +63,14 @@ b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 
 
 def get_all_conditions_set():
-	query = "select root_acid from annotation.concept_types where (rel_type='condition' or rel_type='symptom') and active=1"
+	query = "select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom') and active=1"
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
 
 def get_all_treatments_set():
-	query = "select root_acid from annotation.concept_types where rel_type='treatment' and active=1"
+	query = "select root_acid from annotation2.concept_types where rel_type='treatment' and active=1"
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
@@ -114,7 +114,6 @@ def train_data_generator_v2(batch_size, cursor):
 
 
 		y_train = train_df['label'].tolist()
-		
 
 		try:
 			id_df = train_df['id'].tolist()
@@ -137,17 +136,18 @@ def train_data_generator_v2(batch_size, cursor):
 def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
-	embedding_size=300
+	embedding_size=500
 	batch_size = 500
-	num_epochs = 20
+	num_epochs = 25
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(model_gen_emb)
-	lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(lstm_model)
-	lstm_model = LSTM(300, recurrent_dropout=0.3)(lstm_model)
-	lstm_model = Dropout(0.3)(lstm_model)
-	lstm_model = Dense(100)(lstm_model)
+	lstm_model = Bidirectional(LSTM(300, recurrent_dropout=0.3, return_sequences=True))(model_gen_emb)
+	# lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(lstm_model)
+	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.3))(lstm_model)
+	# lstm_model = Dropout(0.3)(lstm_model)
+	lstm_model = Dense(50)(lstm_model)
+	# pred = TimeDistributed(Dense(1))(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
 	
 	model = Model(inputs=[model_input_gen], outputs=[pred])
@@ -160,14 +160,14 @@ def train_with_rnn(max_cnt):
              optimizer='adam', 
              metrics=['accuracy'])
 
-	checkpointer = ModelCheckpoint(filepath='./gen_500_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_{epoch:02d}.hdf5', verbose=1)
 
 	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:70}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:9}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
@@ -188,7 +188,7 @@ def update_rnn(model_name, max_cnt):
 
 def gen_treatment_predictions_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
-	query = "select min(ver) from ml2.treatment_dataset_subset_staging"
+	query = "select min(ver) from ml2.treatment_dataset_staging"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
@@ -220,7 +220,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_dataset_subset_staging
+		from ml2.treatment_dataset_staging
 		where ver = %s limit 1000
 	"""
 
@@ -233,7 +233,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 
 		update_query = """
 			set schema 'ml2';
-			UPDATE ml2.treatment_dataset_subset_staging
+			UPDATE ml2.treatment_dataset_staging
 			SET ver = %s
 			where entry_id = ANY(%s);
 		"""
@@ -520,7 +520,7 @@ def gen_datasets_mp(new_version):
 	get_query = """
 			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
 			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) 
-			and treatment_acid in (select root_acid from annotation.concept_types where rel_type='treatment') limit %s
+			and treatment_acid in (select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) limit %s
 		"""
 	labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 	
@@ -567,15 +567,17 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.section_ind
 							,t1.pmid
 						from pubmed.sentence_concept_arr_1_9 t1
-						join (select root_acid as condition_acid from annotation.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
+						join (select root_acid as condition_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
-						join (select acid as treatment_acid from annotation.downstream_root_cid where acid in %s) t3
+						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
 						join pubmed.sentence_tuples_1_9 t4
 							on t1.sentence_id = t4.sentence_id
 					"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
 				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
+		sentences_df['og_condition_acid'] = '%'
+		sentences_df['og_treatment_acid'] = treatment_acid
 			
 		print("finished query")
 			
@@ -594,16 +596,17 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 					,t1.section_ind
 					,t1.pmid
 				from pubmed.sentence_concept_arr_1_9 t1
-				join (select acid as condition_acid from annotation.downstream_root_cid where acid in %s) t2
+				join (select acid as condition_acid from annotation2.downstream_root_cid where acid in %s) t2
 					on t2.condition_acid = ANY(t1.concept_arr::text[])
-				join (select acid as treatment_acid from annotation.downstream_root_cid where acid in %s) t3
+				join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 					on t3.treatment_acid = ANY(t1.concept_arr::text[])
 				join pubmed.sentence_tuples_1_9 t4
 					on t1.sentence_id = t4.sentence_id
 			"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
 				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
-
+		sentences_df['og_condition_acid'] = condition_acid
+		sentences_df['og_treatment_acid'] = treatment_acid
 
 	cursor.close()
 	conn.close()
@@ -724,7 +727,8 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 
 			sentences_df['ver'] = 0
 			sentences_df = sentences_df[['sentence_id', 'sentence_tuples', 'condition_acid', 'treatment_acid',\
-			 'x_train_gen', 'x_train_gen_mask', 'x_train_spec_mask','x_train_spec', 'label', 'ver']]
+			 'og_condition_acid', 'og_treatment_acid', 'x_train_gen', 'x_train_gen_mask', \
+			 'x_train_spec_mask','x_train_spec', 'label', 'ver']]
 			sentences_df.to_sql('training_sentences_staging', engine, schema='ml2', if_exists='append', index=False, \
 				dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_gen_mask' : sqla.types.JSON, \
 					'x_train_spec_mask' : sqla.types.JSON, 'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
@@ -839,27 +843,39 @@ if __name__ == "__main__":
 	# sentence = "Acute Interstitial Nephritis caused by Sofosbuvir and Daclatasvir"
 	# sentence = "Acute Interstitial Nephritis associated with Sofosbuvir"
 	# sentence = "Sofosbuvir and Daclatasvir causes Acute Interstitial Nephritis"
-	# sentence = "Amiodarone induced acute interstitial nephritis"
+	# sentence = "Amiodarone causes acute interstitial nephritis"
 	# sentence = "acute interstitial nephritis caused by amiodarone"
 	# sentence = "amiodarone for acute interstitial nephritis"
 	
 	# sentence = "acute interstitial nephritis associated with aerosolized pentamidine"
-	# sentence = "hepatic and splenic blush on computed tomography in children following blunt force acute interstitial nephritis"
 	# sentence = "Acute interstitial nephritis induced by midazolam and abolished by flumazenil"
-	# sentence = "Acute interstitial nephritis resolved after with ipecac"
+	# sentence = "Acute interstitial nephritis resolved with ipecac"
 	# sentence = "Effect of dexamethasone on complication rate and mortality in patients with acute interstitial nephritis"
 	# sentence = "Enteral nutrition tube placement assisted by ultrasonography in patients with acute interstitial nephritis"
 	# sentence = "acute interstitial nephritis following catheter ablation for atrial fibrillation"
 	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
-	# sentence = "We report a case of relapse of mucosal acute interstitial nephritis after aggresive immunotherapy for ankylosing spondylitis with requirement for secondary prophylaxis with amphotericin B to prevent reactivation"
 	# sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
-	# sentence = sentence.lower()
-	# model_name = 'emb_500_update_04.hdf5'
+	# sentence = "amiodarone induced acute interstitial nephritis"
+	# sentence = "amiodarone associated with acute interstitial nephritis"
+	# sentence = "amiodarone treats severe acute interstitial nephritis"
+	# sentence = "amiodarone for the management of severe acute interstitial nephritis"
+	# sentence = "incidence of acute interstitial nephritis with valproate and quetiapine combination treatment in subjects with acquired brain injuries"
+	# sentence = "Teaching NeuroImages: Red forehead dot syndrome and acute interstitial nephritis revisited"
+	# sentence = "Psychotropic drug prescribing in acute interstitial nephritis"
+	# sentence = "Effect of ximelagatran on ischemic events and death in patients with acute interstitial nephritis after atrial fibrillation in the efficacy and safety of the oral direct thrombin inhibitor ximelagatran in patients with recent myocardial damage (ESTEEM) trial"
+	# sentence = "Acute interstitial nephritis and organ dysfunction following gastrointestinal surgery"
+	# sentence = "Predictors of mortality in acute interstitial nephritis; focus On the role of right heart catheterization."
+	# sentence = "Acute interstitial nephritis after loop electrosurgical excision procedure"
+	# sentence = "Timing of Renal-Replacement Therapy in Patients with Acute Kidney Injury and acute interstitial nephritis"
+	# sentence = "Adjunctive Glucocorticoid Therapy in Patients with acute interstitial nephritis"
+	sentence = "Acute interstitial nephritis due to omeprazole"
+	sentence = sentence.lower()
+	model_name = 'gen_bidi_500_25.hdf5'
 	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
-	# condition_id = '10609'
-	# analyze_sentence(model_name, sentence, condition_id)
+	condition_id = '10603'
+	analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -870,31 +886,25 @@ if __name__ == "__main__":
 	# sentences_df = pg.return_df_from_query(cursor, sent_query, (0,), ['sentence_id', 'x_train_spec'])
 	# sentences_list = sentences_df['x_train_spec'].tolist()
 	# sentence_id_list = sentences_df['sentence_id'].tolist()
-		
-		# # Need to convert 
-	# for c1,i in enumerate(sentences_list):
-	# 	for c2,j in enumerate(i):
-	# 		sentences_list[c1][c2]=str(j)
-	# print(sentences_list)
 
-	# model = Word2Vec(vector_size=500, window=5, min_count=1, negative=15, epochs=5, workers=20)
-	# model.build_vocab(sentences_list)
-	# print(model)
+
 	# parallel_treatment_recategorization_top('../double-19.hdf5')
 
 	# parallel_treatment_recategorization_top('emb_500_update_04.hdf5')
 
-	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('emb_500_update_04.hdf5')
+
 	# gen_datasets_mp(1)
+	# gen_treatment_data_top()
+	# gen_treatment_predictions_top('gen_bidi_500_25.hdf5')
+
 
 	
-	conn, cursor = pg.return_postgres_cursor()
+	# conn, cursor = pg.return_postgres_cursor()
 
-	max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
-			None, ['cnt'])['cnt'][0])
-	cursor.close()
-	conn.close()
+	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
+	# 		None, ['cnt'])['cnt'][0])
+	# cursor.close()
+	# conn.close()
 	# update_rnn('gen_500_20.hdf5', max_cnt)
-	train_with_rnn(max_cnt)
+	# train_with_rnn(max_cnt)
 	# print_contingency('gen_500_24.hdf5')

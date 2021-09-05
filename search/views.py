@@ -121,20 +121,12 @@ def post_training(request):
 
 
 def is_conceptid(conceptid, cursor):
-	query = "select conceptid from annotation.active_selected_concepts where conceptid =%s "
+	query = "select conceptid from annotation2.active_selected_concepts where conceptid =%s "
 	res = pg.return_df_from_query(cursor, query, (conceptid,), ["conceptid"])
 	if len(res.index) == 1:
 		return True
 	else:
 		return False
-
-def not_in_training_set(condition_id, treatment_id, cursor):
-	query = "select condition_id from annotation.training_sentences where condition_id=%s and treatment_id=%s"
-	res = pg.return_df_from_query(cursor, query, (condition_id, treatment_id), ['condition_id'])
-	if len(res.index) > 0:
-		return False
-	else:
-		return True
 
 
 
@@ -204,8 +196,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation.lemmas t1
-			left join annotation.downstream_root_cid t2
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where t1.acid = %s
 		"""
@@ -224,8 +216,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation.lemmas t1
-			left join annotation.downstream_root_cid t2
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where adid = %s
 		"""
@@ -244,8 +236,8 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation.lemmas t1
-			left join annotation.downstream_root_cid t2
+			from annotation2.lemmas t1
+			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where term_lower = lower(%s)
 		"""
@@ -262,9 +254,9 @@ def post_concept_override(request):
 		# 		,parent_acid as parent
 		# 		,t2.term as parent_name
 		# 	from snomed2.transitive_closure_acid t1
-		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
+		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
 		# 	on t1.parent_acid = t2.acid
-		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
+		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
 		# 	on t1.child_acid = t3.acid
 		# 	where child_acid = %s
 		# """
@@ -275,9 +267,9 @@ def post_concept_override(request):
 			,destination_acid as parent
 			,t2.term as parent_name
 		from snomed2.full_relationship_acid t1
-		join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
+		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
 			on t1.destination_acid = t2.acid
-		join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
+		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
 			on t1.source_acid = t3.acid
 		where source_acid = %s and typeid='116680003' and active='1'
 
@@ -295,9 +287,9 @@ def post_concept_override(request):
 		# 		,parent_acid as item
 		# 		,t2.term as item_name
 		# 	from snomed2.transitive_closure_acid t1
-		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
+		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
 		# 	on t1.parent_acid = t2.acid
-		# 	join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
+		# 	join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
 		# 	on t1.child_acid = t3.acid
 		# 	where parent_acid = %s
 		# """
@@ -308,9 +300,9 @@ def post_concept_override(request):
 				,destination_acid as item
 				,t3.term as item_name
 			from snomed2.full_relationship_acid t1
-			join (select distinct on (acid) acid, term from annotation.downstream_root_did) t2
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
 				on t1.source_acid = t2.acid
-			join (select distinct on (acid) acid, term from annotation.downstream_root_did) t3
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
 				on t1.destination_acid = t3.acid
 			where destination_acid = %s and typeid='116680003' and active='1'
 
@@ -596,7 +588,7 @@ def post_search_text(request):
 		# if query.upper() != query:
 		query = query.lower()
 
-		raw_query = "select acid from annotation.lemmas where term_lower=%s limit 1"
+		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query,), ["acid"])
 		
 
@@ -633,7 +625,7 @@ def post_search_text(request):
 						 "size" : 100, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
+						 	,["title_cids^100", "abstract_conceptids.*^0.5"], cursor), \
 						 "aggs" : {'tmp' : {"terms" : {"field" : "title_cids"}}}}
 			print(full_query_concepts_list)
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
@@ -718,12 +710,12 @@ def get_calcs(query_concepts_df, cursor):
 	concepts = query_concepts_df[query_concepts_df['acid'].notna()].copy()
 	concepts = concepts['acid'].tolist()
 	if len(concepts) > 0:
-		query = "select distinct on (title, t1.description, url) title, t1.description, url from annotation2.mdc_final t1 where acid in %s"
-		calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
+		# query = "select distinct on (title, t1.description, url) title, t1.description, url from annotation2.mdc_final t1 where acid in %s"
+		# calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
 
 		calc_json = []
-		for ind,item in calcs.iterrows():
-			calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
+		# for ind,item in calcs.iterrows():
+		# 	calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
 
 		return calc_json
 	else:
@@ -737,7 +729,7 @@ def rollups(cids_df, cursor):
 				child_acid
 				,parent_acid 
 			from snomed2.transitive_closure_acid 
-			where child_acid in %s and parent_acid in %s 
+			where child_acid in %s and parent_acid in %s
 			"""
 
 		#and parent_acid not in (select parent_acid from snomed2.transitive_closure_acid group by parent_acid having count(*) > 1000)
@@ -1040,7 +1032,7 @@ def get_flattened_query_concept_list(concept_list):
 def get_query_concept_types_df(flattened_concept_list, cursor):
 	concept_type_query_string = """
 		select root_acid as acid, rel_type as concept_type 
-		from annotation.concept_types where active=1 and root_acid in %s
+		from annotation2.concept_types where active=1 and root_acid in %s
 	"""
 
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
@@ -1058,14 +1050,14 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		query = """
 
 			select 
-				treatment_acid
+				distinct(treatment_acid)
 			from ml2.treatment_recs_final_2
 			where condition_acid in %s and treatment_acid not in 
 				(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
+				and treatment_acid in (select root_acid from annotation2.concept_types where active=1 and rel_type='treatment')
 		"""
 
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),), ["acid"])
-
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
 
 		return conceptid_df
@@ -1076,7 +1068,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 			select 
 				root_acid as acid
 				,rel_type as concept_type
-			from annotation.concept_types
+			from annotation2.concept_types
 			where active=1 and rel_type = %s and root_acid not in (select treatment_acid from ml2.labelled_treatments where label=2)
 		"""
 
@@ -1088,7 +1080,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 	else:
 		concept_type_query_string = """
 			select root_cid as acid
-			from annotation.concept_types
+			from annotation2.concept_types
 			where active=1 and rel_type=%s
 
 		"""
@@ -1119,37 +1111,13 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 	tmp_df = pd.DataFrame()
 	# print(sr['aggregations']['title_cids']['buckets'])
 	res = sr['aggregations']['title_cids']['buckets']
-	for i in range(len(res)):
-	# 	print(i)
-	# 	print(j)
-		tmp_df = tmp_df.append(pd.DataFrame([[res[i]['key'],res[i]['doc_count']]], columns=['acid', 'doc_count']))
-	# u2.pprint(tmp_df)
-	t.stop()
-	es_query = { "size" : 0,
-						 "query": get_query(query_concept_list, unmatched_terms, query_types_list \
-						 	,filters['journals'], filters['start_year'], filters['end_year'] \
-						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
-						 "aggs" : {'tmp' : {"terms" : {"field" : "title_cids", "size" : 15}}}}
-
-	scroller = es_util.ElasticScroll(es, es_query)
 
 	title_match_cids_df = pd.DataFrame()
-	t = u2.Timer('scroller')
-
-	while scroller.has_next:
-	# counter = 0
-	# while counter < 1:
-		article_list = scroller.next()
-
-		if article_list is not None: 
-			title_match_cids_df = title_match_cids_df.append(get_title_cids(article_list), sort=False)
-		else:
-			break
-		# counter += 1
+	for i in range(len(res)):
+		title_match_cids_df = title_match_cids_df.append(pd.DataFrame([[res[i]['key'],res[i]['doc_count']]], columns=['acid', 'count']))
 	t.stop()
+	
 	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
-	filter_concepts = ['11220']
-	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(filter_concepts) == False].copy()
 
 	sub_dict = dict()
 	sub_dict['treatment'] = []
@@ -1164,10 +1132,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 		agg_tx = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'treatment')
 
 		if not agg_tx.empty:
-			agg_tx = agg_tx.drop_duplicates(subset=['acid', 'pmid'])
-			agg_tx['count'] = 1
-			agg_tx = agg_tx.groupby(['acid'], as_index=False)['count'].sum()
-
 			agg_tx = ann2.add_names(agg_tx)
 			sub_dict['treatment'] = rollups(agg_tx, cursor)
 
@@ -1175,10 +1139,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 		agg_diagnostic = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'diagnostic')
 
 		if len(agg_diagnostic) > 0:
-			agg_diagnostic = agg_diagnostic.drop_duplicates(subset=['acid', 'pmid'])
-			agg_diagnostic['count'] = 1
-			agg_diagnostic = agg_diagnostic.groupby(['acid'],  as_index=False)['count'].sum()
-			
 			agg_diagnostic = ann2.add_names(agg_diagnostic)
 			sub_dict['diagnostic'] = rollups(agg_diagnostic, cursor)
 			
@@ -1186,9 +1146,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 		agg_cause = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'cause')
 
 		if len(agg_cause) > 0:
-			agg_cause = agg_cause.drop_duplicates(subset=['acid', 'pmid'])
-			agg_cause['count'] = 1
-			agg_cause = agg_cause.groupby(['acid'],  as_index=False)['count'].sum()
 			agg_cause = ann2.add_names(agg_cause)
 			sub_dict['cause'] = rollups(agg_cause, cursor)
 
@@ -1196,9 +1153,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 		agg_condition = get_query_concept_types_df_3(title_match_cids_df, flattened_query_concepts, cursor, 'condition')
 
 		if len(agg_condition) > 0:
-			agg_condition = agg_condition.drop_duplicates(subset=['acid', 'pmid'])
-			agg_condition['count'] = 1
-			agg_condition = agg_condition.groupby(['acid'],  as_index=False)['count'].sum()
 			agg_condition = ann2.add_names(agg_condition)
 			agg_condition = agg_condition.sort_values(['count'], ascending=False)
 
@@ -1239,11 +1193,11 @@ def de_dupe_synonyms_2(df, cursor):
 				end as synonym_conceptid
 			from (
 				select t1.reference_conceptid, t1.reference_term, min(t1.synonym_rank) as mini
-				from annotation.concept_terms_synonyms t1
+				from annotation2.concept_terms_synonyms t1
 				where t1.reference_conceptid in %s
 				group by t1.reference_conceptid, t1.reference_term
 			) t2
-			join annotation.concept_terms_synonyms t3
+			join annotation2.concept_terms_synonyms t3
 			on t2.reference_conceptid = t3.reference_conceptid and t2.mini = t3.synonym_rank
 		) t4
 		"""

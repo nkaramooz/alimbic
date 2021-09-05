@@ -1,4 +1,4 @@
-set schema 'annotation';
+set schema 'annotation2';
 
 insert into upstream_root_did
 	select 
@@ -8,7 +8,7 @@ insert into upstream_root_did
 		,t1.term
 		,'t' as active
 		,t1.effectivetime
-	from annotation.custom_terms t1
+	from annotation2.custom_terms t1
 	ON CONFLICT (acid, term) DO NOTHING
 ;
 

@@ -20,6 +20,8 @@ create table all_training_sentences as (
 		,t1.x_train_spec_mask
 		,t1.condition_acid
 		,t1.treatment_acid
+		,t1.og_condition_acid
+		,t1.og_treatment_acid
 		,t1.ver
 		,t1.label
 		,random() as rand
