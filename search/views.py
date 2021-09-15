@@ -586,7 +586,6 @@ def post_search_text(request):
 		
 
 	elif query_type == 'keyword':
-
 		query = ann2.clean_text(query)
 		
 		original_query_concepts_list = []
@@ -635,21 +634,22 @@ def post_search_text(request):
 	
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 			
-			# print(sr)
-			# history_query = """
-			# 	select 
-			# 		treatment_json as treatment_dict
-			# 		,diagnostic_json as diagnostic_dict
-			# 		,condition_json as condition_dict
-			# 		,cause_json as cause_dict
-			# 	from search.query_logs
-			# 	where query=%s
-			# 	limit 1
-			# """
 
-			# query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
-			# 	['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
+			history_query = """
+				select 
+					treatment_json as treatment_dict
+					,diagnostic_json as diagnostic_dict
+					,condition_json as condition_dict
+					,cause_json as cause_dict
+				from search.query_logs
+				where query=%s
+				limit 1
+			"""
+
+			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
+				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
 			query_logs_df = pd.DataFrame()
+
 			if len(query_logs_df.index) > 0:
 				treatment_dict = query_logs_df['treatment_dict'][0]
 				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
@@ -664,13 +664,11 @@ def post_search_text(request):
 			###UPDATE QUERY BELOW FOR FILTERS
 		else:
 			unmatched_terms = query
-			print(unmatched_terms)
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 
-
 		sr_payload = get_sr_payload(sr['hits']['hits'], flattened_query,unmatched_terms, cursor)
-	
+
 	
 	calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
@@ -743,9 +741,6 @@ def rollups(cids_df, cursor):
 			from snomed2.transitive_closure_acid 
 			where child_acid in %s and parent_acid in %s
 			"""
-
-		#and parent_acid not in (select parent_acid from snomed2.transitive_closure_acid group by parent_acid having count(*) > 1000)
-
 		parents_df = pg.return_df_from_query(cursor, query, params, ["child_acid", "parent_acid"])
 
 		parents_df = parents_df[parents_df['parent_acid'].isin(parents_df['child_acid'].tolist()) == False].copy()
@@ -933,7 +928,6 @@ def get_concept_query_string(full_conceptid_list):
 	return query_string
 
 def get_article_type_query_string(concept_type_list, unmatched_terms):
-	print(concept_type_list)
 	# RCT, meta-analysis, network-meta, cross-over study, case report
 	if 'condition' in concept_type_list and ('treatment' in concept_type_list or 'treatment' in unmatched_terms):
 		return "( 887729^15 OR 887761^7 OR 887749^7 OR 887770^2 OR 887774^2 OR 887763^1)"
@@ -1136,30 +1130,22 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 def get_related_conceptids(query_concept_list, original_query_concepts_list, query_types_list, unmatched_terms, filters, cursor):
 	result_dict = dict()
 	es = es_util.get_es_client()
-
-	# es_query = get_query(query_concept_list, unmatched_terms, query_types_list, \
-	# 					 	filters['journals'], filters['start_year'], filters['end_year']\
-	# 					 	,["title_cids^10", "abstract_conceptids.*^0.5"], cursor)
-
-	t = u2.Timer("aggregates")
 	es_query = {
-						 "size" : 0, \
+						 "size" : 10000, \
 						 "query": get_query(query_concept_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*"], cursor), \
-						 "aggs" : {'title_cids' : {"terms" : {"field" : "title_cids", "size" : 40000}}}}
+						 "aggs" : {'title_cids' : {"terms" : {"field" : "title_cids", "size" : 10000}}}}
 
 	sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
-	# print(sr['aggregations']['title_cids']['buckets'])
 	tmp_df = pd.DataFrame()
-	# print(sr['aggregations']['title_cids']['buckets'])
 	res = sr['aggregations']['title_cids']['buckets']
 
 	title_match_cids_df = pd.DataFrame()
 	for i in range(len(res)):
 		title_match_cids_df = title_match_cids_df.append(pd.DataFrame([[res[i]['key'],res[i]['doc_count']]], columns=['acid', 'count']))
-	t.stop()
+
 	if len(title_match_cids_df) > 0:
 		title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
 

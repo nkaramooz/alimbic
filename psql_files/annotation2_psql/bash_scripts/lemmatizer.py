@@ -64,6 +64,7 @@ def lemmatize_table():
 		create index lemmas_term_ind on lemmas(term);
 		create index lemmas_word_ind on lemmas(word);
 		create index lemmas_word_ord_ind on lemmas(word_ord);
+		create index lemmas_term_lower_ind on lemmas(term_lower);
 	"""
 
 	cursor.execute(index_query, None)
