@@ -12,6 +12,7 @@ create index concurrently downstream_root_cid_acid_ind on downstream_root_cid(ac
 create index concurrently downstream_root_cid_cid_ind on downstream_root_cid(cid);
 
 
+
 drop table if exists downstream_root_did cascade;
 create table downstream_root_did(
 	adid varchar(36) not null
@@ -24,6 +25,7 @@ create table downstream_root_did(
 );
 create index concurrently downstream_root_did_adid_ind on downstream_root_did(adid);
 create index concurrently downstream_root_did_did_ind on downstream_root_did(did);	
+create index concurrently downstream_root_did_term_ind on downstream_root_did(term);	
 
 insert into downstream_root_cid
 	select 

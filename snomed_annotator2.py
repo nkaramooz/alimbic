@@ -472,43 +472,6 @@ def get_annotated_tuple(c_df):
 	else:
 		return None
 
-def get_concept_synonyms_list_from_list(concept_list, cursor):
-	query = "select synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
-	synonym_df = pg.return_df_from_query(cursor, query, (tuple(concept_list),), ["synonym_conceptid"])
-	concept_list.extend(synonym_df['synonym_conceptid'].tolist())
-	return list(set(concept_list))
-
-def get_concept_synonyms_list_from_series(conceptid_series, cursor):
-
-	conceptid_list = tuple(conceptid_series.tolist())
-	
-	query = "select reference_conceptid, synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
-
-	synonym_df = pg.return_df_from_query(cursor, query, (conceptid_list,), \
-	 ["reference_conceptid", "synonym_conceptid"])
-
-	results_list = []
-
-	for item in conceptid_series:
-		if len(synonym_df[synonym_df['reference_conceptid'] == item].index) > 0:
-			sub_list = [item]
-			sub_df = synonym_df[synonym_df['reference_conceptid'] == item]
-			for ind,val in sub_df.iterrows():
-				sub_list.append(val['synonym_conceptid'])
-			results_list.append(sub_list)
-		else:
-			results_list.append(item)
-
-	return results_list
-
-def get_concept_synonyms_df_from_series(conceptid_series, cursor):
-	conceptid_list = tuple(conceptid_series.tolist())
-	query = "select reference_conceptid, synonym_conceptid from annotation2.concept_terms_synonyms where reference_conceptid in %s"
-
-	synonym_df = pg.return_df_from_query(cursor, query, (conceptid_list,), \
-	 ["reference_conceptid", "synonym_conceptid"])
-
-	return synonym_df
 
 def query_expansion(conceptid_series, cursor):
 	conceptid_tup = tuple(conceptid_series.tolist())
@@ -734,6 +697,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_che
 ### UTILITY FUNCTIONS
 
 def clean_text(line):
+	
 	line = line.replace('.', '')
 	line = line.replace('!', '')
 	line = line.replace(',', '')
@@ -897,6 +861,9 @@ if __name__ == "__main__":
 	query82="hepatic and splenic blush on computed tomography in children following blunt force acute interstitial nephritis"
 	query83="White matter lesions (WMLs) are commonly found on brain MRI of migraine patients"
 	query84="Helicobacter pylori"
+	query85="The percutaneous coronary intervention PCI have to be one of the fastest growing therapeutic interventions for patients with ST elevation myocardial infarction"
+	query86="kaposi's sarcoma"
+
 	# conn, cursor = pg.return_postgres_cursor()
 
 	
@@ -904,10 +871,10 @@ if __name__ == "__main__":
 	# print(clean_text("Dysphagia")
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query53
+		term = query87
 
 		term = clean_text(term)
-
+		print(term)
 		all_words = get_all_words_list(term)
 		print(all_words)
 		cache = get_cache(all_words, True)

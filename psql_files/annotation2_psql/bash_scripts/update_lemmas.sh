@@ -1,20 +1,20 @@
 #!/bin/bash
 echo "here we go"
 
-# echo "insert_new_concepts_to_root.sql"
-# psql -d alimbic -f ../insert_to_root/insert_new_concepts_to_upstream_root.sql -q
+echo "insert_new_concepts_to_root.sql"
+psql -d alimbic -f ../insert_to_root/insert_new_concepts_to_upstream_root.sql -q
 
-# echo "insert_snomed_did_to_root.sql"
-# psql -d alimbic -f ../insert_to_root/insert_snomed_did_to_upstream_root.sql -q
-# echo "insert_therapies_syn_to_root.sql"
-# psql -d alimbic -f ../insert_to_root/insert_therapies_syn_to_upstream_root.sql -q
-# echo "insert_acronyms_to_root.sql"
-# psql -d alimbic -f ../insert_to_root/insert_acronyms_to_upstream_root.sql -q
-# echo "insert_root_new_desc_to_root.sql"
-# psql -d alimbic -f ../insert_to_root/insert_root_new_desc_to_root.sql -q
+echo "insert_snomed_did_to_root.sql"
+psql -d alimbic -f ../insert_to_root/insert_snomed_did_to_upstream_root.sql -q
+echo "insert_therapies_syn_to_root.sql"
+psql -d alimbic -f ../insert_to_root/insert_therapies_syn_to_upstream_root.sql -q
+echo "insert_acronyms_to_root.sql"
+psql -d alimbic -f ../insert_to_root/insert_acronyms_to_upstream_root.sql -q
+echo "insert_root_new_desc_to_root.sql"
+psql -d alimbic -f ../insert_to_root/insert_root_new_desc_to_root.sql -q
 
-# echo "run custom_terms.py"
-# python ../manual_tables/create_custom_terms.py
+echo "run custom_terms.py"
+python ../manual_tables/create_custom_terms.py
 
 echo "insert_custom_terms_to_upstream_root.sql"
 psql -d alimbic -f ../insert_to_root/insert_custom_terms_to_upstream_root.sql

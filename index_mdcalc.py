@@ -82,6 +82,6 @@ for ind,item in enumerate(calc_items):
 print("number of calculators written: " + str(counter))
 engine = pg.return_sql_alchemy_engine()
 
-res_df.to_sql('mdc_staging', engine, schema='annotation', if_exists='replace', index=False, dtype={'title' : sqla.types.Text, 'desc' : sqla.types.Text, 'url' : sqla.types.Text})
+res_df.to_sql('mdc_staging', engine, schema='annotation2', if_exists='replace', index=False, dtype={'title' : sqla.types.Text, 'desc' : sqla.types.Text, 'url' : sqla.types.Text})
 
 engine.dispose()

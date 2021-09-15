@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
+from django.utils.safestring import mark_safe
 import snomed_annotator2 as ann2
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
@@ -15,7 +16,7 @@ import urllib.parse as urlparse
 from urllib.parse import parse_qs
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
-
+import re
 
 INDEX_NAME='pubmedx1.9'
 
@@ -392,7 +393,10 @@ def post_concept_override(request):
 			rel_type = 'treatment'
 		elif 'rel_diagnostic' in request.POST:
 			rel_type = 'diagnostic'
-
+		elif 'rel_statistic' in request.POST:
+			rel_type = 'statistic'
+		elif 'rel_outcome' in request.POST:
+			rel_type = 'outcome'
 
 		if 'rel_activate' in request.POST:
 			state = 1
@@ -548,9 +552,9 @@ def post_search_text(request):
 		
 		full_conditions_list = ann2.query_expansion(query_concepts_types[query_concepts_types['concept_type'] == 'condition']['acid'], cursor)
 		
-		print(full_conditions_list)
+
 		full_query_concepts_list = ann2.query_expansion(query_concepts_df['acid'], cursor)
-		print(full_query_concepts_list)
+
 		pivot_term = None
 
 
@@ -563,17 +567,18 @@ def post_search_text(request):
 		params = filters
 
 
-		flattened_query_concepts_list = get_flattened_query_concept_list(query_concepts_df)
+		flattened_query_concepts_list = get_flattened_query_concept_list(full_query_concepts_list)
+
 		query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 		es_query = {"from" : 0, \
-				 "size" : 100, \
+				 "size" : 25, \
 				 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list, filters['journals'], filters['start_year'], filters['end_year'], \
 				 	["title_cids^10", "abstract_conceptids.*"], cursor)}
 
 		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
-		sr_payload = get_sr_payload(sr['hits']['hits'])
+		sr_payload = get_sr_payload(sr['hits']['hits'], flattened_query_concepts_list, unmatched_terms, cursor)
 
 		treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, primary_cids, query_types_list,
 					unmatched_terms, filters, cursor)
@@ -622,13 +627,14 @@ def post_search_text(request):
 			query_concepts_dict = get_query_arr_dict(full_query_concepts_list)
 
 			es_query = {"from" : 0, \
-						 "size" : 100, \
+						 "size" : 25, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^100", "abstract_conceptids.*^0.5"], cursor), \
 						 "aggs" : {'tmp' : {"terms" : {"field" : "title_cids"}}}}
-			print(full_query_concepts_list)
+	
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
+			
 			# print(sr)
 			# history_query = """
 			# 	select 
@@ -662,7 +668,8 @@ def post_search_text(request):
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 
-		sr_payload = get_sr_payload(sr['hits']['hits'])
+
+		sr_payload = get_sr_payload(sr['hits']['hits'], flattened_query,unmatched_terms, cursor)
 	
 	
 	calcs_json = get_calcs(query_concepts_df, cursor)
@@ -688,6 +695,8 @@ def post_search_text(request):
 				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
 				'calcs' : calcs_json})
 
+
+
 def treatment_expansion(treatment_list, condition_list, cursor):
 	# expanded_treatments = ann2.query_expansion(treatment_list, cursor)
 	query = """
@@ -710,12 +719,15 @@ def get_calcs(query_concepts_df, cursor):
 	concepts = query_concepts_df[query_concepts_df['acid'].notna()].copy()
 	concepts = concepts['acid'].tolist()
 	if len(concepts) > 0:
-		# query = "select distinct on (title, t1.description, url) title, t1.description, url from annotation2.mdc_final t1 where acid in %s"
-		# calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
+		query = """
+			select distinct on (title, t1.description, url) title, t1.description, url 
+			from annotation2.mdc_final t1 where acid in %s 
+		"""
+		calcs = pg.return_df_from_query(cursor, query, (tuple(concepts),), ['title', 'desc', 'url'])
 
 		calc_json = []
-		# for ind,item in calcs.iterrows():
-		# 	calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
+		for ind,item in calcs.iterrows():
+			calc_json.append({'title' : item['title'], 'desc' : item['desc'], 'url' : item['url']})
 
 		return calc_json
 	else:
@@ -797,12 +809,34 @@ def log_query (ip_address, query, primary_cids, unmatched_terms, filters, treatm
 
 ### Utility functions
 
-def get_sr_payload(sr):
+def get_sr_payload(sr, flattened_query, unmatched_terms, cursor):
 	sr_list = []
+
+	terms = []
+	if flattened_query != None:
+		query = """
+			select term from annotation2.downstream_root_did where acid in %s order by length(term) desc
+		"""
+		terms = pg.return_df_from_query(cursor, query, (tuple(flattened_query),), ["term"])["term"].tolist()
+	if unmatched_terms != '':
+		terms.append(unmatched_terms)
 
 	for index,hit in enumerate(sr):
 		hit_dict = {}
 		sr_src = hit['_source']
+		
+		for term in terms:
+			term_search = '(' + term + ')(?!(.(?!<b))*</b>)'
+					
+			if sr_src['article_abstract'] is not None:
+				for key in sr_src['article_abstract']:
+					sr_src['article_abstract'][key] = re.sub(term_search, r'<b>\1</b>', sr_src['article_abstract'][key], flags=re.IGNORECASE)
+					sr_src['article_abstract'][key] = mark_safe(sr_src['article_abstract'][key])
+
+			sr_src['article_title'] = re.sub(term_search, r'<b>\1</b>', sr_src['article_title'], flags=re.IGNORECASE)
+			sr_src['article_title'] = mark_safe(sr_src['article_title'])
+				
+	
 		hit_dict['journal_title'] = sr_src['journal_iso_abbrev']
 		hit_dict['pmid'] = sr_src['pmid']
 		hit_dict['article_title'] = sr_src['article_title']
@@ -811,6 +845,7 @@ def get_sr_payload(sr):
 		hit_dict['score'] = hit['_score']
 		hit_dict = get_show_hide_components(sr_src, hit_dict)
 		sr_list.append(hit_dict)
+
 	return sr_list
 
 def get_show_hide_components(sr_src, hit_dict):
@@ -823,8 +858,7 @@ def get_show_hide_components(sr_src, hit_dict):
 			sr_src['article_abstract'][top_key])
 		hit_dict['abstract_hide'] = list()
 		for key1,value1 in sr_src['article_abstract'].items():
-
-			
+		
 			if key1 == top_key:
 				continue
 			else:
@@ -899,19 +933,28 @@ def get_concept_query_string(full_conceptid_list):
 	return query_string
 
 def get_article_type_query_string(concept_type_list, unmatched_terms):
+	print(concept_type_list)
+	# RCT, meta-analysis, network-meta, cross-over study, case report
 	if 'condition' in concept_type_list and ('treatment' in concept_type_list or 'treatment' in unmatched_terms):
-		return "( 889085^15 OR 889251^7 OR 889105^7 OR 889260^2 OR 889264^2 OR 889253^0.2)"
+		return "( 887729^15 OR 887761^7 OR 887749^7 OR 887770^2 OR 887774^2 OR 887763^1)"
+	# prevention procedure not in concept_type
+	# Systematic review, meta-analysis
 	elif 'condition' in concept_type_list and unmatched_terms == '' and \
-		 '380010' not in concept_type_list and 'symptom' not in concept_type_list:
-		return "( 889254^10 OR 889251^8 )"
+		 '379416' not in concept_type_list and 'symptom' not in concept_type_list:
+		return "( 887764^10 OR 887761^8 )"
+	# Cohort study, systematic review, case-control study, RCT
 	elif 'symptom' in concept_type_list:
-		return "( 889264^10 OR  889254^8 OR 889255^5 OR 889085^0.5 )"
+		return "( 887774^10 OR  887764^8 OR 887765^5 OR 887729^0.5 )"
+	# RCT, Network meta, meta-analysis, systematic review
 	elif 'treatment' in concept_type_list:
-		return "( 889085^10 OR 889105^8 OR 889251^10 OR 889254^8 )"
+		return "( 887729^10 OR 887749^8 OR 887761^10 OR 887764^8 )"
+	# Case-control study, case report
 	elif 'anatomy' in concept_type_list:
-		return "( 889255^5 OR 889253^2 )"
-	elif 'prevention' in concept_type_list or 'prevention' in unmatched_terms or '380010' in concept_type_list:
-		return "( 889085^10 OR 889262^5 OR 889264^5 OR 889259^5 )"
+		return "( 887765^5 OR 887763^2 )"
+	# Preventive procedure in concept_type_list
+	# RCT, Longitudinal study, cohort study, cost-benefit analysis
+	elif 'prevention' in concept_type_list or 'prevention' in unmatched_terms or '379416' in concept_type_list:
+		return "( 887729^10 OR 887772^5 OR 887774^5 OR 887769^5 )"
 	else:
 		return ""
 
@@ -1058,6 +1101,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor, conce
 		"""
 
 		tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),), ["acid"])
+
 		conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
 
 		return conceptid_df
@@ -1116,8 +1160,8 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 	for i in range(len(res)):
 		title_match_cids_df = title_match_cids_df.append(pd.DataFrame([[res[i]['key'],res[i]['doc_count']]], columns=['acid', 'count']))
 	t.stop()
-	
-	title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
+	if len(title_match_cids_df) > 0:
+		title_match_cids_df = title_match_cids_df[title_match_cids_df['acid'].isin(original_query_concepts_list) == False].copy()
 
 	sub_dict = dict()
 	sub_dict['treatment'] = []
@@ -1159,69 +1203,8 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, que
 			sub_dict['condition'] = rollups(agg_condition, cursor)
 
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']
+	
 
-# this function isn't working - see schizophrenia treatment
-def de_dupe_synonyms(df, cursor):
-
-	synonyms = ann.get_concept_synonyms_df_from_series(df['conceptid'], cursor)
-
-	for ind,t in df.iterrows():
-		cnt = df[df['conceptid'] == t['conceptid']]
-		ref = synonyms[synonyms['reference_conceptid'] == t['conceptid']]
-
-		if len(ref) > 0:
-			new_conceptid = ref.iloc[0]['synonym_conceptid']
-			if len(df[df['conceptid'] == new_conceptid].index):
-				
-				df.loc[ind, 'conceptid'] = new_conceptid
-
-	df = df.groupby(['conceptid'], as_index=False)['count'].sum()
-
-	return df 		
-
-def de_dupe_synonyms_2(df, cursor):
-	if len(df) > 0:
-
-		synonym_query = """
-			select 
-			distinct reference_conceptid, synonym_conceptid
-			from (
-				select
-				t3.reference_conceptid
-				,case when t3.reference_rank < t3.synonym_rank then t3.reference_conceptid
-				when t3.reference_rank >= t3.synonym_rank then t3.synonym_conceptid 
-				end as synonym_conceptid
-			from (
-				select t1.reference_conceptid, t1.reference_term, min(t1.synonym_rank) as mini
-				from annotation2.concept_terms_synonyms t1
-				where t1.reference_conceptid in %s
-				group by t1.reference_conceptid, t1.reference_term
-			) t2
-			join annotation2.concept_terms_synonyms t3
-			on t2.reference_conceptid = t3.reference_conceptid and t2.mini = t3.synonym_rank
-		) t4
-		"""
-		synonyms = pg.return_df_from_query(cursor, synonym_query, (tuple(df['conceptid'].tolist()),), ['reference_conceptid', 'synonym_conceptid'])
-
-		results_df = pd.DataFrame()		
-		for ind,t in df.iterrows():
-
-			synonym_cid = synonyms[synonyms['reference_conceptid'] == t['conceptid']]['synonym_conceptid'].values
-
-			if len(synonym_cid) > 0:
-				synonym_cid = synonym_cid[0]
-
-				if t['conceptid'] not in synonym_cid:
-					results_df = results_df.append(pd.DataFrame([[synonym_cid, t['pmid']]], columns=['conceptid', 'pmid']))
-				else:
-					results_df = results_df.append(t)
-			else:
-				results_df = results_df.append(t)
-
-
-		return results_df 
-	else:
-		return None
 
 def get_conceptids_from_sr(sr):
 	conceptid_list = []

@@ -14,6 +14,8 @@ def lemma(word):
 	lmtzr = WordNetLemmatizer()
 	return lmtzr.lemmatize(word)
 
+
+# should change this to use the clean_text function in snomed_annotator
 def lemmatize(row):
 	terms = row['term']
 	terms = terms.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').replace('   ', ' ').replace('  ', ' ').rstrip().lstrip()

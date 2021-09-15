@@ -217,3 +217,16 @@ span.badge.new {
 	background-color: #FF6B6B !important;
 }
 
+#abstract-title {
+	font-weight:  400 !important;
+}
+
+#tx_hover {
+	display:  none;
+}
+
+.material-tooltip {
+	width:  200px;
+	position: absolute !important;
+	margin-left: -100px !important;
+}

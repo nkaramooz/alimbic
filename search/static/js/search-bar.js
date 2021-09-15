@@ -53,6 +53,10 @@ window.addEventListener('popstate', function(event) {
         console.log("error in pop");
         console.log(xhr);
         console.log("error");
+        $('#loader').removeClass("active");
+        $('#loader').addClass("inactive");
+        $("#results").html("Oops, something went wrong. Try another query")
+        $('#results').show();
       }
 
     })
@@ -389,6 +393,14 @@ function post_search_text() {
       console.log(xhr);
       console.log("error");
       console.log("error here");
+      document.getElementById('search_box').disabled = false;
+      document.getElementById('start_year').disabled = false;
+      document.getElementById('end_year').disabled = false;
+      document.getElementById('journals').disabled = false;
+      $('#loader').removeClass("active");
+      $('#loader').addClass("inactive");
+      $("#results").html("<div id=\"results\" class=\"results\"> Oops, something went wrong. Try another query </div>")
+      $('#results').show();
     }
   });
 };

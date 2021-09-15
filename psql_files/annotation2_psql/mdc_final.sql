@@ -17,8 +17,10 @@ insert into mdc_final
 		,t1.desc as description
 		,url
 	from annotation2.mdc_staging t1
-	join snomed2.transitive_closure_acid t2
-	on t1.acid=t2.child_acid
-	where t2.parent_acid in ('11220', '346270', '165831', '250976', '241259')
-
+	join annotation2.concept_types t2
+	on t1.acid=t2.root_acid
+	join snomed2.transitive_closure_acid t3
+	on t1.acid=t3.child_acid
+	where t2.rel_type='condition' or t2.rel_type='symptom' and t2.active=1
+	
 ;

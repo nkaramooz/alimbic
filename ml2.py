@@ -137,8 +137,8 @@ def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
 	embedding_size=500
-	batch_size = 500
-	num_epochs = 25
+	batch_size = 100
+	num_epochs = 45
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
@@ -167,28 +167,28 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:9}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:2.2}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
-	embedding_size=300
-	batch_size = 300
-	num_epochs = 10
+	embedding_size=500
+	batch_size = 500
+	num_epochs = 5
 	model = load_model(model_name)
 
-	checkpointer = ModelCheckpoint(filepath='./emb_500_update_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update2_{epoch:02d}.hdf5', verbose=1)
 
 	
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:10}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:9}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
 
 def gen_treatment_predictions_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
-	query = "select min(ver) from ml2.treatment_dataset_staging"
+	query = "select min(ver) from ml2.treatment_dataset_subset_staging"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
@@ -201,7 +201,7 @@ def gen_treatment_predictions_top(model_name):
 
 
 def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
-	number_of_processes = 4
+	number_of_processes = 5
 
 	task_queue = mp.Queue()
 
@@ -220,7 +220,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_dataset_staging
+		from ml2.treatment_dataset_subset_staging
 		where ver = %s limit 1000
 	"""
 
@@ -233,7 +233,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 
 		update_query = """
 			set schema 'ml2';
-			UPDATE ml2.treatment_dataset_staging
+			UPDATE ml2.treatment_dataset_subset_staging
 			SET ver = %s
 			where entry_id = ANY(%s);
 		"""
@@ -502,7 +502,7 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 	return sample_gen, sample_spec, generic_mask
 
 def gen_datasets_mp(new_version):
-	number_of_processes = 48
+	number_of_processes = 40
 	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
 	treatments_set = get_all_treatments_set()
@@ -777,13 +777,13 @@ def print_contingency(model_name):
 	conn, cursor = pg.return_postgres_cursor()
 	model = load_model(model_name)
 
-	curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.test_sentences_subset", \
+	curr_version = int(pg.return_df_from_query(cursor, "select min(ver) from ml2.test_sentences", \
 			None, ['ver'])['ver'][0])
 	new_version = curr_version + 1
 
 	# should be OK to load into memory
 
-	testing_query = "select id, sentence_id, sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_gen_mask, label from ml2.test_sentences_subset where ver=%s"
+	testing_query = "select id, sentence_id, sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_gen_mask, label from ml2.test_sentences where ver=%s"
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
 		['id', 'sentence_id','sentence_tuples','condition_acid', 'treatment_acid', 'x_train_gen','x_train_gen_mask', 'label'])
 
@@ -801,20 +801,20 @@ def print_contingency(model_name):
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
 		elif((item['label'] == 1) and (res < 0.50)):
-			print("below label=1 and res < 0.50")
-			u2.pprint(item['condition_acid'])
-			u2.pprint(item['treatment_acid'])
-			u2.pprint(item['sentence_tuples'])
-			print("end")
+			# print("below label=1 and res < 0.50")
+			# u2.pprint(item['condition_acid'])
+			# u2.pprint(item['treatment_acid'])
+			# u2.pprint(item['sentence_tuples'])
+			# print("end")
 			one_zero += 1
 		elif ((item['label'] == 0) and (res < 0.50)):
 			zero_zero += 1
 		elif ((item['label'] == 0) and (res >= 0.50)):
-			print("below label=0, res >= 0.50")
-			u2.pprint(item['condition_acid'])
-			u2.pprint(item['treatment_acid'])
-			u2.pprint(item['sentence_tuples'])
-			print("end")
+			# print("below label=0, res >= 0.50")
+			# u2.pprint(item['condition_acid'])
+			# u2.pprint(item['treatment_acid'])
+			# u2.pprint(item['sentence_tuples'])
+			# print("end")
 			zero_one += 1
 
 
@@ -856,7 +856,7 @@ if __name__ == "__main__":
 	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
 	# sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
 	# sentence = "amiodarone induced acute interstitial nephritis"
-	# sentence = "amiodarone associated with acute interstitial nephritis"
+	# sentence = "amiodarone associated with improved outcomes in acute interstitial nephritis"
 	# sentence = "amiodarone treats severe acute interstitial nephritis"
 	# sentence = "amiodarone for the management of severe acute interstitial nephritis"
 	# sentence = "incidence of acute interstitial nephritis with valproate and quetiapine combination treatment in subjects with acquired brain injuries"
@@ -866,11 +866,17 @@ if __name__ == "__main__":
 	# sentence = "Acute interstitial nephritis and organ dysfunction following gastrointestinal surgery"
 	# sentence = "Predictors of mortality in acute interstitial nephritis; focus On the role of right heart catheterization."
 	# sentence = "Acute interstitial nephritis after loop electrosurgical excision procedure"
-	# sentence = "Timing of Renal-Replacement Therapy in Patients with Acute Kidney Injury and acute interstitial nephritis"
+	# sentence = "Timing of Renal-Replacement Therapy in Patients with Acute Kidney Injury from acute interstitial nephritis"
 	# sentence = "Adjunctive Glucocorticoid Therapy in Patients with acute interstitial nephritis"
-	sentence = "Acute interstitial nephritis due to omeprazole"
+	# sentence = "Acute interstitial nephritis due to omeprazole"
+	# sentence = "Although deterioration of renal function, determined by acute tubulointerstitial nephritis and/or acute tubular necrosis, typically appears in patients receiving intermittent rifampicin therapy, some authors have also reported cases occurring during continuous rifampicin therapy"
+	# sentence = "Tobacco is a risk factor for acute interstitial nephritis"
+	# sentence = "usefulness of intracoronary brachytherapy for in stent restenosis with a 188re liquid filled balloon"
+	# sentence = "acute interstitial nephritis associated with amiodarone and resolved after prednisone"
+	# sentence = "Acute interstitial nephritis due to omeprazole"
+	sentence = "Many plant foods, especially watermelon, may trigger acute interstitial nephritis in patients within a few minutes"
 	sentence = sentence.lower()
-	model_name = 'gen_bidi_500_25.hdf5'
+	model_name = 'gen_bidi_500_37.hdf5'
 	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
@@ -895,16 +901,31 @@ if __name__ == "__main__":
 
 	# gen_datasets_mp(1)
 	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_25.hdf5')
+	# gen_treatment_predictions_top('gen_bidi_500_37.hdf5')
 
 
 	
 	# conn, cursor = pg.return_postgres_cursor()
-
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()
 	# conn.close()
-	# update_rnn('gen_500_20.hdf5', max_cnt)
 	# train_with_rnn(max_cnt)
-	# print_contingency('gen_500_24.hdf5')
+	# update_rnn('gen_bidi_500_update_16.hdf5', max_cnt)
+
+	# print_contingency('gen_bidi_500_20.hdf5')
+	# print_contingency('gen_bidi_500_25.hdf5')
+	# print_contingency('gen_bidi_500_32.hdf5')
+	# print_contingency('gen_bidi_500_33.hdf5')
+	# print_contingency('gen_bidi_500_34.hdf5')
+	# print_contingency('gen_bidi_500_35.hdf5')
+	# print_contingency('gen_bidi_500_36.hdf5')
+	# print_contingency('gen_bidi_500_37.hdf5')
+	# print_contingency('gen_bidi_500_38.hdf5')
+	# print_contingency('gen_bidi_500_39.hdf5')
+	# print_contingency('gen_bidi_500_40.hdf5')
+	# print_contingency('gen_bidi_500_41.hdf5')
+	# print_contingency('gen_bidi_500_42.hdf5')
+	# print_contingency('gen_bidi_500_43.hdf5')
+	# print_contingency('gen_bidi_500_44.hdf5')
+	# print_contingency('gen_bidi_500_45.hdf5')

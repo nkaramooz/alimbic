@@ -1,9 +1,43 @@
-{% include 'search/main_header.html' with css='css/search.css' %}
+<head>
+	<link href='https://fonts.googleapis.com/css?family=Comfortaa' rel='stylesheet'>
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+	<script type = "text/javascript" src = "https://code.jquery.com/jquery-2.1.1.min.js">  </script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</head>
+
+{% load static %}
+<script src="{% static "js/concept-override.js" %}"></script>
+
+<div class="navbar-fixed">
+	<ul id="dropdown1" class="dropdown-content">
+		<li><a href="#concept_lookup">Concept lookup</a></li>
+		<li><a href="#rel_lookup">Rel lookup</a></li>
+		<li><a href="#new_concept">New concept</a></li>
+		<li><a href="#remove_concept">Remove concept</a></li>
+		<li><a href="#new_desc">New desc</a></li>
+		<li><a href="#remove_desc">Remove desc</a></li>
+		<li><a href="#change_rel">Change rel</a></li>
+		<li><a href="#label_tx">Label tx</a></li>
+		<li><a href="#change_type">Change type</a></li>
+	</ul>
+	<nav>
+		<div class="nav-wrapper">
+			<ul class="left hide-on-med-and-down">
+				<li><a class="dropdown-trigger" href="#!" data-target="dropdown1">Jump<i class="material-icons right">arrow_drop_down</i></a></li>
+			</ul>
+		</div>
+	</nav>
+</div>
+<!-- {% include 'search/main_header.html' with css='css/search.css' %} -->
 
 
-
-<div class="row center">
-	<h3> Concept lookup </h3>
+<div class="row center" id="concept_lookup">
+	<br>
+	<br>
+	<h3 > Concept lookup </h3>
 </div>
 
 <div class="container">
@@ -73,7 +107,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="rel_lookup">
+	<br>
+	<br>
 	<h3> Relationship lookup </h3>
 </div>
 
@@ -111,7 +147,9 @@
 
 
 
-<div class="row center">
+<div class="row center" id="new_concept">
+	<br>
+	<br>
 	<h3> Add new concept </h3>
 </div>
 <div class="container">
@@ -148,7 +186,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="remove_concept">
+	<br>
+	<br>
 	<h3> Remove concept </h3>
 </div>
 <div class="container">
@@ -176,7 +216,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="new_desc">
+	<br>
+	<br>
 	<h3> Add new description </h3>
 </div>
 <div class="container">
@@ -209,7 +251,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="remove_desc">
+	<br>
+	<br>
 	<h3> Remove description </h3>
 </div>
 <div class="container">
@@ -239,7 +283,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="change_rel">
+	<br>
+	<br>
 	<h3> Change relationship </h3>
 </div>
 <div class="container">
@@ -280,7 +326,9 @@
 <br>
 
 
-<div class="row center">
+<div class="row center" id="label_tx">
+	<br>
+	<br>
 	<h3> Label condition/treatment </h3>
 </div>
 <div class="container">
@@ -379,7 +427,9 @@
 
 
 
-<div class="row center">
+<div class="row center" id="change_type">
+	<br>
+	<br>
 	<h3> Change concept type </h3>
 </div>
 <div class="container">
@@ -420,6 +470,18 @@
 				<label>
 					<input name="rel_diagnostic" type="radio"/>
 					<span> diagnostic </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_statistic" type="radio"/>
+					<span> statistic </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_outcome" type="radio"/>
+					<span> outcome </span>
 				</label>
 			</p>
 		</div>

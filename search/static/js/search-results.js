@@ -1,5 +1,5 @@
 $(document).ready(function() {
-
+	$('.tooltipped').tooltip();
 	$('.expand_btn').on('click', function() {
 		var prev = $(this).parent().parent().find(".preview-ellipsis")
 		if (prev.length > 0) {

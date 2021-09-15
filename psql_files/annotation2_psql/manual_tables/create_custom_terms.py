@@ -9,6 +9,7 @@ custom_term_synonym_dict = {
 	,'antagonist' : 'blocker'
 	,'antagonist' : 'antagonism'
 	,'antagonist' : 'inhibitor'
+	,'inhibitor' : 'inhibition'
 	,'blocker' : 'blockade'
 	,'blocker' : 'antagonist'
 	,'regurgitation' : 'insufficiency'

@@ -19,8 +19,29 @@ create table train_sentences as (
     	,label
     	,ver
     from ml2.all_training_sentences
-    where rand <= 0.99
+    where rand <= 0.999
 );
+
+-- insert into ml2.train_sentences
+--     select
+--         id
+--         ,sentence_id
+--         ,sentence_tuples
+--         ,section_ind
+--         ,x_train_gen
+--         ,x_train_spec
+--         ,x_train_gen_mask
+--         ,x_train_spec_mask
+--         ,condition_acid
+--         ,treatment_acid
+--         ,og_condition_acid
+--         ,og_treatment_acid
+--         ,label
+--         ,ver
+--     from ml2.all_training_sentences
+--     where rand <= 0.999 and ver=0;
+
+
 
 create index if not exists train_sentences_label_ind on train_sentences(label);
 create index if not exists train_sentences_ver_ind on train_sentences(ver);

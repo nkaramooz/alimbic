@@ -3,27 +3,38 @@
 
 					{% if forloop.parentloop.counter < 11 %}
 						<div class="line-item">
-						<a href='#' class="collection-item" id="{{key}}"> {{item.name}} 
+						{% if item.children|length > 2 %}
+							<a href='#' class="collection-item tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
+						{% else %}
+							<a href='#' class="collection-item" id="{{key}}"> {{item.name}}
+						{% endif %}
 							{% if item.children|length > 0 %}
 								({{item.children.0}} 
 
 								{% if item.children|length > 1 %}
 									, {{item.children.1}} ...
 								{% endif %})
-							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %} </a>
+							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %} 
+						</a>
 
 						<input type="hidden" id="pivot_cid" value="{{key}}">
 						<input type="hidden" id="pivot_term" value="{{item.name}}">
 						</div>
 					{% else %}
 					<div class="line-item">
-						<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}} {% if item.children|length > 0 %}
+						{% if item.children|length > 2 %}
+							<a href='#' class="collection-item hidden-items hide tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
+						{% else %}
+							<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}}
+						{% endif %}
+							{% if item.children|length > 0 %}
 								({{item.children.0}} 
 
-								{% if item.children|length > 1 %}
+								{% if item.children|length > 2 %}
 									, {{item.children.1}} ...
 								{% endif %})
-							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %}</a>
+							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %}
+						</a>
 
 						<input type="hidden" id="pivot_cid" value="{{key}}">
 						<input type="hidden" id="pivot_term" value="{{item.name}}">
@@ -31,9 +42,6 @@
 					{% endif %}
 
 {% endfor %}
-
-
-
 
 
 															

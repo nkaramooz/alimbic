@@ -3668,16 +3668,16 @@ if __name__ == "__main__":
 
 
 
-	start_file = get_start_file_num()
-	end_file = 1062
+	# start_file = get_start_file_num()
+	# end_file = 1062
 
-	while (start_file <= end_file):
-		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
-		start_file += 5
+	# while (start_file <= end_file):
+	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
+	# 	start_file += 5
 
 	start_file = get_start_file_num()
-	end_file = 1371
+	end_file = 1412
 	
 	while (start_file <= end_file):
 		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')

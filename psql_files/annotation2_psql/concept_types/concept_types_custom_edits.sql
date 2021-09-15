@@ -7,13 +7,13 @@
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='14122'
+-- 	where parent_acid='98381'
 -- ;
 
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('14122', 'diagnostic', 0, now())
+-- 	('98381', 'diagnostic', 0, now())
 -- ;
 
 
@@ -24,14 +24,14 @@ insert into annotation2.concept_types_app
 		,0 as active
 		,now() as effectivetime
 	from snomed2.transitive_closure_acid 
-	where parent_acid='317969'
+	where parent_acid='129419'
 ;
 
 
--- insert into annotation2.concept_types_app
--- 	VALUES 
--- 	('317969', 'treatment', 0, now())
--- ;
+insert into annotation2.concept_types_app
+	VALUES 
+	('129419', 'treatment', 0, now())
+;
 
 -- insert into annotation2.concept_types_app
 -- 	select 
