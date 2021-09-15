@@ -55,7 +55,7 @@ window.addEventListener('popstate', function(event) {
         console.log("error");
         $('#loader').removeClass("active");
         $('#loader').addClass("inactive");
-        $("#results").html("Oops, something went wrong. Try another query")
+        $("#results").html("<div id=\"results\" class=\"results\"> Oops, something went wrong. Try another query </div>")
         $('#results').show();
       }
 
@@ -63,8 +63,8 @@ window.addEventListener('popstate', function(event) {
   }
 
   else {
-    window.location.replace('http://192.168.4.36:8000');
-    // window.location.replace('http://alimbic.com')
+    // window.location.replace('http://192.168.4.36:8000');
+    window.location.replace('http://alimbic.com')
 
   }});
 
