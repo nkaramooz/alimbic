@@ -21,7 +21,9 @@ create table train_sentences as (
     from ml2.all_training_sentences
     where rand <= 0.999
 );
-
+alter table ml2.train_sentences add constraint 
+    train_sent_unique_constraint unique(sentence_id,condition_acid,treatment_acid);
+    
 -- insert into ml2.train_sentences
 --     select
 --         id

@@ -75,11 +75,15 @@ def get_wordnet_pos(ln_words):
 	return res
 
 
-def get_lemmas(ln_words, case_sensitive):
-	pos_tag = get_wordnet_pos(ln_words)
+def get_lemmas(ln_words, case_sensitive, check_pos):
+
+	if check_pos:
+		pos_tag = get_wordnet_pos(ln_words)
 
 	lmtzr = WordNetLemmatizer()
+
 	ln_lemmas = []
+
 	for i,w in enumerate(ln_words):
 		
 		if not case_sensitive:
@@ -114,13 +118,15 @@ def get_lemmas(ln_words, case_sensitive):
 			elif w=='fasting':
 				pass
 			else:
-				w = lmtzr.lemmatize(w, pos_tag[i])
+				if check_pos:
+					w = lmtzr.lemmatize(w, pos_tag[i])
+				else:
+					w = lmtzr.lemmatize(w)
 
 		ln_lemmas.append(w)
-
 	return ln_lemmas
 
-def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
+def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos, cache):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
@@ -131,7 +137,7 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, cache):
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 
-	ln_lemmas = get_lemmas(ln_words, case_sensitive)
+	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos)
 
 	for index,word in enumerate(ln_lemmas):
 
@@ -283,7 +289,10 @@ def prune_results_v2(scores_df, og_results):
 	results_index = []
 	changes_made = False
 
-	for index, row in scores_df.iterrows():
+	scores_dict = scores_df.to_dict('index')
+
+	for index in scores_dict:
+		row = scores_dict[index]
 
 		if index not in exclude_index_arr:
 
@@ -371,6 +380,7 @@ def resolve_conflicts(results_df):
 		last_term_start_index = None
 		last_ln_num = None
 		last_section_ind = None
+
 		for index,row in join_weights.iterrows():
 			if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
 				last_section_ind != row['section_ind']:
@@ -433,12 +443,29 @@ def add_names(results_df):
 		conn.close
 		return results_df
 
+def add_names_2(results_df):
+	conn,cursor = pg.return_postgres_cursor()
+	if results_df is None:
+		cursor.close()
+		return None
+	else:
+		# Using old table since augmented tables include the acronyms
+		search_query = "select acid as parent_acid, term from annotation2.preferred_concept_names \
+			where acid in %s"
 
-def annotate_line_v2(sentence_df, case_sensitive, cache):
+		params = (tuple(results_df['parent_acid']),)
+		names_df = pg.return_df_from_query(cursor, search_query, params, ['parent_acid', 'term'])
+
+		results_df = results_df.merge(names_df, on='parent_acid')
+		cursor.close()
+		conn.close
+		return results_df
+
+def annotate_line_v2(sentence_df, case_sensitive, check_pos, cache):
 	
 	line = clean_text(sentence_df['line'])
 
-	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, cache)
+	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, check_pos, cache)
 
 	if annotation is not None:
 		annotation['ln_num'] = sentence_df['ln_num']
@@ -461,12 +488,18 @@ def get_annotated_tuple(c_df):
 		concept_counter = 0
 		concept_len = len(c_df)\
 
-
-		for index,item in c_df.iterrows():
-			if isinstance(item['acid'], str):
-				sentence_arr.append((item['term'], item['acid']))
+		c_dict = c_df.to_dict('records')
+		for row in c_dict:
+			if isinstance(row['acid'], str):
+				sentence_arr.append((row['term'], row['acid']))
 			else:
-				sentence_arr.append((item['term'], 0))
+				sentence_arr.append((row['term'], 0))
+
+		# for index,item in c_df.iterrows():
+		# 	if isinstance(item['acid'], str):
+		# 		sentence_arr.append((item['term'], item['acid']))
+		# 	else:
+		# 		sentence_arr.append((item['term'], 0))
 
 		return sentence_arr
 	else:
@@ -476,32 +509,39 @@ def get_annotated_tuple(c_df):
 def query_expansion(conceptid_series, cursor):
 	conceptid_tup = tuple(conceptid_series.tolist())
 	if len(conceptid_tup) > 0:
+		# child_query = """
+		# 	select 
+		# 		child_acid
+		# 		,parent_acid
+		# 	from (
+		# 		select
+		# 			parent_acid,
+	 #    			child_acid,
+	 #    			cnt,
+	 #    			row_number() over (partition by parent_acid order by cnt desc) as rn
+		# 		from
+		# 		(
+		# 			select 
+		# 				parent_acid
+	 #            		,child_acid
+	 #            		,ct.cnt
+		# 			from (
+		# 				select child_acid, parent_acid
+		# 				from snomed2.transitive_closure_acid where parent_acid in %s
+		# 			) tb1
+		# 			join annotation2.concept_counts ct
+		# 	  		on tb1.child_acid = ct.concept
+	 #    		) tb2
+		# 	) tb3
+		# 	where rn <= 50
+		# """
+		## artificially need to limit query size to not overwhelm elastic search
 		child_query = """
-			select 
+			select
 				child_acid
 				,parent_acid
-			from (
-				select
-					parent_acid,
-	    			child_acid,
-	    			cnt,
-	    			row_number() over (partition by parent_acid order by cnt desc) as rn
-				from
-				(
-					select 
-						parent_acid
-	            		,child_acid
-	            		,ct.cnt
-					from (
-						select child_acid, parent_acid
-						from snomed2.transitive_closure_acid where parent_acid in %s
-					) tb1
-					join annotation2.concept_counts ct
-			  		on tb1.child_acid = ct.concept
-	    		) tb2
-			) tb3
-			where rn <= 50
-
+			from snomed2.transitive_closure_acid where parent_acid in %s
+			limit 40
 		"""
 
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
@@ -558,12 +598,10 @@ def get_all_words_list(text):
 
 	return all_words
 
-def get_cache(all_words_list, case_sensitive):
-
-	lemmas = get_lemmas(all_words_list, case_sensitive)
-
+def get_cache(all_words_list, case_sensitive, check_pos):
+	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos)
+	f = u.Timer("get_new_candidate_df")
 	cache = get_new_candidate_df(lemmas, case_sensitive)
-
 	cache['points'] = 0
 
 	cache.loc[cache.word.isin(lemmas), 'points'] = 1
@@ -581,13 +619,14 @@ def get_cache(all_words_list, case_sensitive):
 # ann_df returned for annotation if write sentences is negative
 # otherwise returns 3 dataframes for pubmed indexing
 # This is probably poor form
-def annotate_text_not_parallel(sentences_df, cache, case_sensitive, bool_acr_check, write_sentences):
+def annotate_text_not_parallel(sentences_df, cache, case_sensitive, check_pos, bool_acr_check, write_sentences):
 	concepts_df = pd.DataFrame()
 	sentence_df = pd.DataFrame()
 	words_df = pd.DataFrame()
 
-	for ind,item in sentences_df.iterrows():
-		line_words_df, res_df = annotate_line_v2(item, case_sensitive, cache)
+	sentence_dict = sentences_df.to_dict('records')
+	for row in sentence_dict:
+		line_words_df, res_df = annotate_line_v2(row, case_sensitive, check_pos, cache)
 		concepts_df = concepts_df.append(res_df, sort=False)
 		words_df = words_df.append(line_words_df, sort=False)
 
@@ -871,22 +910,22 @@ if __name__ == "__main__":
 	# print(clean_text("Dysphagia")
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query87
+		term = query85
 
 		term = clean_text(term)
 		print(term)
 		all_words = get_all_words_list(term)
 		print(all_words)
-		cache = get_cache(all_words, True)
+		cache = get_cache(all_words, True, True)
 
 		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
 			columns=['line', 'section', 'section_ind', 'ln_num'])
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True)
+		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True, True, False)
 		u.pprint(g['sentence_tuples'].tolist())
 		u.pprint(res)
-
+		d.stop()
 		counter += 1
 	
 	

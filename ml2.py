@@ -143,9 +143,8 @@ def train_with_rnn(max_cnt):
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
 	lstm_model = Bidirectional(LSTM(300, recurrent_dropout=0.3, return_sequences=True))(model_gen_emb)
-	# lstm_model = LSTM(500, recurrent_dropout=0.3, return_sequences=True)(lstm_model)
+	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.3))(lstm_model)
-	# lstm_model = Dropout(0.3)(lstm_model)
 	lstm_model = Dense(50)(lstm_model)
 	# pred = TimeDistributed(Dense(1))(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
@@ -174,15 +173,15 @@ def train_with_rnn(max_cnt):
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=500
-	batch_size = 500
-	num_epochs = 5
+	batch_size = 100
+	num_epochs = 10
 	model = load_model(model_name)
 
-	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update2_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update_{epoch:02d}.hdf5', verbose=1)
 
 	
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:9}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:2}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
 
@@ -741,9 +740,9 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 def analyze_sentence(model_name, sentence, condition_id):
 	term = ann2.clean_text(sentence)
 	all_words = ann2.get_all_words_list(term)
-	cache = ann2.get_cache(all_words, False)
+	cache = ann2.get_cache(all_words, False, True)
 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, True, True)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, True, True, True)
 	
 	model = load_model(model_name)
 
@@ -874,14 +873,14 @@ if __name__ == "__main__":
 	# sentence = "usefulness of intracoronary brachytherapy for in stent restenosis with a 188re liquid filled balloon"
 	# sentence = "acute interstitial nephritis associated with amiodarone and resolved after prednisone"
 	# sentence = "Acute interstitial nephritis due to omeprazole"
-	sentence = "Many plant foods, especially watermelon, may trigger acute interstitial nephritis in patients within a few minutes"
-	sentence = sentence.lower()
-	model_name = 'gen_bidi_500_37.hdf5'
+	# sentence = "Clinical and echocardiographic outcomes in acute interstitial nephritis associated with methamphetamine use and cessation"
+	# sentence = sentence.lower()
+	# model_name = 'gen_bidi_500_update_08.hdf5'
 	# model_name = 'gen_500_20.hdf5'
 
 	# 8 can get the associated with concept
-	condition_id = '10603'
-	analyze_sentence(model_name, sentence, condition_id)
+	# condition_id = '10603'
+	# analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -905,13 +904,13 @@ if __name__ == "__main__":
 
 
 	
-	# conn, cursor = pg.return_postgres_cursor()
-	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
-	# 		None, ['cnt'])['cnt'][0])
-	# cursor.close()
-	# conn.close()
+	conn, cursor = pg.return_postgres_cursor()
+	max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
+			None, ['cnt'])['cnt'][0])
+	cursor.close()
+	conn.close()
 	# train_with_rnn(max_cnt)
-	# update_rnn('gen_bidi_500_update_16.hdf5', max_cnt)
+	update_rnn('gen_bidi_500_37.hdf5', max_cnt)
 
 	# print_contingency('gen_bidi_500_20.hdf5')
 	# print_contingency('gen_bidi_500_25.hdf5')
