@@ -646,7 +646,7 @@ def post_search_text(request):
 
 			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
 				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
-			query_logs_df = pd.DataFrame()
+			# query_logs_df = pd.DataFrame()
 
 			if len(query_logs_df.index) > 0:
 				treatment_dict = query_logs_df['treatment_dict'][0]
