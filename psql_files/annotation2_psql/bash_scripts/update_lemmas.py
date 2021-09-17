@@ -15,7 +15,7 @@ def lemma(ln):
 	term = term.replace(' - ', ' ').replace('.', '').replace('- ', ' ').replace(' -', ' ').replace('-', ' ').replace(',', '').replace('\'\'', ' ').replace('   ', ' ').replace('  ', ' ').rstrip().lstrip()
 	word_ord = ln['word_ord']
 	ln_words = term.split()
-	ln_lemmas = ann2.get_lemmas(ln_words, True)
+	ln_lemmas = ann2.get_lemmas(ln_words, True, True)
 	try:
 		return ln_lemmas[word_ord-1]
 	except:

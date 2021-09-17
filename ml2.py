@@ -137,12 +137,13 @@ def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
 	embedding_size=500
-	batch_size = 100
+	batch_size = 300
 	num_epochs = 45
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
 	lstm_model = Bidirectional(LSTM(300, recurrent_dropout=0.3, return_sequences=True))(model_gen_emb)
+	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.3))(lstm_model)
 	lstm_model = Dense(50)(lstm_model)
@@ -159,7 +160,7 @@ def train_with_rnn(max_cnt):
              optimizer='adam', 
              metrics=['accuracy'])
 
-	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_deep_{epoch:02d}.hdf5', verbose=1)
 
 	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -173,11 +174,11 @@ def train_with_rnn(max_cnt):
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=500
-	batch_size = 100
-	num_epochs = 10
+	batch_size = 50
+	num_epochs = 15
 	model = load_model(model_name)
 
-	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update2_{epoch:02d}.hdf5', verbose=1)
 
 	
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
@@ -874,13 +875,15 @@ if __name__ == "__main__":
 	# sentence = "acute interstitial nephritis associated with amiodarone and resolved after prednisone"
 	# sentence = "Acute interstitial nephritis due to omeprazole"
 	# sentence = "Clinical and echocardiographic outcomes in acute interstitial nephritis associated with methamphetamine use and cessation"
-	# sentence = sentence.lower()
-	# model_name = 'gen_bidi_500_update_08.hdf5'
-	# model_name = 'gen_500_20.hdf5'
+	# sentence = "Acute interstitial nephritis: a previously unrecognized complication after cardiac transplantation"
+	sentence = "TH1/TH2 and TC1/TC2 profiles in peripheral blood and bronchoalveolar lavage fluid cells in acute interstitial nephritis"
+	sentence = sentence.lower()
+	model_name = 'gen_bidi_500_deep_29.hdf5'
+	# model_name = 'gen_bidi_500_37.hdf5'
 
 	# 8 can get the associated with concept
-	# condition_id = '10603'
-	# analyze_sentence(model_name, sentence, condition_id)
+	condition_id = '10603'
+	analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -904,22 +907,24 @@ if __name__ == "__main__":
 
 
 	
-	conn, cursor = pg.return_postgres_cursor()
-	max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
-			None, ['cnt'])['cnt'][0])
-	cursor.close()
-	conn.close()
+	# conn, cursor = pg.return_postgres_cursor()
+	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
+	# 		None, ['cnt'])['cnt'][0])
+	# cursor.close()
+	# conn.close()
 	# train_with_rnn(max_cnt)
-	update_rnn('gen_bidi_500_37.hdf5', max_cnt)
 
-	# print_contingency('gen_bidi_500_20.hdf5')
-	# print_contingency('gen_bidi_500_25.hdf5')
-	# print_contingency('gen_bidi_500_32.hdf5')
-	# print_contingency('gen_bidi_500_33.hdf5')
-	# print_contingency('gen_bidi_500_34.hdf5')
-	# print_contingency('gen_bidi_500_35.hdf5')
-	# print_contingency('gen_bidi_500_36.hdf5')
+	# update_rnn('gen_bidi_500_update_03.hdf5', max_cnt)
+
 	# print_contingency('gen_bidi_500_37.hdf5')
+	# print_contingency('gen_bidi_500_update_03.hdf5')
+	# print_contingency('gen_bidi_500_update2_09.hdf5')
+	# print_contingency('gen_bidi_500_update2_10.hdf5')
+	# print_contingency('gen_bidi_500_update2_11.hdf5')
+	# print_contingency('gen_bidi_500_update2_12.hdf5')
+	# print_contingency('gen_bidi_500_update2_13.hdf5')
+	# print_contingency('gen_bidi_500_update2_14.hdf5')
+	# print_contingency('gen_bidi_500_update2_15.hdf5')
 	# print_contingency('gen_bidi_500_38.hdf5')
 	# print_contingency('gen_bidi_500_39.hdf5')
 	# print_contingency('gen_bidi_500_40.hdf5')

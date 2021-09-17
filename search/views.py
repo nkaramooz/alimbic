@@ -548,8 +548,6 @@ def post_search_text(request):
 	flattened_query = None
 
 	if query_type == 'pivot':
-		e = u2.Timer("pivot")
-		kk = u2.Timer('firstpart')
 		query_concepts_df = pd.DataFrame(primary_cids, columns=['acid'])
 		query_concepts_types = get_query_concept_types_df(query_concepts_df['acid'].tolist(), cursor)
 		query_types_list = query_concepts_types['concept_type'].tolist()
@@ -579,17 +577,15 @@ def post_search_text(request):
 				 	["title_cids^10", "abstract_conceptids.*"], cursor)}
 
 		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
-		kk.stop()
-		f = u2.Timer("get_payload")
+
 		sr_payload = get_sr_payload(sr['hits']['hits'], flattened_query_concepts_list, unmatched_terms, cursor)
-		f.stop()
-		s = u2.Timer("related_dict")
+
 		treatment_dict, diagnostic_dict, condition_dict, cause_dict = get_related_conceptids(full_query_concepts_list, primary_cids,\
 			flattened_query_concepts_list, query_types_list, unmatched_terms, filters, cursor)
-		s.stop()
-		e.stop()
+
 
 	elif query_type == 'keyword':
+
 		original_query_concepts_list = []
 		# if query.upper() != query:
 		query = query.lower()
@@ -646,6 +642,7 @@ def post_search_text(request):
 
 			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
 				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
+			
 			# query_logs_df = pd.DataFrame()
 
 			if len(query_logs_df.index) > 0:
@@ -1065,7 +1062,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 	# 	conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
 
 	# 	return conceptid_df
-	
+
 	if len(dist_concept_list) > 0:
 
 		concept_type_query_string = """
@@ -1076,17 +1073,15 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			where active=1 and 
 			root_acid not in (select treatment_acid from ml2.labelled_treatments where label=2)
 			and root_acid in %s and rel_type != 'treatment'
-
 			union
-
 			select distinct(treatment_acid) as acid
 				,'treatment' as concept_type
 			from ml2.treatment_recs_final_2
 			where condition_acid in %s and treatment_acid in %s 
-			and treatment_acid in (select root_acid from annotation2.concept_types where rel_type='treatment' and active=1)
+			and treatment_acid in
+				(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1)
 
 		"""
-
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
 			(tuple(dist_concept_list), tuple(query_concept_list), tuple(dist_concept_list)), ["acid", "concept_type"])
 
@@ -1108,7 +1103,6 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 
 
 def get_related_conceptids(query_concept_list, original_query_concepts_list, flattened_query, query_types_list, unmatched_terms, filters, cursor):
-
 	result_dict = dict()
 	es = es_util.get_es_client()
 	# size zero means only aggregation results returned
@@ -1138,26 +1132,28 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 
 	if len(title_match_cids_df.index) > 0:
 		concept_types_df = get_query_concept_types_df_3(title_match_cids_df, flattened_query, cursor)
-		concept_types_df = ann2.add_names(concept_types_df)
+		
+		if len(concept_types_df.index) > 0:
+			concept_types_df = ann2.add_names(concept_types_df)
 
-		agg_tx = concept_types_df[concept_types_df['concept_type'] == 'treatment']
+			agg_tx = concept_types_df[concept_types_df['concept_type'] == 'treatment']
 
-		if len(agg_tx.index) > 0:
-			sub_dict['treatment'] = rollups(agg_tx, cursor)
+			if len(agg_tx.index) > 0:
+				sub_dict['treatment'] = rollups(agg_tx, cursor)
 
-		agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
-		if len(agg_dx.index) > 0:
-			sub_dict['diagnostic'] = rollups(agg_dx, cursor)
-			
-		agg_cz = concept_types_df[concept_types_df['concept_type'] == 'organism']	
-		if len(agg_cz.index) > 0:
-			sub_dict['cause'] = rollups(agg_cz, cursor)
+			agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
+			if len(agg_dx.index) > 0:
+				sub_dict['diagnostic'] = rollups(agg_dx, cursor)
+				
+			agg_cz = concept_types_df[concept_types_df['concept_type'] == 'organism']	
+			if len(agg_cz.index) > 0:
+				sub_dict['cause'] = rollups(agg_cz, cursor)
 
 
-		agg_condition = concept_types_df[concept_types_df['concept_type'] == 'condition']
-		if len(agg_condition) > 0:
-			agg_condition = agg_condition.sort_values(['count'], ascending=False)
-			sub_dict['condition'] = rollups(agg_condition, cursor)
+			agg_condition = concept_types_df[concept_types_df['concept_type'] == 'condition']
+			if len(agg_condition) > 0:
+				agg_condition = agg_condition.sort_values(['count'], ascending=False)
+				sub_dict['condition'] = rollups(agg_condition, cursor)
 
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']
 	
