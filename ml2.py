@@ -876,9 +876,11 @@ if __name__ == "__main__":
 	# sentence = "Acute interstitial nephritis due to omeprazole"
 	# sentence = "Clinical and echocardiographic outcomes in acute interstitial nephritis associated with methamphetamine use and cessation"
 	# sentence = "Acute interstitial nephritis: a previously unrecognized complication after cardiac transplantation"
-	sentence = "TH1/TH2 and TC1/TC2 profiles in peripheral blood and bronchoalveolar lavage fluid cells in acute interstitial nephritis"
+	# sentence = "Researchers tie severe immunosuppression to acute interstitial nephritis"
+	# sentence = "Acute interstitial nephritis associated with the BRAF inhibitor vemurafenib: a case"
+	sentence = "amiodarone causing acute interstitial nephritis exacerbated by use of prednisone"
 	sentence = sentence.lower()
-	model_name = 'gen_bidi_500_deep_29.hdf5'
+	model_name = 'gen_bidi_500_deep_44.hdf5'
 	# model_name = 'gen_bidi_500_37.hdf5'
 
 	# 8 can get the associated with concept
@@ -903,7 +905,7 @@ if __name__ == "__main__":
 
 	# gen_datasets_mp(1)
 	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_37.hdf5')
+	# gen_treatment_predictions_top('gen_bidi_500_deep_44.hdf5')
 
 
 	
@@ -917,17 +919,21 @@ if __name__ == "__main__":
 	# update_rnn('gen_bidi_500_update_03.hdf5', max_cnt)
 
 	# print_contingency('gen_bidi_500_37.hdf5')
-	# print_contingency('gen_bidi_500_update_03.hdf5')
-	# print_contingency('gen_bidi_500_update2_09.hdf5')
-	# print_contingency('gen_bidi_500_update2_10.hdf5')
-	# print_contingency('gen_bidi_500_update2_11.hdf5')
-	# print_contingency('gen_bidi_500_update2_12.hdf5')
-	# print_contingency('gen_bidi_500_update2_13.hdf5')
-	# print_contingency('gen_bidi_500_update2_14.hdf5')
-	# print_contingency('gen_bidi_500_update2_15.hdf5')
-	# print_contingency('gen_bidi_500_38.hdf5')
-	# print_contingency('gen_bidi_500_39.hdf5')
-	# print_contingency('gen_bidi_500_40.hdf5')
+	# print_contingency('gen_bidi_500_deep_12.hdf5')
+	# print_contingency('gen_bidi_500_deep_20.hdf5')
+	# print_contingency('gen_bidi_500_deep_21.hdf5')
+	# print_contingency('gen_bidi_500_deep_22.hdf5')
+	# print_contingency('gen_bidi_500_deep_23.hdf5')
+	# print_contingency('gen_bidi_500_deep_24.hdf5')
+	# print_contingency('gen_bidi_500_deep_25.hdf5')
+	# print_contingency('gen_bidi_500_deep_30.hdf5')
+	# print_contingency('gen_bidi_500_deep_35.hdf5')
+	# print_contingency('gen_bidi_500_deep_40.hdf5')
+	# print_contingency('gen_bidi_500_deep_41.hdf5')
+	# print_contingency('gen_bidi_500_deep_42.hdf5')
+	# print_contingency('gen_bidi_500_deep_43.hdf5')
+	# print_contingency('gen_bidi_500_deep_44.hdf5')
+	# print_contingency('gen_bidi_500_deep_45.hdf5')
 	# print_contingency('gen_bidi_500_41.hdf5')
 	# print_contingency('gen_bidi_500_42.hdf5')
 	# print_contingency('gen_bidi_500_43.hdf5')

@@ -636,7 +636,7 @@ def post_search_text(request):
 					,condition_json as condition_dict
 					,cause_json as cause_dict
 				from search.query_logs
-				where query=%s
+				where query=%s and querytime::date = now()::date
 				limit 1
 			"""
 
@@ -646,6 +646,7 @@ def post_search_text(request):
 			# query_logs_df = pd.DataFrame()
 
 			if len(query_logs_df.index) > 0:
+				print("true")
 				treatment_dict = query_logs_df['treatment_dict'][0]
 				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
 				condition_dict = query_logs_df['condition_dict'][0]
