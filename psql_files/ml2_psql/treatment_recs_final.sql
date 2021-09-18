@@ -2,7 +2,7 @@ set schema 'ml2';
 drop table if exists treatment_recs_final_2;
 
 create table treatment_recs_final_2 (
-  ,condition_acid varchar(40)
+  condition_acid varchar(40)
 
   ,treatment_acid varchar(40)
  ,score DOUBLE PRECISION
