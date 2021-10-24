@@ -3110,7 +3110,8 @@ def index_doc_from_elem(elem, filename, issn_list):
 						pmid = json_str['pmid']
 							
 
-						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_abstract_conceptids_2(json_str, article_text)
+						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
+							get_abstract_conceptids_2(json_str, article_text)
 						sentence_annotations_df['ver'] = 0
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
@@ -3322,7 +3323,7 @@ def get_abstract_conceptids_2(abstract_dict, article_text):
 
 	all_words = ann2.get_all_words_list(cleaned_text)
 		
-	cache = ann2.get_cache(all_words, True)
+	cache = ann2.get_cache(all_words, True, True)
 
 	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache)
 	sentence_annotations_df['pmid'] = abstract_dict['pmid']
@@ -3613,7 +3614,7 @@ def get_snomed_annotation(text_dict, cache):
 	if text_dict['article_keywords'] is not None:
 		sentences_df = return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, True, True, True)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, True, True, True, True)
 
 	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
@@ -3677,7 +3678,7 @@ if __name__ == "__main__":
 	# 	start_file += 5
 
 	start_file = get_start_file_num()
-	end_file = 1412
+	end_file = 1443
 	
 	while (start_file <= end_file):
 		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')

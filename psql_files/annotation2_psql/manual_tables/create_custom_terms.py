@@ -52,6 +52,8 @@ custom_term_synonym_dict = {
 	,'antimuscarinic drug' : 'muscarinic receptor antagonist'
 	,'varicella-zoster' : 'VZV'
 	,'echocardiography' : 'echocardiogram'
+	,'receptor agonist' : 'agonist'
+	,'Propionibacterium' : 'P.'
 
 }
 

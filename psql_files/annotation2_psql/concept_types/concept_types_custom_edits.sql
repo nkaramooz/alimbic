@@ -1,5 +1,11 @@
 -- inactivate or activate certain branches of graph
 
+
+-- insert into annotation2.concept_types_app
+-- 	VALUES 
+-- 	('98381', 'diagnostic', 0, now())
+-- ;
+
 -- insert into annotation2.concept_types_app
 -- 	select 
 -- 		child_acid as acid
@@ -11,11 +17,13 @@
 -- ;
 
 
--- insert into annotation2.concept_types_app
--- 	VALUES 
--- 	('98381', 'diagnostic', 0, now())
--- ;
 
+
+
+insert into annotation2.concept_types_app
+	VALUES 
+	('288161', 'treatment', 0, now())
+;
 
 insert into annotation2.concept_types_app
 	select 
@@ -24,14 +32,16 @@ insert into annotation2.concept_types_app
 		,0 as active
 		,now() as effectivetime
 	from snomed2.transitive_closure_acid 
-	where parent_acid='129419'
+	where parent_acid='288161'
 ;
 
 
-insert into annotation2.concept_types_app
-	VALUES 
-	('129419', 'treatment', 0, now())
-;
+
+
+-- insert into annotation2.concept_types_app
+-- 	VALUES 
+-- 	('178715', 'condition', 0, now())
+-- ;
 
 -- insert into annotation2.concept_types_app
 -- 	select 
@@ -40,14 +50,19 @@ insert into annotation2.concept_types_app
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='218363'
+-- 	where parent_acid='340422'
 -- ;
+
+
+
+
 
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('218363', 'condition', 0, now())
+-- 	('515062', 'symptom', 0, now())
 -- ;
+
 
 -- insert into annotation2.concept_types_app
 -- 	select 
@@ -56,15 +71,16 @@ insert into annotation2.concept_types_app
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='218363'
+-- 	where parent_acid='515062'
 -- ;
 
 
--- insert into annotation2.concept_types_app
+
+
+-- insert into annotation.concept_types_app
 -- 	VALUES 
--- 	('218363', 'symptom', 0, now())
+-- 	('178715', 'anatomy', 0, now())
 -- ;
-
 
 -- insert into annotation2.concept_types_app
 -- 	select 
@@ -73,12 +89,9 @@ insert into annotation2.concept_types_app
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='107780'
+-- 	where parent_acid='21100'
 -- ;
 
 
--- insert into annotation.concept_types_app
--- 	VALUES 
--- 	('107780', 'anatomy', 0, now())
--- ;
+
 

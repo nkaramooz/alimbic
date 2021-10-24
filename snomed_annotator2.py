@@ -63,17 +63,6 @@ def get_new_candidate_df(word, case_sensitive):
 
 	return new_candidate_df
 
-def get_wordnet_pos(ln_words):
-	
-	tags = nltk.pos_tag(ln_words)
-	tag_dict = {"J" : wordnet.ADJ, "N" : wordnet.NOUN,
-		"V": wordnet.VERB, "R" : wordnet.ADV, "I" : wordnet.VERB}
-
-	res = []
-	for i,tag in enumerate(tags):
-		res.append(tag_dict.get(tag[1][0].upper(), wordnet.NOUN))
-	return res
-
 
 def get_lemmas(ln_words, case_sensitive, check_pos):
 
@@ -85,7 +74,7 @@ def get_lemmas(ln_words, case_sensitive, check_pos):
 	ln_lemmas = []
 
 	for i,w in enumerate(ln_words):
-		
+
 		if not case_sensitive:
 			w = w.lower()
 		else:
@@ -125,6 +114,19 @@ def get_lemmas(ln_words, case_sensitive, check_pos):
 
 		ln_lemmas.append(w)
 	return ln_lemmas
+
+
+def get_wordnet_pos(ln_words):
+	
+	tags = nltk.pos_tag(ln_words)
+	tag_dict = {"J" : wordnet.ADJ, "N" : wordnet.NOUN,
+		"V": wordnet.VERB, "R" : wordnet.ADV, "I" : wordnet.VERB}
+
+	res = []
+	for i,tag in enumerate(tags):
+		res.append(tag_dict.get(tag[1][0].upper(), wordnet.NOUN))
+	return res
+
 
 def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos, cache):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
@@ -600,7 +602,7 @@ def get_all_words_list(text):
 
 def get_cache(all_words_list, case_sensitive, check_pos):
 	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos)
-	f = u.Timer("get_new_candidate_df")
+
 	cache = get_new_candidate_df(lemmas, case_sensitive)
 	cache['points'] = 0
 
@@ -902,15 +904,16 @@ if __name__ == "__main__":
 	query84="Helicobacter pylori"
 	query85="The percutaneous coronary intervention PCI have to be one of the fastest growing therapeutic interventions for patients with ST elevation myocardial infarction"
 	query86="kaposi's sarcoma"
+	query87="COPD Insulin"
 
 	# conn, cursor = pg.return_postgres_cursor()
 
-	
+
 	counter = 0
 	# print(clean_text("Dysphagia")
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query85
+		term = query87
 
 		term = clean_text(term)
 		print(term)
@@ -922,7 +925,7 @@ if __name__ == "__main__":
 			columns=['line', 'section', 'section_ind', 'ln_num'])
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, True, True, False)
+		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, False, True)
 		u.pprint(g['sentence_tuples'].tolist())
 		u.pprint(res)
 		d.stop()

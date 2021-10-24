@@ -3,7 +3,7 @@
 	margin-bottom: 5px;
 	font-family:'Comfortaa';
 	font-weight: bold;
-	color: rgb(251,0,6);
+	color: rgb(251,0,6) !important;
 }
 
 .navbar {

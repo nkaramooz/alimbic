@@ -599,9 +599,9 @@ def post_search_text(request):
 		elif (len(query_concepts_df.index) == 0):
 			query = ann2.clean_text(query)
 			all_words = ann2.get_all_words_list(query)
-			cache = ann2.get_cache(all_words, False, False)
+			cache = ann2.get_cache(all_words, False, None)
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
-			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, False, True, False)
+			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, None, False, False)
 
 		primary_cids = None
 
@@ -622,7 +622,7 @@ def post_search_text(request):
 
 
 			es_query = {"from" : 0, \
-						 "size" : 25, \
+						 "size" : 100, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*^1"], cursor)}
@@ -646,7 +646,6 @@ def post_search_text(request):
 			# query_logs_df = pd.DataFrame()
 
 			if len(query_logs_df.index) > 0:
-				print("true")
 				treatment_dict = query_logs_df['treatment_dict'][0]
 				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
 				condition_dict = query_logs_df['condition_dict'][0]
@@ -692,13 +691,6 @@ def post_search_text(request):
 
 
 
-def treatment_expansion(treatment_list, condition_list, cursor):
-	# expanded_treatments = ann2.query_expansion(treatment_list, cursor)
-	query = """
-		select t1.treatment_acid
-		from ml2.treatment_recs_final_2 t1
-		where t1.condition_acid in %s and t1.treatment acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in %s)
-	"""
 
 
 def get_ip_address(request):
@@ -744,17 +736,22 @@ def rollups(cids_df, cursor):
 		
 		parents_df = parents_df[parents_df['parent_acid'].isin(parents_df['child_acid'].tolist()) == False].copy()
 
-
 		orphan_df = cids_df[(cids_df['acid'].isin(parents_df['child_acid'].tolist()) == False) 
 			& (cids_df['acid'].isin(parents_df['parent_acid'].tolist()) == False)]
 		orphan_df = orphan_df.sort_values(by=['count'], ascending=False)
 
 		json = []
 
-		distinct_parents = set(parents_df['parent_acid'].tolist())
-
 		joined_df = cids_df.merge(parents_df, how='right', left_on='acid', right_on='child_acid')
 
+		distinct_parents = parents_df.drop_duplicates(['parent_acid'])
+		
+		parents_count = joined_df.groupby(['parent_acid'])['count'].sum().reset_index()
+		
+		distinct_parents = distinct_parents.merge(parents_count, how='left', left_on='parent_acid', right_on='parent_acid')
+		distinct_parents = distinct_parents.sort_values(by=['count'], ascending=False)
+
+		distinct_parents = distinct_parents['parent_acid'].tolist()
 		for parent in distinct_parents:
 			children_df = joined_df[joined_df['parent_acid'] == parent]
 			count = children_df['count'].sum()
@@ -818,9 +815,10 @@ def get_sr_payload(sr, flattened_query, unmatched_terms, cursor):
 	for index,hit in enumerate(sr):
 		hit_dict = {}
 		sr_src = hit['_source']
+
 		for term in terms:
-			term_search = '(' + term + ')(?!(.(?!<b))*</b>)'
-					
+			term_search = r"(\b" + term + r"\b)(?!(.(?!<b))*</b>)"
+
 			if sr_src['article_abstract'] is not None:
 				for key in sr_src['article_abstract']:
 					sr_src['article_abstract'][key] = re.sub(term_search, r'<b>\1</b>', sr_src['article_abstract'][key], flags=re.IGNORECASE)
@@ -1048,21 +1046,6 @@ def get_query_concept_types_df(flattened_concept_list, cursor):
 def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 
 	dist_concept_list = list(set(conceptid_df['acid'].tolist()))
-	# if concept_type == 'treatment' and len(dist_concept_list) > 0:
-	# 	query = """
-	# 		select 
-	# 			distinct(treatment_acid)
-	# 		from ml2.treatment_recs_final_2
-	# 		where condition_acid in %s and treatment_acid not in 
-	# 			(select treatment_acid from ml2.labelled_treatments where label=2 and treatment_acid is not NULL)
-	# 			and treatment_acid in (select root_acid from annotation2.concept_types where active=1 and rel_type='treatment')
-	# 	"""
-
-	# 	tx_df = pg.return_df_from_query(cursor, query, (tuple(query_concept_list),), ["acid"])
-
-	# 	conceptid_df = pd.merge(conceptid_df, tx_df, how='inner', on=['acid'])
-
-	# 	return conceptid_df
 
 	if len(dist_concept_list) > 0:
 
@@ -1074,20 +1057,22 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			where active=1 and 
 			root_acid not in (select treatment_acid from ml2.labelled_treatments where label=2)
 			and root_acid in %s and rel_type != 'treatment'
+			
 			union
+			
 			select distinct(treatment_acid) as acid
 				,'treatment' as concept_type
 			from ml2.treatment_recs_final_2
 			where condition_acid in %s and treatment_acid in %s 
 			and treatment_acid in
-				(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1)
+				(select root_acid from annotation2.concept_types where active=1 and rel_type='treatment')
 
 		"""
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
 			(tuple(dist_concept_list), tuple(query_concept_list), tuple(dist_concept_list)), ["acid", "concept_type"])
 
 		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='inner', on=['acid'])
-
+		u2.pprint(conceptid_df[conceptid_df['concept_type'] == 'treatment'])
 		return conceptid_df
 	else:
 		concept_type_query_string = """
@@ -1096,7 +1081,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			where active=1
 
 		"""
-		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, (concept_type,), ["acid", "concept_type"])
+		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, None, ["acid", "concept_type"])
 		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='right', on=['acid'])
 		return conceptid_df
 
@@ -1140,20 +1125,20 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 			agg_tx = concept_types_df[concept_types_df['concept_type'] == 'treatment']
 
 			if len(agg_tx.index) > 0:
+				# agg_tx = agg_tx.sort_values(['count'], ascending=False)
 				sub_dict['treatment'] = rollups(agg_tx, cursor)
 
 			agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
 			if len(agg_dx.index) > 0:
 				sub_dict['diagnostic'] = rollups(agg_dx, cursor)
 				
-			agg_cz = concept_types_df[concept_types_df['concept_type'] == 'organism']	
+			agg_cz = concept_types_df[concept_types_df['concept_type'] == 'cause']	
 			if len(agg_cz.index) > 0:
 				sub_dict['cause'] = rollups(agg_cz, cursor)
 
 
 			agg_condition = concept_types_df[concept_types_df['concept_type'] == 'condition']
 			if len(agg_condition) > 0:
-				agg_condition = agg_condition.sort_values(['count'], ascending=False)
 				sub_dict['condition'] = rollups(agg_condition, cursor)
 
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause']

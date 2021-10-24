@@ -107,6 +107,63 @@
 <br>
 
 
+<div class="row center" id="label_tx">
+	<br>
+	<br>
+	<h3> Label condition/treatment </h3>
+</div>
+<div class="container">
+	<form action="{% url 'search:post_concept_override' %}" method="post"> 
+		{% csrf_token %}
+		<div class="row form-row">
+			<div class="input-field col s8">
+				CONDITION ACID: <input type="text" name="condition_acid_labelled"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<div class="input-field col s8">
+				TREATMENT ACID: <input type="text" name="treatment_acid_labelled"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="rel_0" type="radio"/>
+					<span> zero (not a treatment) </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_1" type="radio"/>
+					<span> one (is a treatment) </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel_2" type="radio" />
+					<span> item is too broad </span>
+				</label>
+			</p>
+		</div>
+		<div class="input-field col s2">
+			<button type="submit" value="labelled_condition_treatment_submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="labelled_condition_treatment_results">
+	{{payload.labelled_condition_treatment_message}}
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
 <div class="row center" id="rel_lookup">
 	<br>
 	<br>
@@ -315,63 +372,6 @@
 <div class="container" id="change_relationship_results">
 	{{payload.change_relationship.error}}
 	{{payload.change_relationship.message}}
-</div>
-
-
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-
-
-<div class="row center" id="label_tx">
-	<br>
-	<br>
-	<h3> Label condition/treatment </h3>
-</div>
-<div class="container">
-	<form action="{% url 'search:post_concept_override' %}" method="post"> 
-		{% csrf_token %}
-		<div class="row form-row">
-			<div class="input-field col s8">
-				CONDITION ACID: <input type="text" name="condition_acid_labelled"> <br> 
-			</div>
-		</div>
-		<div class="row form-row">
-			<div class="input-field col s8">
-				TREATMENT ACID: <input type="text" name="treatment_acid_labelled"> <br> 
-			</div>
-		</div>
-		<div class="row form-row">
-			<p>
-				<label>
-					<input name="rel_0" type="radio"/>
-					<span> zero (not a treatment) </span>
-				</label>
-			</p>
-			<p>
-				<label>
-					<input name="rel_1" type="radio"/>
-					<span> one (is a treatment) </span>
-				</label>
-			</p>
-			<p>
-				<label>
-					<input name="rel_2" type="radio" />
-					<span> item is too broad </span>
-				</label>
-			</p>
-		</div>
-		<div class="input-field col s2">
-			<button type="submit" value="labelled_condition_treatment_submit" class="waves-effect waves-light btn search-btn">Submit</button>
-		</div>
-	</form>
-</div>
-
-<div class="container" id="labelled_condition_treatment_results">
-	{{payload.labelled_condition_treatment_message}}
 </div>
 
 

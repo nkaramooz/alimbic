@@ -70,7 +70,11 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Circ Arrhythm Electrophysiol', '1941-3149', 'Print'),
 	('Circ Arrhythm Electrophysiol', '1941-3084', 'Electronic'),
 	('Urol Case Rep', '2214-4420', 'Undetermined'),
-	('J Med Case Rep', '1752-1947', 'Undetermined')
+	('J Med Case Rep', '1752-1947', 'Undetermined'),
+	('J Antimicrob Chemother', '0305-7453', 'Print'),
+	('J Antimicrob Chemother', '1460-2091', 'Electronic'),
+	('J Am Soc Nephrol', '1046-6673', 'Print'),
+	('J Am Soc Nephrol', '1533-3450', 'Electronic')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

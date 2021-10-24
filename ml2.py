@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 from nltk.stem.wordnet import WordNetLemmatizer
 from operator import itemgetter
 import nltk.data
+from nltk.tag.perceptron import PerceptronTagger
 import numpy as np
 import time
 import utilities.pglib as pg
@@ -138,15 +139,17 @@ def train_with_rnn(max_cnt):
 
 	embedding_size=500
 	batch_size = 300
-	num_epochs = 45
+	num_epochs = 30
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
-	lstm_model = Bidirectional(LSTM(300, recurrent_dropout=0.3, return_sequences=True))(model_gen_emb)
-	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
-	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
-	lstm_model = Bidirectional(LSTM(100, recurrent_dropout=0.3))(lstm_model)
-	lstm_model = Dense(50)(lstm_model)
+	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.3, return_sequences=True))(model_gen_emb)
+	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.3, return_sequences=True))(lstm_model)
+	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.3, return_sequences=True))(lstm_model)
+	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.3))(lstm_model)
+	lstm_model = Dropout(0.3)(lstm_model)
+	lstm_model = Dense(256)(lstm_model)
+	lstm_model = Dropout(0.3)(lstm_model)
 	# pred = TimeDistributed(Dense(1))(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
 	
@@ -167,22 +170,22 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:2.2}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:4}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 	embedding_size=500
-	batch_size = 50
-	num_epochs = 15
+	batch_size = 300
+	num_epochs = 45
 	model = load_model(model_name)
 
-	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_update2_{epoch:02d}.hdf5', verbose=1)
+	checkpointer = ModelCheckpoint(filepath='./gen_bidi_deep_500_update_{epoch:02d}.hdf5', verbose=1)
 
 	
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:2}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:2.2}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
 
@@ -567,7 +570,8 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.section_ind
 							,t1.pmid
 						from pubmed.sentence_concept_arr_1_9 t1
-						join (select root_acid as condition_acid from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
+						join (select root_acid as condition_acid 
+						from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
 						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
@@ -741,9 +745,10 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 def analyze_sentence(model_name, sentence, condition_id):
 	term = ann2.clean_text(sentence)
 	all_words = ann2.get_all_words_list(term)
-	cache = ann2.get_cache(all_words, False, True)
+	tagger = PerceptronTagger()
+	cache = ann2.get_cache(all_words, False, tagger)
 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, True, True, True)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, tagger, True, True)
 	
 	model = load_model(model_name)
 
@@ -783,7 +788,11 @@ def print_contingency(model_name):
 
 	# should be OK to load into memory
 
-	testing_query = "select id, sentence_id, sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_gen_mask, label from ml2.test_sentences where ver=%s"
+	testing_query = """
+		select id, sentence_id, 
+			sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_gen_mask, label 
+		from ml2.test_sentences where ver=%s
+	"""
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
 		['id', 'sentence_id','sentence_tuples','condition_acid', 'treatment_acid', 'x_train_gen','x_train_gen_mask', 'label'])
 
@@ -824,10 +833,12 @@ def print_contingency(model_name):
 	print("label 0, res 0: " + str(zero_zero))
 	print("label 0, res 1: " + str(zero_one))
 
-	sens = (one_one) / (one_one + one_zero)
-	print("sensitivity : " + str(sens))
-	spec = zero_zero / (zero_one + zero_zero)
-	print("specificity : " + str(spec))
+	if (one_one + one_zero) != 0:
+		sens = (one_one) / (one_one + one_zero)
+		print("sensitivity : " + str(sens))
+	if (zero_one + zero_zero) != 0:
+		spec = zero_zero / (zero_one + zero_zero)
+		print("specificity : " + str(spec))
 
 	cursor.close()
 	conn.close()
@@ -873,15 +884,30 @@ if __name__ == "__main__":
 	# sentence = "Tobacco is a risk factor for acute interstitial nephritis"
 	# sentence = "usefulness of intracoronary brachytherapy for in stent restenosis with a 188re liquid filled balloon"
 	# sentence = "acute interstitial nephritis associated with amiodarone and resolved after prednisone"
+	## resolved after does not work
 	# sentence = "Acute interstitial nephritis due to omeprazole"
 	# sentence = "Clinical and echocardiographic outcomes in acute interstitial nephritis associated with methamphetamine use and cessation"
 	# sentence = "Acute interstitial nephritis: a previously unrecognized complication after cardiac transplantation"
 	# sentence = "Researchers tie severe immunosuppression to acute interstitial nephritis"
-	# sentence = "Acute interstitial nephritis associated with the BRAF inhibitor vemurafenib: a case"
-	sentence = "amiodarone causing acute interstitial nephritis exacerbated by use of prednisone"
+	# sentence = "Acute interstitial nephritis associated with the BRAF inhibitor vemurafenib"
+	# sentence = "amiodarone causing acute interstitial nephritis was made worse by addition of prednisone"
+	# sentence = "However, use of the simultaneous maze procedure for AF associated with acute interstitial nephritis remains controversial"
+	# sentence = "Artesunate for patients with Plasmodium falciparum in a patient with acute interstitial nephritis"
+	# sentence = "Cancer chemotherapy has been anecdotally reported as a trigger factor for worsening of acute interstitial nephritis"
+	# sentence = "Therapy of steroid-induced bone loss in adult patients with acute interstitial nephritis with calcium, vitamin D, and a diphosphonate"
+	# sentence = "Changes in Adenosine Triphosphate and Nitric Oxide in the Urothelium of Patients with acute interstitial nephritis"
+	# sentence = "Metoprolol for hypertension among patients with acute interstitial nephritis"
+	# sentence = "Steroids for the treatment of amiodarone induced Acute interstitial nephritis"
+	# sentence = "amiodarone drug levels as a biomarker in acute interstitial nephritis"
+	# sentence = "it is advisable to investigate thoroughly any sign of acute interstitial nephritis in patients who undergo any procedure requiring significant neck extension, particularly if on long-term haemodialysis"
+	# sentence = "Relapse of acute interstitial nephritis induced by temozolomide based chemoradiation"
+	# sentence = "Parathyroidectomy Improves acute interstitial nephritis in Patients on Hemodialysis"
+	# sentence = "Bariatric Surgery in Patients With acute interstitial nephritis-The Silver Bullet"
+	# sentence = "In formalin-fixed paraffin embedded samples from surgical resection of tongue squamous cell carcinoma of a patient who developed acute interstitial nephritis"
+	sentence = "The tiology of liver disease is hepatitis C virus and alcohol with n=5493 and acute interstitial nephritis with n=3"
 	sentence = sentence.lower()
-	model_name = 'gen_bidi_500_deep_44.hdf5'
-	# model_name = 'gen_bidi_500_37.hdf5'
+	# model_name = 'gen_bidi_deep_500_update_05.hdf5'
+	model_name = 'gen_bidi_500_deep_14.hdf5'
 
 	# 8 can get the associated with concept
 	condition_id = '10603'
@@ -892,20 +918,10 @@ if __name__ == "__main__":
 
 	
 
-	# sent_query = "select sentence_id, x_train_spec from ml2.w2v_emb_train_w_ver where ver=%s limit 1"
-	# sentences_df = pg.return_df_from_query(cursor, sent_query, (0,), ['sentence_id', 'x_train_spec'])
-	# sentences_list = sentences_df['x_train_spec'].tolist()
-	# sentence_id_list = sentences_df['sentence_id'].tolist()
-
-
-	# parallel_treatment_recategorization_top('../double-19.hdf5')
-
-	# parallel_treatment_recategorization_top('emb_500_update_04.hdf5')
-
 
 	# gen_datasets_mp(1)
 	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_deep_44.hdf5')
+	# gen_treatment_predictions_top('gen_bidi_500_deep_14.hdf5')
 
 
 	
@@ -916,26 +932,52 @@ if __name__ == "__main__":
 	# conn.close()
 	# train_with_rnn(max_cnt)
 
-	# update_rnn('gen_bidi_500_update_03.hdf5', max_cnt)
+	# update_rnn('gen_bidi_500_deep_44.hdf5', max_cnt)
 
-	# print_contingency('gen_bidi_500_37.hdf5')
+	# print_contingency('gen_bidi_500_deep_01.hdf5')
+	# print_contingency('gen_bidi_500_deep_02.hdf5')
+	# print_contingency('gen_bidi_500_deep_05.hdf5')
+	# print_contingency('gen_bidi_500_deep_03.hdf5')
+	# print_contingency('gen_bidi_500_deep_04.hdf5')
+	# print_contingency('gen_bidi_500_deep_05.hdf5')
+	# print_contingency('gen_bidi_500_deep_06.hdf5')
+	# print_contingency('gen_bidi_500_deep_07.hdf5')
+	# print_contingency('gen_bidi_500_deep_08.hdf5')
+	# print_contingency('gen_bidi_500_deep_09.hdf5')
+	# print_contingency('gen_bidi_500_deep_10.hdf5')
+	# print_contingency('gen_bidi_500_deep_11.hdf5')
 	# print_contingency('gen_bidi_500_deep_12.hdf5')
+	# print_contingency('gen_bidi_500_deep_13.hdf5')
+	# print_contingency('gen_bidi_500_deep_14.hdf5')
+	# print_contingency('gen_bidi_500_deep_15.hdf5')
+	# print_contingency('gen_bidi_500_deep_16.hdf5')
+	# print_contingency('gen_bidi_500_deep_17.hdf5')
+	# print_contingency('gen_bidi_500_deep_18.hdf5')
+	# print_contingency('gen_bidi_500_deep_19.hdf5')
 	# print_contingency('gen_bidi_500_deep_20.hdf5')
 	# print_contingency('gen_bidi_500_deep_21.hdf5')
 	# print_contingency('gen_bidi_500_deep_22.hdf5')
 	# print_contingency('gen_bidi_500_deep_23.hdf5')
 	# print_contingency('gen_bidi_500_deep_24.hdf5')
 	# print_contingency('gen_bidi_500_deep_25.hdf5')
+	# print_contingency('gen_bidi_500_deep_26.hdf5')
+	# print_contingency('gen_bidi_500_deep_27.hdf5')
+	# print_contingency('gen_bidi_500_deep_28.hdf5')
+	# print_contingency('gen_bidi_500_deep_29.hdf5')
 	# print_contingency('gen_bidi_500_deep_30.hdf5')
+	# print_contingency('gen_bidi_500_deep_31.hdf5')
+	# print_contingency('gen_bidi_500_deep_32.hdf5')
+	# print_contingency('gen_bidi_500_deep_33.hdf5')
+	# print_contingency('gen_bidi_500_deep_34.hdf5')
 	# print_contingency('gen_bidi_500_deep_35.hdf5')
+	# print_contingency('gen_bidi_500_deep_36.hdf5')
+	# print_contingency('gen_bidi_500_deep_37.hdf5')
+	# print_contingency('gen_bidi_500_deep_38.hdf5')
+	# print_contingency('gen_bidi_500_deep_39.hdf5')
 	# print_contingency('gen_bidi_500_deep_40.hdf5')
 	# print_contingency('gen_bidi_500_deep_41.hdf5')
 	# print_contingency('gen_bidi_500_deep_42.hdf5')
 	# print_contingency('gen_bidi_500_deep_43.hdf5')
 	# print_contingency('gen_bidi_500_deep_44.hdf5')
+
 	# print_contingency('gen_bidi_500_deep_45.hdf5')
-	# print_contingency('gen_bidi_500_41.hdf5')
-	# print_contingency('gen_bidi_500_42.hdf5')
-	# print_contingency('gen_bidi_500_43.hdf5')
-	# print_contingency('gen_bidi_500_44.hdf5')
-	# print_contingency('gen_bidi_500_45.hdf5')
