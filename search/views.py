@@ -1128,9 +1128,9 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 				# agg_tx = agg_tx.sort_values(['count'], ascending=False)
 				sub_dict['treatment'] = rollups(agg_tx, cursor)
 
-			agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
-			if len(agg_dx.index) > 0:
-				sub_dict['diagnostic'] = rollups(agg_dx, cursor)
+			# agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
+			# if len(agg_dx.index) > 0:
+			# 	sub_dict['diagnostic'] = rollups(agg_dx, cursor)
 				
 			agg_cz = concept_types_df[concept_types_df['concept_type'] == 'cause']	
 			if len(agg_cz.index) > 0:
