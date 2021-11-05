@@ -9,6 +9,11 @@ create table full_relationship_acid(
   ,active char(1) not null
 );
 
+create index full_relationship_acid_source_acid_ind on full_relationship_acid(source_acid);
+create index full_relationship_acid_destination_acid_ind on full_relationship_acid(destination_acid);
+create index full_relationship_acid_active_ind on full_relationship_acid(active);
+create index full_relationship_acid_typeid_ind on full_relationship_acid(typeid);
+
 insert into full_relationship_acid
 	select
 	t2.acid as source_acid
@@ -20,3 +25,7 @@ insert into full_relationship_acid
 	on t1.sourceid = t2.cid
 	join annotation2.upstream_root_cid t3
 	on t1.destinationid = t3.cid
+
+
+
+

@@ -2,10 +2,10 @@ set schema 'pubmed';
 
 drop table if exists journals;
 create table journals as (
-	select iso_abbrev, issn, type
-	from pubmed.core_clinical_journals
+	-- select iso_abbrev, issn, type
+	-- from pubmed.core_clinical_journals
 
-	union
+	-- union
 
 	select iso_abbrev, issn, type
 	from pubmed.additional_journals

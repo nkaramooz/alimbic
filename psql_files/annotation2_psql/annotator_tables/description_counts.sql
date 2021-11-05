@@ -12,7 +12,7 @@ insert into annotation2.description_counts
 	select
 		adid
 		,count(*) as cnt
-	from pubmed.sentence_annotations_1_9
+	from pubmed.sentence_annotations_2
 	where adid != '-1'
 	group by adid
 ;

@@ -18,7 +18,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import re
 
-INDEX_NAME='pubmedx1.9'
+INDEX_NAME='pubmedx2.0'
 
 
 
@@ -170,16 +170,6 @@ def post_ml(request):
 def concept_override(request):
 	return render(request, 'search/concept_override.html')
 
-def get_df_dict(df):
-	cols = df.columns.tolist()
-	res_arr = []
-	for i,t in df.iterrows():
-		res_dict = {}
-		for j in cols:
-			res_dict[j] = t[j]
-		res_arr.append(res_dict)
-	return res_arr
-
 def post_concept_override(request):
 	conn,cursor = pg.return_postgres_cursor()
 	payload_dict = {}
@@ -204,7 +194,7 @@ def post_concept_override(request):
 		"""
 		df = pg.return_df_from_query(cursor, query, (acid,), \
 	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
-		payload_dict['acid'] = get_df_dict(df)
+		payload_dict['acid'] = df.to_dict('records')
 	elif 'adid' in request.POST:
 		adid = request.POST['adid']
 		query = """
@@ -224,7 +214,7 @@ def post_concept_override(request):
 		"""
 		df = pg.return_df_from_query(cursor, query, (adid,), \
 	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
-		payload_dict['adid'] = get_df_dict(df)
+		payload_dict['adid'] = df.to_dict('records')
 	elif 'term' in request.POST:
 		term = request.POST['term']
 		query = """
@@ -244,7 +234,7 @@ def post_concept_override(request):
 		"""
 		df = pg.return_df_from_query(cursor, query, (term,), \
 	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
-		payload_dict['term'] = get_df_dict(df)
+		payload_dict['term'] = df.to_dict('records')
 	elif 'acid_relationship' in request.POST:
 		acid = request.POST['acid_relationship']
 		message = ""
@@ -262,24 +252,23 @@ def post_concept_override(request):
 		# 	where child_acid = %s
 		# """
 		query = """
-		select
-			source_acid as item
-			,t3.term as item_name
-			,destination_acid as parent
-			,t2.term as parent_name
-		from snomed2.full_relationship_acid t1
-		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
-			on t1.destination_acid = t2.acid
-		join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
-			on t1.source_acid = t3.acid
-		where source_acid = %s and typeid='116680003' and active='1'
-
+			select
+				source_acid as item
+				,t3.term as item_name
+				,destination_acid as parent
+				,t2.term as parent_name
+			from snomed2.full_relationship_acid t1
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t2
+				on t1.destination_acid = t2.acid
+			join (select distinct on (acid) acid, term from annotation2.downstream_root_did) t3
+				on t1.source_acid = t3.acid
+			where source_acid = %s and typeid='116680003' and active='1'
 		"""
 		df = pg.return_df_from_query(cursor, query, (acid,), ['item', 'item_name', 'parent', 'parent_name'])
 		if len(df.index) == 0:
 			message = "No parents found."
 		else:
-			payload_dict['acid_relationship_parent'] = get_df_dict(df)
+			payload_dict['acid_relationship_parent'] = df.to_dict('records')
 
 		# query = """
 		# 	select
@@ -313,7 +302,7 @@ def post_concept_override(request):
 		if len(df.index) == 0:
 			message += " No children found"
 		else:
-			payload_dict['acid_relationship_child'] = get_df_dict(df)
+			payload_dict['acid_relationship_child'] = df.to_dict('records')
 		payload_dict['relationship_lookup_message'] = message
 	elif 'child_acid' in request.POST: 
 		child_acid = request.POST['child_acid']
@@ -334,7 +323,7 @@ def post_concept_override(request):
 		payload_dict['new_concept_success'] = error
 		if error:
 			payload_dict['new_concept_success'] = False
-			payload_dict['new_concept'] = get_df_dict(conflict_df)
+			payload_dict['new_concept'] = conflict_df.to_dict('records')
 		else:
 			payload_dict['new_concept_success'] = True
 	elif 'remove_acid' in request.POST:
@@ -1072,8 +1061,8 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			(tuple(dist_concept_list), tuple(query_concept_list), tuple(dist_concept_list)), ["acid", "concept_type"])
 
 		conceptid_df = pd.merge(conceptid_df, query_concept_type_df, how='inner', on=['acid'])
-		u2.pprint(conceptid_df[conceptid_df['concept_type'] == 'treatment'])
 		return conceptid_df
+		
 	else:
 		concept_type_query_string = """
 			select root_cid as acid, rel_type as concept_type

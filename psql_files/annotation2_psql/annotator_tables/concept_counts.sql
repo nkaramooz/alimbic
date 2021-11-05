@@ -13,6 +13,6 @@ insert into concept_counts
 	select
 		final_ann as concept
 		,count(*) as cnt
-	from pubmed.sentence_annotations_1_9
+	from pubmed.sentence_annotations_2
 	group by final_ann
 ;

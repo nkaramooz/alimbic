@@ -20,20 +20,20 @@
 
 
 
-insert into annotation2.concept_types_app
-	VALUES 
-	('288161', 'treatment', 0, now())
-;
+-- insert into annotation2.concept_types_app
+-- 	VALUES 
+-- 	('288161', 'treatment', 0, now())
+-- ;
 
-insert into annotation2.concept_types_app
-	select 
-		child_acid as acid
-		,'treatment' as rel_type
-		,0 as active
-		,now() as effectivetime
-	from snomed2.transitive_closure_acid 
-	where parent_acid='288161'
-;
+-- insert into annotation2.concept_types_app
+-- 	select 
+-- 		child_acid as acid
+-- 		,'treatment' as rel_type
+-- 		,0 as active
+-- 		,now() as effectivetime
+-- 	from snomed2.transitive_closure_acid 
+-- 	where parent_acid='288161'
+-- ;
 
 
 
@@ -93,5 +93,20 @@ insert into annotation2.concept_types_app
 -- ;
 
 
+
+insert into annotation2.concept_types_app
+	VALUES 
+	('887743', 'outcome', 1, now())
+;
+
+insert into annotation2.concept_types_app
+	select 
+		child_acid as acid
+		,'outcome' as rel_type
+		,1 as active
+		,now() as effectivetime
+	from snomed2.transitive_closure_acid 
+	where parent_acid='887760'
+;
 
 

@@ -19,7 +19,7 @@ create table validation_sentences as (
     	,label
     	,ver
     from ml2.all_training_sentences
-    where rand > 0.992 and rand < 0.996
+    where rand > 0.985 and rand < 0.995
 
 );
 

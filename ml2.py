@@ -138,7 +138,7 @@ def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
 	embedding_size=500
-	batch_size = 300
+	batch_size = 500
 	num_epochs = 30
 
 	model_input_gen = Input(shape=(max_words,))
@@ -170,7 +170,7 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:4}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:1.4}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
@@ -523,7 +523,8 @@ def gen_datasets_mp(new_version):
 	get_query = """
 			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
 			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1) 
-			and treatment_acid in (select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) limit %s
+			and treatment_acid in 
+				(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) limit %s
 		"""
 	labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 	
@@ -569,13 +570,13 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.sentence_id
 							,t1.section_ind
 							,t1.pmid
-						from pubmed.sentence_concept_arr_1_9 t1
+						from pubmed.sentence_concept_arr_2 t1
 						join (select root_acid as condition_acid 
 						from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
 						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
-						join pubmed.sentence_tuples_1_9 t4
+						join pubmed.sentence_tuples_2 t4
 							on t1.sentence_id = t4.sentence_id
 					"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(tx_id_arr),), \
@@ -599,12 +600,12 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 					,t1.sentence_id
 					,t1.section_ind
 					,t1.pmid
-				from pubmed.sentence_concept_arr_1_9 t1
+				from pubmed.sentence_concept_arr_2 t1
 				join (select acid as condition_acid from annotation2.downstream_root_cid where acid in %s) t2
 					on t2.condition_acid = ANY(t1.concept_arr::text[])
 				join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 					on t3.treatment_acid = ANY(t1.concept_arr::text[])
-				join pubmed.sentence_tuples_1_9 t4
+				join pubmed.sentence_tuples_2 t4
 					on t1.sentence_id = t4.sentence_id
 			"""
 		sentences_df = pg.return_df_from_query(cursor, sentences_query, (tuple(condition_id_arr), tuple(tx_id_arr)), \
@@ -627,7 +628,7 @@ def gen_treatment_data_top():
 	all_treatments_set = get_all_treatments_set()
 
 
-	query = "select min(ver) from ml2.treatment_candidates_1_9"
+	query = "select min(ver) from ml2.treatment_candidates_2"
 	new_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])+1
 	old_version = new_version-1
 	curr_version = old_version
@@ -638,10 +639,8 @@ def gen_treatment_data_top():
 
 
 		
-def gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set):
+def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatments_set):
 	number_of_processes = 35
-	conditions_set = get_all_conditions_set()
-	treatments_set = get_all_treatments_set()
 
 	task_queue = mp.Queue()
 	pool = []
@@ -659,7 +658,7 @@ def gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_
 			,condition_acid
 			,treatment_acid
 			,sentence_tuples
-		from ml2.treatment_candidates_1_9
+		from ml2.treatment_candidates_2
 
 		where ver = %s limit 1000"""
 
@@ -673,7 +672,7 @@ def gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_
 		task_queue.put((gen_treatment_dataset, params))
 		update_query = """
 			set schema 'ml2';
-			UPDATE treatment_candidates_1_9
+			UPDATE treatment_candidates_2
 			SET ver = %s
 			where entry_id = ANY(%s);
 		"""
@@ -766,7 +765,6 @@ def analyze_sentence(model_name, sentence, condition_id):
 				all_conditions_set, all_treatments_set)
 			# t1= [49996,1709,1271,1289,12,500,6,49999,9,49998,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 			sample_gen_arr = np.array([sample_gen])
-			print(sample_gen_arr)
 			# sample_spec_arr = np.array([sample_spec])
 			# mask_arr = np.array([mask])
 
@@ -868,7 +866,7 @@ if __name__ == "__main__":
 	# sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
 	# sentence = "amiodarone induced acute interstitial nephritis"
 	# sentence = "amiodarone associated with improved outcomes in acute interstitial nephritis"
-	# sentence = "amiodarone treats severe acute interstitial nephritis"
+	# sentence = "amiodarone treats aggressive forms of severe acute interstitial nephritis"
 	# sentence = "amiodarone for the management of severe acute interstitial nephritis"
 	# sentence = "incidence of acute interstitial nephritis with valproate and quetiapine combination treatment in subjects with acquired brain injuries"
 	# sentence = "Teaching NeuroImages: Red forehead dot syndrome and acute interstitial nephritis revisited"
@@ -904,10 +902,12 @@ if __name__ == "__main__":
 	# sentence = "Parathyroidectomy Improves acute interstitial nephritis in Patients on Hemodialysis"
 	# sentence = "Bariatric Surgery in Patients With acute interstitial nephritis-The Silver Bullet"
 	# sentence = "In formalin-fixed paraffin embedded samples from surgical resection of tongue squamous cell carcinoma of a patient who developed acute interstitial nephritis"
-	sentence = "The tiology of liver disease is hepatitis C virus and alcohol with n=5493 and acute interstitial nephritis with n=3"
+	# sentence = "The etiology of liver disease is hepatitis C virus and alcohol with n=5493 and acute interstitial nephritis with n=3"
+	# sentence = "Bariatric surgery and emergency department visits and hospitalizations for heart failure exacerbation"
+	sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
 	sentence = sentence.lower()
 	# model_name = 'gen_bidi_deep_500_update_05.hdf5'
-	model_name = 'gen_bidi_500_deep_14.hdf5'
+	model_name = 'gen_bidi_500_deep_27.hdf5'
 
 	# 8 can get the associated with concept
 	condition_id = '10603'
@@ -920,17 +920,19 @@ if __name__ == "__main__":
 
 
 	# gen_datasets_mp(1)
-	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_deep_14.hdf5')
-
-
-	
 	# conn, cursor = pg.return_postgres_cursor()
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()
 	# conn.close()
 	# train_with_rnn(max_cnt)
+
+
+	# gen_treatment_data_top()
+	# gen_treatment_predictions_top('gen_bidi_500_deep_27.hdf5')
+
+
+	
 
 	# update_rnn('gen_bidi_500_deep_44.hdf5', max_cnt)
 

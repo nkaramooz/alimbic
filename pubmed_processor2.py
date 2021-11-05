@@ -22,7 +22,7 @@ import regex as re
 from ftplib import FTP
 from bs4 import BeautifulSoup
 
-INDEX_NAME = 'pubmedx1.9'
+INDEX_NAME = 'pubmedx2.0'
 nlm_cat_dict = {
 	"a case report" :"methods"
 	,"abbreviations" :"background"
@@ -3175,31 +3175,31 @@ def index_doc_from_elem(elem, filename, issn_list):
 							try:
 								engine = pg.return_sql_alchemy_engine()
 
-								sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
+								sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-								sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
+								sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
-								sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
+								sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								engine.dispose()
 							except:
 								try:
 									engine = pg.return_sql_alchemy_engine()
-									sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
+									sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-									sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
+									sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
-									sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
+									sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									engine.dispose()
 								except:
 									try: 
 										engine = pg.return_sql_alchemy_engine()
-										sentence_tuples_df.to_sql('sentence_tuples_1_9', engine, schema='pubmed', \
+										sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
-										sentence_annotations_df.to_sql('sentence_annotations_1_9', engine, schema='pubmed', \
+										sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
-										sentence_concept_arr_df.to_sql('sentence_concept_arr_1_9', engine, schema='pubmed', \
+										sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
 										engine.dispose()
 
@@ -3295,7 +3295,7 @@ def load_pubmed_local_2(start_file, end_file, folder_path):
 			task_queue.put((index_doc_from_elem, params))
 			elem.clear()
 		query = """
-			INSERT INTO pubmed.indexed_files_1_9
+			INSERT INTO pubmed.indexed_files_2
 			VALUES
 			(%s, %s)
 			"""
@@ -3640,7 +3640,7 @@ def get_start_file_num():
 	conn,cursor = pg.return_postgres_cursor()
 	conn, cursor = pg.return_postgres_cursor()
 	query = """
-		select max(file_num) from pubmed.indexed_files_1_9
+		select max(file_num) from pubmed.indexed_files_2
 	"""
 	cursor.execute(query)
 	max_num = cursor.fetchone()[0]

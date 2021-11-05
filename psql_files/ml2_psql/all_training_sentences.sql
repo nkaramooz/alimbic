@@ -1,8 +1,8 @@
 set schema 'ml2';
 
-create index if not exists training_sentences_with_version_1_9_condition_acid_ind on ml2.training_sentences_staging(condition_acid);
-create index if not exists training_sentences_with_version_1_9_treatment_acid_ind on ml2.training_sentences_staging(treatment_acid);
-create index if not exists training_sentences_with_version_1_9_sentence_id_ind on ml2.training_sentences_staging(sentence_id);
+create index if not exists training_sentences_staging_condition_acid_ind on ml2.training_sentences_staging(condition_acid);
+create index if not exists training_sentences_staging_treatment_acid_ind on ml2.training_sentences_staging(treatment_acid);
+create index if not exists training_sentences_staging_sentence_id_ind on ml2.training_sentences_staging(sentence_id);
 
 
 drop table if exists all_training_sentences;
@@ -26,7 +26,7 @@ create table all_training_sentences as (
 		,t1.label
 		,random() as rand
 	from ml2.training_sentences_staging t1
-	join pubmed.sentence_concept_arr_1_9 t2
+	join pubmed.sentence_concept_arr_2 t2
 	on t1.sentence_id = t2.sentence_id
 );
 
@@ -49,7 +49,7 @@ create table all_training_sentences as (
 -- 		,t1.label
 -- 		,random() as rand
 -- 	from ml2.training_sentences_staging t1
--- 	join pubmed.sentence_concept_arr_1_9 t2
+-- 	join pubmed.sentence_concept_arr_2 t2
 -- 	on t1.sentence_id = t2.sentence_id
 -- 	ON CONFLICT DO NOTHING
 -- ;
