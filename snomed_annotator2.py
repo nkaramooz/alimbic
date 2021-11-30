@@ -19,57 +19,101 @@ import time
 import sys
 import sqlite3
 
-def get_new_candidate_df(word, case_sensitive):
+# Below is used to annotate abstracts; faster but no tolerance for typos
+def get_new_candidate_df(word, case_sensitive, spellcheck_threshold):
 	new_candidate_query = ""
-
-	if case_sensitive:
-		new_candidate_query = """
-			select 
-				adid
-				,acid
-				,term
-				,tb1.word
-				,word_ord
-				,term_length
-				,is_acronym
-			from annotation2.lemmas tb1
-			join annotation2.first_word tb2
-			  on tb1.adid = ANY(tb2.adid_agg)
-			where tb2.word in %s
-		"""
-	else:
-		for i,v in enumerate(word):
-			word[i] = word[i].lower()
-
-		new_candidate_query = """
-			select 
-				adid
-				,acid
-				,term
-				,lower(tb1.word) as word
-				,word_ord
-				,term_length
-				,is_acronym
-			from annotation2.lemmas tb1
-			join annotation2.first_word tb2
-			  on tb1.adid = ANY(tb2.adid_agg)
-			where lower(tb2.word) in %s
-		"""
+	new_candidate_df = None
 	conn, cursor = pg.return_postgres_cursor()
-	new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
-	 ["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
+
+	if spellcheck_threshold != 100:
+		if case_sensitive:
+			new_candidate_query = """
+				select 
+					adid
+					,acid
+					,term
+					,tb1.word
+					,word_ord
+					,term_length
+					,is_acronym
+				from annotation2.lemmas tb1
+				join annotation2.first_word tb2
+				  on tb1.adid = ANY(tb2.adid_agg)
+				join (select unnest(%s) as query_word) tb3
+				  on levenshtein(tb3.query_word, tb2.word) <=2
+				where soundex(query_word) = soundex(tb2.word)
+			"""
+		else:
+			for i,v in enumerate(word):
+				word[i] = word[i].lower()
+
+			new_candidate_query = """
+				select 
+					adid
+					,acid
+					,term
+					,lower(tb1.word) as word
+					,word_ord
+					,term_length
+					,is_acronym
+				from annotation2.lemmas tb1
+				join annotation2.first_word tb2
+				  on tb1.adid = ANY(tb2.adid_agg)
+				join (select unnest(%s) as query_word) tb3
+				  on levenshtein(tb3.query_word, lower(tb2.word)) < 3
+				where soundex(query_word) = soundex(tb2.word)
+			"""
+		new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (list(word),), \
+	 		["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
+	else:
+		if case_sensitive:
+			new_candidate_query = """
+				select 
+					adid
+					,acid
+					,term
+					,tb1.word
+					,word_ord
+					,term_length
+					,is_acronym
+				from annotation2.lemmas tb1
+				join annotation2.first_word tb2
+				  on tb1.adid = ANY(tb2.adid_agg)
+				where tb2.word in %s
+			"""
+		else:
+			for i,v in enumerate(word):
+				word[i] = word[i].lower()
+
+			new_candidate_query = """
+				select 
+					adid
+					,acid
+					,term
+					,lower(tb1.word) as word
+					,word_ord
+					,term_length
+					,is_acronym
+				from annotation2.lemmas tb1
+				join annotation2.first_word tb2
+				  on tb1.adid = ANY(tb2.adid_agg)
+				where lower(tb2.word) in %s
+			"""
+		
+		new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (tuple(word),), \
+		 ["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
+	
 	cursor.close()
 	conn.close()
-
 	return new_candidate_df
 
 
-def get_lemmas(ln_words, case_sensitive, check_pos):
-
+def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr=None):
 	if check_pos:
 		pos_tag = get_wordnet_pos(ln_words)
-
-	lmtzr = WordNetLemmatizer()
+	
+	if lmtzr is None:
+		lmtzr = WordNetLemmatizer()
 
 	ln_lemmas = []
 
@@ -106,12 +150,14 @@ def get_lemmas(ln_words, case_sensitive, check_pos):
 				w='enroll'
 			elif w=='fasting':
 				pass
+			elif w=='ankylosing':
+				pass
 			else:
 				if check_pos:
 					w = lmtzr.lemmatize(w, pos_tag[i])
 				else:
+					lmtzr.lemmatize('protein')
 					w = lmtzr.lemmatize(w)
-
 		ln_lemmas.append(w)
 	return ln_lemmas
 
@@ -128,7 +174,7 @@ def get_wordnet_pos(ln_words):
 	return res
 
 
-def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos, cache):
+def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos, cache, lmtzr=None):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
 
 	ln_words = line.split()
@@ -139,7 +185,7 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos,
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 
-	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos)
+	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
 
 	for index,word in enumerate(ln_lemmas):
 
@@ -209,10 +255,93 @@ def return_line_snomed_annotation_v2(line, threshold, case_sensitive, check_pos,
 
 	return words_df, final_results
 
+
+def return_line_snomed_annotation_v3(line, spellcheck_threshold, case_sensitive, check_pos, cache, lmtzr):
+	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
+
+	ln_words = line.split()
+
+	candidate_df_arr = []
+	results_df = pd.DataFrame()
+	words_df = pd.DataFrame()
+	final_results = pd.DataFrame()
+
+	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
+
+	# word is query word (not necessarily correctly spelled word)
+	for index,word in enumerate(ln_lemmas):
+		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
+		
+		if len(candidate_df_arr) > 0:
+			candidate_df_arr, active_match = evaluate_candidate_df_2(word, index, candidate_df_arr, spellcheck_threshold, case_sensitive)
+
+		# the limitation here is that it won't catch instances where first and second word
+		# of phrase are switched
+		new_candidate_df = cache[(cache[word] >= spellcheck_threshold) & (cache.word_ord == 1)]
+		if len(new_candidate_df.index) > 0:
+			new_candidate_ids = new_candidate_df['adid']
+			new_candidate_df = cache[cache.adid.isin(new_candidate_ids)].copy()
+			new_candidate_df['l_dist'] = -1.0
+			new_candidate_df.loc[new_candidate_df[word] >= spellcheck_threshold, 'l_dist'] \
+				= new_candidate_df[word]
+		
+
+		if len(new_candidate_df.index) > 0:
+			new_candidate_df['substring_start_index'] = index
+			new_candidate_df['description_start_index'] = index
+			candidate_df_arr.append(new_candidate_df)
+
+		candidate_df_arr, new_results_df = get_results(candidate_df_arr, index)
+		results_df = results_df.append(new_results_df, sort=False)
+
+	if len(results_df.index) > 0:
+		order_score = results_df
+
+		order_score['order_score'] = (results_df['word_ord'] - (results_df['substring_start_index'] - \
+			results_df['description_start_index'] + 1)).abs()
+
+		order_score = order_score[['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'order_score']].groupby(\
+			['acid', 'adid', 'description_start_index'], as_index=False)['order_score'].sum()
+		
+		distinct_results = results_df[['acid', 'adid', 'description_start_index', 'description_end_index', 'term']].drop_duplicates()
+	
+		results_group = results_df.groupby(['acid', 'adid', 'description_start_index'], as_index=False)
+
+		sum_scores = results_group['l_dist'].mean().rename(columns={'l_dist' : 'sum_score'})
+		sum_scores = sum_scores[sum_scores['sum_score'] >= spellcheck_threshold]
+
+		start_indexes = results_group['substring_start_index'].min().rename(columns={'substring_start_index' : 'term_start_index'})
+		end_indexes = results_group['substring_start_index'].max().rename(columns={'substring_start_index' : 'term_end_index'})
+
+		joined_results = distinct_results.merge(sum_scores, on=['acid', 'adid', 'description_start_index'])
+
+		joined_results = joined_results.merge(start_indexes, on=['acid', 'adid', 'description_start_index'])
+		joined_results = joined_results.merge(end_indexes, on=['acid', 'adid', 'description_start_index'])
+		joined_results = joined_results.merge(order_score, on=['acid', 'adid', 'description_start_index'])
+		
+		joined_results['final_score'] = joined_results['sum_score'] * np.where(joined_results['order_score'] > 0, 0.95, 1)
+		joined_results['term_length'] = joined_results['term_end_index'] - joined_results['term_start_index'] + 1
+		joined_results['final_score'] = joined_results['final_score'] + 50*joined_results['term_length']
+	
+		final_results = prune_results_v2(joined_results, joined_results)
+	
+		final_results = final_results.merge(results_df, on=['adid'])
+
+		final_results = final_results[['acid_x', 'adid', 'description_start_index_x', 'description_end_index_x', 'term_x', 'sum_score', 'term_start_index', \
+			'term_end_index', 'order_score_x', 'final_score', 'term_length_x', 'is_acronym']]
+		final_results.columns = ['acid', 'adid', 'description_start_index', 'description_end_index', 'term', 'sum_score', 'term_start_index', \
+			'term_end_index', 'order_score', 'final_score', 'term_length', 'is_acronym']
+	
+	words_df['line'] = line
+
+	return words_df, final_results
+
+
 def get_results(candidate_df_arr, end_index):
 	## no description here
 	new_candidate_df_arr = []
 	results_df = pd.DataFrame()
+
 	for index,df in enumerate(candidate_df_arr):
 		exclusion_series = df[df['l_dist'] == -1.0]['adid'].tolist()
 		new_results = df[~df['adid'].isin(exclusion_series)].copy()
@@ -238,7 +367,6 @@ def acronym_check(results_df):
 	final = non_acronyms_df.append(approved_acronyms, sort=False)
 	return final
 
-# def l_func(row, word):
 	
 # TODO: Leutinizing hormone releasing hormone messes up because hormone appears twice
 def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, threshold, case_sensitive):
@@ -246,15 +374,18 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 	new_candidate_df_arr = []
 	for index,df in enumerate(candidate_df_arr):
 		df_copy = df.copy()
-		# df_copy['l_dist_tmp'] = -1.0
+
 		if case_sensitive:
 			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x, word)/100.0)
 
 		else:
 			df_copy['l_dist_tmp'] = df_copy['word'].apply(lambda x: fuzz.ratio(x.lower(), word.lower())/100.0)
 
-		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & (df_copy.l_dist < threshold), ['substring_start_index']] = substring_start_index
-		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & (df_copy.l_dist < threshold), ['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold)][['l_dist_tmp']].values
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & \
+			(df_copy.l_dist < threshold), ['substring_start_index']] = substring_start_index
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy.l_dist_tmp >= threshold) & \
+			(df_copy.l_dist < threshold), ['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & \
+			(df_copy.l_dist_tmp >= threshold)][['l_dist_tmp']].values
 		df_copy = df_copy.drop(['l_dist_tmp'], axis=1)
 	
 		new_candidate_df_arr.append(df_copy)
@@ -271,6 +402,39 @@ def evaluate_candidate_df(word, substring_start_index, candidate_df_arr, thresho
 		old_df_description_score = candidate_df_arr[index].groupby(['adid'], as_index=False)['l_dist'].sum()
 
 
+
+		if len(old_df_description_score.index) > 0 and len(new_df_description_score.index) > 0:
+			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
+			filtered_candidates = new_df[new_df['adid'].isin(candidate_descriptions['adid'])]
+			if len(filtered_candidates.index) != 0:
+				final_candidate_df_arr.append(filtered_candidates)
+				active_match = True
+
+	return final_candidate_df_arr, active_match
+
+def evaluate_candidate_df_2(word, substring_start_index, candidate_df_arr, spellcheck_threshold, case_sensitive):
+	new_candidate_df_arr = []
+	for index,df in enumerate(candidate_df_arr):
+		df_copy = df.copy()
+
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy[word] >= spellcheck_threshold), \
+			['substring_start_index']] = substring_start_index
+		
+		df_copy.loc[(df_copy.l_dist == -1.0) & (df_copy[word] >= spellcheck_threshold), \
+			['l_dist']] = df_copy[(df_copy.l_dist == -1.0) & \
+			(df_copy[word] >= spellcheck_threshold)][[word]].values
+
+		new_candidate_df_arr.append(df_copy)
+
+	# now want to make sure that number has gone up from before
+	# ideally should also at this point be pulling out complete matches.
+
+	final_candidate_df_arr = []
+	active_match = False
+
+	for index, new_df in enumerate(new_candidate_df_arr):
+		new_df_description_score = new_df.groupby(['adid'], as_index=False)['l_dist'].sum()
+		old_df_description_score = candidate_df_arr[index].groupby(['adid'], as_index=False)['l_dist'].sum()
 
 		if len(old_df_description_score.index) > 0 and len(new_df_description_score.index) > 0:
 			candidate_descriptions = new_df_description_score[new_df_description_score['l_dist'] > old_df_description_score['l_dist']]
@@ -366,6 +530,7 @@ def resolve_conflicts(results_df):
 		(results_df['ln_num'].isin(conflicted_indices['ln_num'])) & \
 		(results_df['section_ind'].isin(conflicted_indices['section_ind']))].copy()
 	final_results = conflict_free_df.copy()
+
 
 	if len(conflict_free_df.index) > 0:
 		conflict_free_df['concept_count'] = 1
@@ -463,11 +628,31 @@ def add_names_2(results_df):
 		conn.close
 		return results_df
 
-def annotate_line_v2(sentence_df, case_sensitive, check_pos, cache):
+def annotate_line_v2(sentence_df, case_sensitive, check_pos, spellcheck, cache, lmtzr=None):
 	
 	line = clean_text(sentence_df['line'])
 
-	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, check_pos, cache)
+	words_df, annotation = return_line_snomed_annotation_v2(line, 93, case_sensitive, check_pos, cache, lmtzr)
+
+	if annotation is not None:
+		annotation['ln_num'] = sentence_df['ln_num']
+		annotation['section'] = sentence_df['section']
+		annotation['section_ind'] = sentence_df['section_ind']
+		words_df['ln_num'] = sentence_df['ln_num']
+		words_df['section'] = sentence_df['section']
+		words_df['section_ind'] = sentence_df['section_ind']
+
+	return words_df, annotation
+
+
+def annotate_line_v3(sentence_df, case_sensitive, check_pos, cache, \
+		spellcheck_threshold, lmtzr):	
+
+	line = clean_text(sentence_df['line'])
+
+
+	words_df, annotation = return_line_snomed_annotation_v3(line=line, spellcheck_threshold=spellcheck_threshold,\
+			case_sensitive=case_sensitive, check_pos=check_pos, cache=cache, lmtzr=lmtzr)
 
 	if annotation is not None:
 		annotation['ln_num'] = sentence_df['ln_num']
@@ -600,35 +785,176 @@ def get_all_words_list(text):
 
 	return all_words
 
-def get_cache(all_words_list, case_sensitive, check_pos):
-	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos)
+def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold=100, lmtzr=None):
+	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos, lmtzr)
+	cache = get_new_candidate_df(lemmas, case_sensitive, spellcheck_threshold)
 
-	cache = get_new_candidate_df(lemmas, case_sensitive)
-	cache['points'] = 0
+	if spellcheck_threshold != 100:
+		cache = cache.to_dict('records')
+		for row in cache:
+			max_fuzz = 0
+			for i in lemmas:
+				new_fuzz = fuzz.ratio(i, row['word'])
+				if new_fuzz > max_fuzz:
+					max_fuzz = new_fuzz
+				row[i] = new_fuzz
+			row['max_fuzz'] = max_fuzz
+		cache = pd.DataFrame.from_dict(cache)
 
-	cache.loc[cache.word.isin(lemmas), 'points'] = 1
-
+		cache = cache[cache['max_fuzz'] >= spellcheck_threshold]
+		cache['points'] = 1
+	else:
+		s = u.Timer("iteration")
+		for i in lemmas:
+			cache[i] = 0
+			cache.loc[cache['word'] == i, i] = 100 
+		s.stop()
+		cache['points'] = 0
+		cache.loc[cache.word.isin(lemmas), 'points'] = 1
+	
 	csf = cache[['adid', 'term_length', 'points']].groupby(['adid', 'term_length'], as_index=False)['points'].sum()
-
 	candidate_dids = csf[csf['term_length'] == csf['points']]['adid'].tolist()
-
 	cache = cache[cache['adid'].isin(candidate_dids)].copy()
 	cache = cache.drop(['points'], axis=1)
+
 	return cache
+
 
 # Returns 3 dataframes to be eventually materialized into tables
 # sentence_annotations_df colums=['id (sentnece)', 'section', 'section_ind', 'ln_num', 'acid', 'adid', 'final_ann']
 # ann_df returned for annotation if write sentences is negative
 # otherwise returns 3 dataframes for pubmed indexing
 # This is probably poor form
-def annotate_text_not_parallel(sentences_df, cache, case_sensitive, check_pos, bool_acr_check, write_sentences):
+def annotate_text_not_parallel(sentences_df, cache, case_sensitive, check_pos, \
+	bool_acr_check, write_sentences, lmtzr=None):
+	
 	concepts_df = pd.DataFrame()
 	sentence_df = pd.DataFrame()
 	words_df = pd.DataFrame()
 
 	sentence_dict = sentences_df.to_dict('records')
 	for row in sentence_dict:
-		line_words_df, res_df = annotate_line_v2(row, case_sensitive, check_pos, cache)
+		line_words_df, res_df = annotate_line_v2(sentences_df=row, \
+			case_sensitive=case_sensitive, check_pos=check_pos, \
+			spellcheck=spellcheck, cache=cache, lmtzr=lmtzr)
+		
+		concepts_df = concepts_df.append(res_df, sort=False)
+		words_df = words_df.append(line_words_df, sort=False)
+
+	if len(concepts_df.index) > 0:
+		concepts_df = resolve_conflicts(concepts_df)
+
+		if bool_acr_check:
+			concepts_df = acronym_check(concepts_df)
+
+	concepts_df = concepts_df.drop_duplicates(subset=['acid', 'description_start_index', 'section_ind', 'ln_num']).copy()
+
+	conn = sqlite3.connect(':memory:')
+
+	if len(concepts_df.index) > 0:
+		words_df.to_sql('words_df', conn, index=False)
+		concepts_df.to_sql('final_results', conn, index=False, if_exists='replace')
+		query = """
+			select 
+				t1.term
+				,t1.term_index
+				,t1.ln_num
+				,t1.section_ind
+				,t1.section
+				,t2.description_start_index
+				,t2.acid
+				,t2.adid
+				,t2.description_end_index
+				,t2.sum_score
+				,t2.term_start_index
+				,t2.term_end_index
+				,t2.order_score
+				,t2.final_score
+				,t2.term_length
+				,t2.is_acronym
+				,t1.line
+			from words_df t1
+			left join final_results t2
+			on t1.term_index >= t2.description_start_index and t1.term_index <= t2.description_end_index
+				and t1.ln_num = t2.ln_num and t1.section_ind = t2.section_ind
+		"""
+		ann_df = pd.read_sql_query(query, conn)
+	else:
+		ann_df = words_df.copy()
+		ann_df['acid'] = np.nan
+		ann_df['adid'] = np.nan
+		ann_df['description_start_index'] = ann_df['term_index']
+		ann_df['description_end_index'] = ann_df['term_index']
+
+	section_max = ann_df['section_ind'].max()+1
+	sentence_annotations_df = pd.DataFrame()
+	sentence_tuples_df = pd.DataFrame()
+	sentence_concept_arr_df = pd.DataFrame()
+	if write_sentences:	
+		for i in range(section_max):
+			section_df = ann_df[ann_df['section_ind'] == i].copy()
+
+			if len(section_df.index) > 0:
+				ln_len = int(section_df['ln_num'].max())+1
+
+				for j in range(ln_len):
+					ln_df =  section_df[section_df['ln_num'] == j].copy()
+
+					if len(ln_df.index) > 0:
+						concept_arr = list(set(ln_df['acid'].dropna().tolist()))
+						uid = str(uuid.uuid1())
+					
+						s_arr = get_annotated_tuple(ln_df)
+
+						ln_df['sentence_id'] = uid
+						ln_df.fillna('-1', inplace=True)
+						
+						ln_df.to_sql('ln_df', conn, index=False, if_exists='replace')
+						query = """
+							select 
+								sentence_id
+								,section
+								,section_ind
+								,ln_num
+								,acid
+								,adid
+								,case when acid='-1' then term else acid end as final_ann
+							from ln_df
+							group by sentence_id,section,section_ind,ln_num, description_start_index, description_end_index, final_ann
+						"""
+						sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
+
+						single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
+						
+						try: 
+							single_ln_df = single_ln_df.iloc[[0]].copy()
+						except:
+							print("ERROR ERROR")
+							print(single_ln_df)
+							u.pprint(ann_df)
+						single_ln_df['sentence_tuples'] = [s_arr]
+						sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
+						single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
+						single_concept_arr_df['concept_arr'] = [concept_arr]
+						sentence_concept_arr_df = sentence_concept_arr_df.append(single_concept_arr_df, sort=False)
+
+		return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
+
+	return ann_df
+
+
+def annotate_text_not_parallel_2(sentences_df, cache, case_sensitive, \
+	check_pos, bool_acr_check, write_sentences, spellcheck_threshold=100, lmtzr=None):
+	
+	concepts_df = pd.DataFrame()
+	sentence_df = pd.DataFrame()
+	words_df = pd.DataFrame()
+
+	sentence_dict = sentences_df.to_dict('records')
+	for row in sentence_dict:
+		line_words_df, res_df = annotate_line_v3(sentence_df=row, case_sensitive=case_sensitive, \
+			check_pos=check_pos, cache=cache, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+		
 		concepts_df = concepts_df.append(res_df, sort=False)
 		words_df = words_df.append(line_words_df, sort=False)
 
@@ -766,63 +1092,52 @@ def timeLimit(t, ref):
 class TestAnnotator(unittest.TestCase):
 
 	def test_equal(self):
-		queryArr = [("protein c deficiency protein s deficiency", 10, ['1233987014', '1221214016']),
-			("chronic obstructive pulmonary disease and congestive heart failure", 22, ['475431013', '70653017'])]
+		queryArr = [
+			("protein C deficiency protein S deficiency", ['601882', '278172'])]
+			# ("chronic obstructive pulmonary disease and congestive heart failure", \['55000', '154571'])
+		lmtzr = WordNetLemmatizer()
+		lmtzr.lemmatize("cough")
+		spellcheck_threshold = 100
 
-
-		cursor = pg.return_postgres_cursor()
+		u.pprint("============================")
 		for q in queryArr:
-			check_timer = u.Timer(q[0])
-		
+			term = q[0]
+			term = clean_text(term)
 
-			res = annotate_text_not_parallel(q[0], 'title', cursor, False)
-			u.pprint("=============================")
-			
-			
+			all_words = get_all_words_list(term)
+
+			lmtzr = WordNetLemmatizer()
+			lmtzr.lemmatize("cough")
+			s = u.Timer('get_cache')
+			cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+				check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+			print(cache)
+			sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
+				columns=['line', 'section', 'section_ind', 'ln_num'])
+			item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+
+			res, g, s = annotate_text_not_parallel_2(sentences_df=sentences_df, cache=cache, \
+				case_sensitive=True, check_pos=False, bool_acr_check=False, spellcheck_threshold=80, \
+				write_sentences=True, lmtzr=None)
+
+			u.pprint(g['sentence_tuples'].tolist())
 			u.pprint(res)
-			t = check_timer.stop_num()
-			d = ((q[1]-t)/t)*100
-			self.assertTrue(timeLimit(t, q[1]))
-			print(res['description_id'].values)
-			self.assertTrue(set(res['description_id'].values) == set(q[2]))
-			print(t)
-			u.pprint("============================")
 
-	
+
+			self.assertTrue(set(res['acid'].values) == set(q[1]))
+
+		u.pprint("============================")
+
 
 if __name__ == "__main__":
 
-	# query = """
-	# 	chronic obstructive pulmonary disease and congestive heart failure
-	# """
-	query1 = """
-		protein C deficiency protein S deficiency
-	"""
-	query2 = """
-		chronic obstructive pulmonary disease and congestive heart failure
-	"""
-	query3 = """
-		Cough at night asthma congestion sputum
-	"""
-	query4 = """
-		H2-receptor antagonists
-	"""
-
-	query5 = """
-		Heart Failure with Preserved Ejection Fraction.
-	"""
-
-	query6 = """
-		Treatment
-	"""
-
-	query7 = """
-		Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancer
-	"""
-
-	query8 = """
-		Diastolic heart failure--abnormalities in active relaxation and passive stiffness of the left ventricle.
-	"""
+	query1 = "protein C deficiency protein S deficiency"
+	query2 = "chronic obstructive pulmonary disease and congestive heart failure"
+	query3 = "Cough at night asthma congestion sputum"
+	query4 = "H2-receptor antagonists"
+	query5 = "Heart Failure with Preserved Ejection Fraction."
+	query7 = "Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancer"
+	query8 = "Diastolic heart failure--abnormalities in active relaxation and passive stiffness of the left ventricle."
 	query9 = "Grave's disease"
 	query10 = "exacerbation of chronic obstructive pulmonary disease"
 	query11= "cancer of ovary"
@@ -905,30 +1220,39 @@ if __name__ == "__main__":
 	query85="The percutaneous coronary intervention PCI have to be one of the fastest growing therapeutic interventions for patients with ST elevation myocardial infarction"
 	query86="kaposi's sarcoma"
 	query87="COPD Insulin"
+	query88="distal DVT"
+	query89="protein C deficiency protein S deficiency"
 
-	# conn, cursor = pg.return_postgres_cursor()
-
-
+	# unittest.main()
 	counter = 0
-	# print(clean_text("Dysphagia")
+
 	while (counter < 1):
 		d = u.Timer('t')
-		term = query87
+		term = query89
 
 		term = clean_text(term)
-		print(term)
+
 		all_words = get_all_words_list(term)
-		print(all_words)
-		cache = get_cache(all_words, True, True)
+
+		lmtzr = WordNetLemmatizer()
+		lmtzr.lemmatize("cough")
+		spellcheck_threshold = 100
+
+		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 
 		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
 			columns=['line', 'section', 'section_ind', 'ln_num'])
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-		res, g, s = annotate_text_not_parallel(sentences_df, cache, True, True, False, True)
+		res, g, s = annotate_text_not_parallel_2(sentences_df=sentences_df, cache=cache, \
+			case_sensitive=True, check_pos=False, bool_acr_check=False,\
+			spellcheck_threshold=spellcheck_threshold, \
+			write_sentences=True, lmtzr=None)
+		d.stop()
 		u.pprint(g['sentence_tuples'].tolist())
 		u.pprint(res)
-		d.stop()
+
 		counter += 1
 	
 	

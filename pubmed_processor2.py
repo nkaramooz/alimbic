@@ -22,7 +22,9 @@ import regex as re
 from ftplib import FTP
 from bs4 import BeautifulSoup
 
-INDEX_NAME = 'pubmedx2.0'
+INDEX_NAME = 'pubmedx2.1'
+NUM_PROCESSES = 4
+
 nlm_cat_dict = {
 	"a case report" :"methods"
 	,"abbreviations" :"background"
@@ -3065,16 +3067,16 @@ nlm_cat_dict = {
 	,"participants" : "methods" 
 }
 
-def doc_worker(input):
+def doc_worker(input, lmtzr=None):
 	for func,args in iter(input.get, 'STOP'):
-		doc_calculate(func, args)
+		doc_calculate(func, args, lmtzr)
 
 
-def doc_calculate(func, args):
-	func(*args)
+def doc_calculate(func, args, lmtzr=None):
+	func(*args, lmtzr)
 
 
-def index_doc_from_elem(elem, filename, issn_list):
+def index_doc_from_elem(elem, filename, issn_list, lmtzr=None):
 
 	elem = ET.parse(io.BytesIO(elem))
 		
@@ -3111,7 +3113,7 @@ def index_doc_from_elem(elem, filename, issn_list):
 							
 
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
-							get_abstract_conceptids_2(json_str, article_text)
+							get_abstract_conceptids_2(json_str, article_text, lmtzr)
 						sentence_annotations_df['ver'] = 0
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
@@ -3218,15 +3220,14 @@ def index_doc_from_elem(elem, filename, issn_list):
 							# As a result, tables and elasticsearch may be slightly incongruent
 				
 
-def load_pubmed_local_2(start_file, end_file, folder_path):
+def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 	es = u.get_es_client()
-	number_of_processes = 48
 
 	task_queue = mp.Queue()
 
 	pool = []
-	for i in range(number_of_processes):
-		p = mp.Process(target=doc_worker, args=(task_queue,))
+	for i in range(NUM_PROCESSES):
+		p = mp.Process(target=doc_worker, args=(task_queue,lmtzr_list[i]))
 		pool.append(p)
 		p.start()
 
@@ -3294,27 +3295,27 @@ def load_pubmed_local_2(start_file, end_file, folder_path):
 			params = (ET.tostring(elem), filename, issn_list)
 			task_queue.put((index_doc_from_elem, params))
 			elem.clear()
-		query = """
-			INSERT INTO pubmed.indexed_files_2
-			VALUES
-			(%s, %s)
-			"""
-		cursor.execute(query, (filename, file_counter))
-		cursor.connection.commit()
+		# query = """
+		# 	INSERT INTO pubmed.indexed_files_2
+		# 	VALUES
+		# 	(%s, %s)
+		# 	"""
+		# cursor.execute(query, (filename, file_counter))
+		# cursor.connection.commit()
 		file_counter += 1
 		
 	cursor.close()
 	conn.close()
 
 
-	for i in range(number_of_processes):
+	for i in range(NUM_PROCESSES):
 		task_queue.put('STOP')
 
 	for p in pool:
 		p.join()
 
 
-def get_abstract_conceptids_2(abstract_dict, article_text):
+def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr=None):
 	cid_dict = {}
 	did_dict = {}
 	result_dict = {}
@@ -3325,7 +3326,7 @@ def get_abstract_conceptids_2(abstract_dict, article_text):
 		
 	cache = ann2.get_cache(all_words, True, True)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache, lmtzr)
 	sentence_annotations_df['pmid'] = abstract_dict['pmid']
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
 	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
@@ -3603,7 +3604,7 @@ def get_article_info_2(elem, json_str):
 	return json_str, article_text
 
 
-def get_snomed_annotation(text_dict, cache):
+def get_snomed_annotation(text_dict, cache, lmtzr=None):
 	sentences_df = pd.DataFrame()
 	sentences_df = return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
 
@@ -3614,25 +3615,19 @@ def get_snomed_annotation(text_dict, cache):
 	if text_dict['article_keywords'] is not None:
 		sentences_df = return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df, cache, True, True, True, True)
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
+		ann2.annotate_text_not_parallel_2(sentences_df=sentence_df, cache=cache, \
+			case_sensitive=True, check_pos=True, bool_acr_check=True, \
+			write_sentences=True, lmtzr)
 
 	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 
 def return_section_sentences(text, section, section_index, sentences_df):
-
 	tokenized = nltk.sent_tokenize(text)
-	# Counter is needed because some papers have extraneous periods and line numbers get thrown off (i.e. . . . or . .)
-	# counter = 0
 	for ln_num, line in enumerate(tokenized):
-
-		# if re.search('[a-zA-z]',tokenized[ln_num]) is None:
-		# 	continue
-		# else:
 		sentences_df = sentences_df.append(pd.DataFrame([[line, section, section_index, ln_num]],
 				columns=['line', 'section', 'section_ind', 'ln_num']), sort=False)
-			# counter += 1
-
 	return sentences_df
 
 
@@ -3665,24 +3660,33 @@ def get_update_end_file_num(start_file_num):
 				max_file_num = file_num
 	return max_file_num
 
+def return_lemmatizers_list():
+	lmtzr_list = []
+	for i in range(NUM_PROCESSES):
+		lmtzr = WordNetLemmatizer()
+		lmtzr.lemmatize("cough")
+		lmtzr_list.append(lmtzr)
+	return lmtzr_list
+
 if __name__ == "__main__":
 
-
+	lmtzr_list = return_lemmatizers_list()
 
 	# start_file = get_start_file_num()
 	# end_file = 1062
 
 	# while (start_file <= end_file):
-	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
-	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline')
+	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
+	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline', lmtzr_list)
 	# 	start_file += 5
 
-	start_file = get_start_file_num()
-	end_file = 1443
-	
+	# start_file = get_start_file_num()
+	start_file = 1440
+	end_file = 1440
+	s = u.Timer('file')
 	while (start_file <= end_file):
-		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov')
+		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
 		start_file += 5
-
+	s.stop()
 
 

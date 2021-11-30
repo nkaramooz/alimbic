@@ -5,7 +5,7 @@ from django.utils.safestring import mark_safe
 import snomed_annotator2 as ann2
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
-import utilities.utils2 as u2
+import utilities.utils2 as u
 import pandas as pd
 import utilities.es_utilities as es_util
 import math
@@ -14,14 +14,13 @@ import json
 import numpy as np
 import urllib.parse as urlparse
 from urllib.parse import parse_qs
-from nltk.stem.wordnet import WordNetLemmatizer
 import nltk.data
 import re
 
 INDEX_NAME='pubmedx2.0'
 
-
-
+lmtzr = WordNetLemmatizer()
+lmtzr.lemmatize("cough")
 
 ### ML training data
 def training(request):
@@ -144,9 +143,9 @@ def post_ml(request):
 
 	term = ann.clean_text(input_sentence)
 	all_words = ann.get_all_words_list(term)
-	cache = ann.get_cache(all_words, False, cursor)
+	cache = ann.get_cache(all_words, False, cursor, lmtzr)
 	
-	annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False)
+	annotation, sentences = ann.annotate_text_not_parallel(input_sentence, 'unlabelled', cache, cursor, True, True, False, lmtzr)
 	annotation = ann.acronym_check(annotation)
 	sentence_tuple = ann.get_sentence_annotation(term, annotation)
 
@@ -308,9 +307,9 @@ def post_concept_override(request):
 		child_acid = request.POST['child_acid']
 		parent_acid = request.POST['parent_acid']
 		if request.POST['rel_action_type'] == 'add':
-			error,message = u2.change_relationship(child_acid, parent_acid, '1', cursor)
+			error,message = u.change_relationship(child_acid, parent_acid, '1', cursor)
 		elif request.POST['rel_action_type'] == 'del':
-			error,message = u2.change_relationship(child_acid, parent_acid, '0', cursor)
+			error,message = u.change_relationship(child_acid, parent_acid, '0', cursor)
 		else:
 			error = True
 			message = "Action type inappropriately entered"
@@ -318,7 +317,7 @@ def post_concept_override(request):
 		payload_dict['change_relationship_message'] = message
 	elif 'new_concept' in request.POST:
 		concept_name = request.POST['new_concept']
-		error, message, conflict_df = u2.add_new_concept(concept_name, cursor)
+		error, message, conflict_df = u.add_new_concept(concept_name, cursor)
 		payload_dict['new_concept_message'] = message
 		payload_dict['new_concept_success'] = error
 		if error:
@@ -328,16 +327,16 @@ def post_concept_override(request):
 			payload_dict['new_concept_success'] = True
 	elif 'remove_acid' in request.POST:
 		acid = request.POST['remove_acid']
-		error = u2.remove_concept(acid, cursor)
+		error = u.remove_concept(acid, cursor)
 		payload_dict['remove_concept'] = error
 	elif 'new_description' in request.POST:
 		acid = request.POST['new_description_acid']
 		new_description = request.POST['new_description']
-		error, message = u2.add_new_description(acid, new_description, cursor)
+		error, message = u.add_new_description(acid, new_description, cursor)
 		payload_dict['add_description_message'] = message
 	elif 'remove_adid' in request.POST:
 		adid = request.POST['remove_adid']
-		error = u2.remove_adid(adid, cursor)
+		error = u.remove_adid(adid, cursor)
 		payload_dict['remove_adid'] = error
 	elif 'condition_acid_labelled' in request.POST:
 		condition_acid = None
@@ -355,7 +354,7 @@ def post_concept_override(request):
 			relationship = 1
 		elif 'rel_2' in request.POST: 
 			relationship = 2
-		message = u2.add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor)
+		message = u.add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor)
 		payload_dict['labelled_condition_treatment_message'] = message
 	elif 'adid_acronym_override' in request.POST:
 		adid = request.POST['adid_acronym_override']
@@ -365,7 +364,7 @@ def post_concept_override(request):
 		elif 'rel_false' in request.POST:
 			is_acronym = False
 
-		message = u2.acronym_override(adid, is_acronym, cursor)
+		message = u.acronym_override(adid, is_acronym, cursor)
 		payload_dict['acronym_override_message'] = message
 
 	elif 'acid_change_concept_type' in request.POST:
@@ -393,7 +392,7 @@ def post_concept_override(request):
 			state = 0
 
 		if rel_type is not None and state is not None:
-			message = u2.change_concept_type(acid, rel_type, state, cursor)
+			message = u.change_concept_type(acid, rel_type, state, cursor)
 			payload_dict['change_concept_type_message'] = message
 		else:
 			payload_dict['change_concept_type_message'] = "Error status or rel_type is null"
@@ -574,7 +573,7 @@ def post_search_text(request):
 
 
 	elif query_type == 'keyword':
-
+		s = u.Timer('query')
 		original_query_concepts_list = []
 		# if query.upper() != query:
 		query = query.lower()
@@ -588,9 +587,9 @@ def post_search_text(request):
 		elif (len(query_concepts_df.index) == 0):
 			query = ann2.clean_text(query)
 			all_words = ann2.get_all_words_list(query)
-			cache = ann2.get_cache(all_words, False, None)
+			cache = ann2.get_query_cache(all_words, False, None, lmtzr)
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
-			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, None, False, False)
+			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, None, False, False, lmtzr)
 
 		primary_cids = None
 
@@ -615,7 +614,7 @@ def post_search_text(request):
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*^1"], cursor)}
-	
+
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
 			history_query = """
@@ -632,7 +631,7 @@ def post_search_text(request):
 			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
 				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
 			
-			# query_logs_df = pd.DataFrame()
+			query_logs_df = pd.DataFrame()
 
 			if len(query_logs_df.index) > 0:
 				treatment_dict = query_logs_df['treatment_dict'][0]
@@ -645,7 +644,7 @@ def post_search_text(request):
 					original_query_concepts_list, flattened_query, query_types_list, unmatched_terms, filters, cursor)
 
 			primary_cids = query_concepts_df['acid'].tolist()
-
+			s.stop()
 			###UPDATE QUERY BELOW FOR FILTERS
 		else:
 			unmatched_terms = query

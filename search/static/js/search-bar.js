@@ -147,7 +147,7 @@ $(document).ready(function() {
           'J. Am. Coll. Cardiol.': null,
           'Mayo Clin. Proc.': null,
           'J Trauma Acute Care Surg': null,
-          'N. Engl. J. Med.': null,
+          'N Engl J Med': null,
           'Plast. Reconstr. Surg.': null,
           'Am. J. Clin. Nutr.': null,
           'Surg. Clin. North Am.': null,

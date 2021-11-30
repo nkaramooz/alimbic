@@ -37,7 +37,15 @@ INSERT INTO treatment_candidates_2
  		,t4.pmid
  		,t4.journal_pub_year::int as year
  		,0 as ver
- 	from (select distinct sentence_id, acid as condition_acid from pubmed.sentence_annotations_2) t1
+ 	from (
+ 		select 
+ 			distinct t6.sentence_id
+ 			,t6.acid as condition_acid 
+ 		from pubmed.sentence_annotations_2 t6 
+ 		join pubmed.sentence_tuples_2 t7
+ 		 on t6.sentence_id = t7.sentence_id
+ 		where t7.section != 'results' and t7.section != 'methods'
+ 	) t1
  	join (select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom') and active=1) t2 
  		on t1.condition_acid = t2.root_acid
  	join (select distinct sentence_id, acid as treatment_acid 

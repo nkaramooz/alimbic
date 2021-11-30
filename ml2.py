@@ -8,7 +8,7 @@ from nltk.tag.perceptron import PerceptronTagger
 import numpy as np
 import time
 import utilities.pglib as pg
-import utilities.utils2 as u2
+import utilities.utils2 as u
 import collections
 import os
 import random
@@ -224,7 +224,7 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 			,treatment_acid
 			,sentence_tuples
 		from ml2.treatment_dataset_subset_staging
-		where ver = %s limit 1000
+		where ver = %s limit 10000
 	"""
 
 	treatment_candidates_df = pg.return_df_from_query(cursor, query, \
@@ -262,7 +262,9 @@ def batch_treatment_predictions(model_name, treatment_candidates_df):
 	conn,cursor = pg.return_postgres_cursor()
 	engine = pg.return_sql_alchemy_engine()
 
-	treatment_candidates_df['score'] = treatment_candidates_df.apply(apply_score, model=model, axis=1)
+	data = np.asarray(treatment_candidates_df['x_train_gen'].tolist()).astype('float32')
+	res = model.predict(data)
+	treatment_candidates_df['score'] = res
 	treatment_candidates_df.to_sql('treatment_recs_staging', engine, schema='ml2', if_exists='append', \
 	 index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 
@@ -344,16 +346,6 @@ def recat_calculate(func, args):
 
 def apply_get_generic_labelled_data(row, all_conditions_set, all_treatments_set):
 	return get_labelled_data_sentence_generic_v2(row, all_conditions_set, all_treatments_set)
-
-
-def apply_score(row, model):
-	gen = np.array([row['x_train_gen']])
-	# spec = np.array([row['x_train_spec']])
-	# mask = np.array([row['x_train_mask']])
-
-
-	res = float(model.predict([gen])[0][0])
-	return res
 
 
 def batch_treatment_recategorization(model_name, treatment_candidates_df, all_conditions_set, all_treatments_set):
@@ -787,12 +779,21 @@ def print_contingency(model_name):
 	# should be OK to load into memory
 
 	testing_query = """
-		select id, sentence_id, 
-			sentence_tuples,condition_acid, treatment_acid, x_train_gen, x_train_gen_mask, label 
+		select 
+			id
+			,sentence_id
+			,sentence_tuples
+			,condition_acid
+			,condition 
+			,treatment_acid
+			,treatment
+			,x_train_gen
+			,x_train_gen_mask
+			,label 
 		from ml2.test_sentences where ver=%s
 	"""
 	sentences_df = pg.return_df_from_query(cursor, testing_query, (curr_version,), \
-		['id', 'sentence_id','sentence_tuples','condition_acid', 'treatment_acid', 'x_train_gen','x_train_gen_mask', 'label'])
+		['id', 'sentence_id','sentence_tuples','condition_acid','condition', 'treatment_acid','treatment', 'x_train_gen','x_train_gen_mask', 'label'])
 
 	zero_zero = 0
 	zero_one = 0
@@ -809,18 +810,18 @@ def print_contingency(model_name):
 			one_one += 1
 		elif((item['label'] == 1) and (res < 0.50)):
 			# print("below label=1 and res < 0.50")
-			# u2.pprint(item['condition_acid'])
-			# u2.pprint(item['treatment_acid'])
-			# u2.pprint(item['sentence_tuples'])
+			# u.pprint(item['condition'])
+			# u.pprint(item['treatment'])
+			# u.pprint(item['sentence_tuples'])
 			# print("end")
 			one_zero += 1
 		elif ((item['label'] == 0) and (res < 0.50)):
 			zero_zero += 1
 		elif ((item['label'] == 0) and (res >= 0.50)):
 			# print("below label=0, res >= 0.50")
-			# u2.pprint(item['condition_acid'])
-			# u2.pprint(item['treatment_acid'])
-			# u2.pprint(item['sentence_tuples'])
+			# u.pprint(item['condition'])
+			# u.pprint(item['treatment'])
+			# u.pprint(item['sentence_tuples'])
 			# print("end")
 			zero_one += 1
 
@@ -904,14 +905,16 @@ if __name__ == "__main__":
 	# sentence = "In formalin-fixed paraffin embedded samples from surgical resection of tongue squamous cell carcinoma of a patient who developed acute interstitial nephritis"
 	# sentence = "The etiology of liver disease is hepatitis C virus and alcohol with n=5493 and acute interstitial nephritis with n=3"
 	# sentence = "Bariatric surgery and emergency department visits and hospitalizations for heart failure exacerbation"
-	sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
-	sentence = sentence.lower()
+	# sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
+	# sentence = "alcohol and incident severe acute interstitial nephritis treated with prednisone"
+	# sentence = "but their predictive performance in patients with acute interstitial nephritis receiving multiple antithrombotic drugs after percutaneous coronary intervention (PCI) is unknown"
+	# sentence = sentence.lower()
 	# model_name = 'gen_bidi_deep_500_update_05.hdf5'
-	model_name = 'gen_bidi_500_deep_27.hdf5'
+	# model_name = 'gen_bidi_500_deep_30.hdf5'
 
 	# 8 can get the associated with concept
-	condition_id = '10603'
-	analyze_sentence(model_name, sentence, condition_id)
+	# condition_id = '10603'
+	# analyze_sentence(model_name, sentence, condition_id)
 
 	# word2vec_emb_top()
 	# build_w2v_embedding()
@@ -919,7 +922,7 @@ if __name__ == "__main__":
 	
 
 
-	# gen_datasets_mp(1)
+	gen_datasets_mp(1)
 	# conn, cursor = pg.return_postgres_cursor()
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
@@ -929,7 +932,7 @@ if __name__ == "__main__":
 
 
 	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_deep_27.hdf5')
+	# gen_treatment_predictions_top('gen_bidi_500_deep_21.hdf5')
 
 
 	
