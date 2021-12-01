@@ -1117,7 +1117,7 @@ class TestAnnotator(unittest.TestCase):
 			,("Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancer", 100, 'partial', ['172626', '237562', '105415'])
 			,("Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancier", 80, 'partial', ['172626', '237562', '105415'])
 			,("Sustained recovery of progressive multifocal leukoencephalopathy after treatment with IL-2.", 100, 'partial', ['73561', '197836'])
-
+			,("luteinizing hormone releasing hormone in thyroid hormone deficiency", 100, 'partial', ['11008', '111861'])
 			]
 
 		lmtzr = WordNetLemmatizer()
@@ -1126,6 +1126,7 @@ class TestAnnotator(unittest.TestCase):
 
 		u.pprint("============================")
 		for q in queryArr:
+			print(q)
 			term = q[0]
 			term = clean_text(term)
 			spellcheck_threshold = q[1]
@@ -1142,7 +1143,7 @@ class TestAnnotator(unittest.TestCase):
 				case_sensitive=True, check_pos=False, bool_acr_check=False, \
 				spellcheck_threshold=spellcheck_threshold, \
 				write_sentences=True, lmtzr=None)
-
+			print(res)
 			if q[2] == 'complete':
 				self.assertTrue(set(res['acid'].values) == set(q[3]))
 			else:
@@ -1243,39 +1244,39 @@ if __name__ == "__main__":
 	query86="kaposi's sarcoma"
 	query87="COPD Insulin"
 	query88="distal DVT"
-	query89="luteinizing hormone releasing hormone"
+	query89="luteinizing hormone releasing hormone deficiency in thyroid hormone deficiency"
 
 	# unittest.main()
 	
-	counter = 0
+	# counter = 0
 
-	while (counter < 1):
-		d = u.Timer('t')
-		term = query89
+	# while (counter < 1):
+	# 	d = u.Timer('t')
+	# 	term = query89
 
-		term = clean_text(term)
+	# 	term = clean_text(term)
 
-		all_words = get_all_words_list(term)
+	# 	all_words = get_all_words_list(term)
 	
-		lmtzr = WordNetLemmatizer()
-		lmtzr.lemmatize("cough")
-		spellcheck_threshold = 100
+	# 	lmtzr = WordNetLemmatizer()
+	# 	lmtzr.lemmatize("cough")
+	# 	spellcheck_threshold = 100
 
-		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
-			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+	# 	cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+	# 		check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 		
-		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
-			columns=['line', 'section', 'section_ind', 'ln_num'])
-		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+	# 	sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
+	# 		columns=['line', 'section', 'section_ind', 'ln_num'])
+	# 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-		res, g, s = annotate_text_not_parallel_2(sentences_df=sentences_df, cache=cache, \
-			case_sensitive=True, check_pos=False, bool_acr_check=False,\
-			spellcheck_threshold=spellcheck_threshold, \
-			write_sentences=True, lmtzr=None)
-		d.stop()
-		u.pprint(g['sentence_tuples'].tolist())
-		u.pprint(res)
+	# 	res, g, s = annotate_text_not_parallel_2(sentences_df=sentences_df, cache=cache, \
+	# 		case_sensitive=True, check_pos=False, bool_acr_check=False,\
+	# 		spellcheck_threshold=spellcheck_threshold, \
+	# 		write_sentences=True, lmtzr=None)
+	# 	d.stop()
+	# 	u.pprint(g['sentence_tuples'].tolist())
+	# 	u.pprint(res)
 
-		counter += 1
+	# 	counter += 1
 	
 	
