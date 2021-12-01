@@ -468,7 +468,7 @@ def post_search_text(request):
 	query = ''
 	filters = {}
 	query = None
-	
+	spellcheck_threshold = 80
 	# If GET request, this is from a link
 	if request.method == 'GET': 
 		parsed = urlparse.urlparse(request.path)
@@ -587,10 +587,14 @@ def post_search_text(request):
 		elif (len(query_concepts_df.index) == 0):
 			query = ann2.clean_text(query)
 			all_words = ann2.get_all_words_list(query)
-			cache = ann2.get_query_cache(all_words, False, None, lmtzr)
+			cache = ann2.get_cache(all_words_list=all_words, case_sensitive=True, \
+			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
-			query_concepts_df = ann2.annotate_text_not_parallel(query_df, cache, False, None, False, False, lmtzr)
-
+			query_concepts_df = ann2.annotate_text_not_parallel_2(sentences_df=query_df, cache=cache, \
+			case_sensitive=True, check_pos=False, bool_acr_check=False,\
+			spellcheck_threshold=spellcheck_threshold, \
+			write_sentences=False, lmtzr=None)
+			print(query_concepts_df)
 		primary_cids = None
 
 
@@ -809,10 +813,16 @@ def get_sr_payload(sr, flattened_query, unmatched_terms, cursor):
 
 			if sr_src['article_abstract'] is not None:
 				for key in sr_src['article_abstract']:
-					sr_src['article_abstract'][key] = re.sub(term_search, r'<b>\1</b>', sr_src['article_abstract'][key], flags=re.IGNORECASE)
+					if term.upper() == term:
+						sr_src['article_abstract'][key] = re.sub(term_search, r'<b>\1</b>', sr_src['article_abstract'][key])
+					else:
+						sr_src['article_abstract'][key] = re.sub(term_search, r'<b>\1</b>', sr_src['article_abstract'][key], flags=re.IGNORECASE)
 					sr_src['article_abstract'][key] = mark_safe(sr_src['article_abstract'][key])
 
-			sr_src['article_title'] = re.sub(term_search, r'<b>\1</b>', sr_src['article_title'], flags=re.IGNORECASE)
+			if term.upper() == term:
+				sr_src['article_title'] = re.sub(term_search, r'<b>\1</b>', sr_src['article_title'])
+			else:
+				sr_src['article_title'] = re.sub(term_search, r'<b>\1</b>', sr_src['article_title'], flags=re.IGNORECASE)
 			sr_src['article_title'] = mark_safe(sr_src['article_title'])
 	
 		hit_dict['journal_title'] = sr_src['journal_iso_abbrev']
