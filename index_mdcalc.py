@@ -6,7 +6,9 @@ import utilities.pglib as pg
 from bs4 import BeautifulSoup
 import utilities.utils2 as u
 import sqlalchemy as sqla
+from nltk.stem.wordnet import WordNetLemmatizer
 
+lmtzr = WordNetLemmatizer()
 conn,cursor = pg.return_postgres_cursor()
 h_conn = http.client.HTTPSConnection("www.mdcalc.com")
 h_conn.request("GET", "/")
@@ -65,10 +67,14 @@ for ind,item in enumerate(calc_items):
 	desc_text = desc.get_text()
 	desc_text_clean = ann2.clean_text(desc_text)
 	desc_all_words = ann2.get_all_words_list(desc_text_clean)
-	cache = ann2.get_cache(desc_all_words, True)
-
+	cache = ann2.get_cache(all_words_list=desc_all_words, case_sensitive=True, \
+				check_pos=False, spellcheck_threshold=100, lmtzr=lmtzr)
 	desc_df = pd.DataFrame([[desc_text_clean, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-	desc_annotation = ann2.annotate_text_not_parallel(desc_df, cache, True, True, False)
+
+	desc_annotation = ann2.annotate_text_not_parallel(sentences_df=desc_df, cache=cache, \
+			case_sensitive=True, check_pos=False, bool_acr_check=True,\
+			spellcheck_threshold=100, \
+			write_sentences=False, lmtzr=lmtzr)
 	desc_annotation = desc_annotation[desc_annotation['acid'].isnull() == False].copy()
 	final_annotation = title_annotation.append(desc_annotation)
 	final_annotation = ann2.acronym_check(final_annotation)

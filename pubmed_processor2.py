@@ -18,13 +18,13 @@ import nltk.data
 import sys
 import sqlalchemy as sqla
 import regex as re
-
+from ml2 import get_all_treatments_set
 from ftplib import FTP
 from bs4 import BeautifulSoup
 
-INDEX_NAME = 'pubmedx2.1'
-NUM_PROCESSES = 4
-
+INDEX_NAME = 'pubmedx2.0'
+NUM_PROCESSES = 48
+TREATMENT_CANDIDATES = get_all_treatments_set()
 nlm_cat_dict = {
 	"a case report" :"methods"
 	,"abbreviations" :"background"
@@ -3067,16 +3067,16 @@ nlm_cat_dict = {
 	,"participants" : "methods" 
 }
 
-def doc_worker(input, lmtzr=None):
+def doc_worker(input, lmtzr):
 	for func,args in iter(input.get, 'STOP'):
 		doc_calculate(func, args, lmtzr)
 
 
-def doc_calculate(func, args, lmtzr=None):
+def doc_calculate(func, args, lmtzr):
 	func(*args, lmtzr)
 
 
-def index_doc_from_elem(elem, filename, issn_list, lmtzr=None):
+def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 
 	elem = ET.parse(io.BytesIO(elem))
 		
@@ -3111,16 +3111,20 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr=None):
 						json_str['citations_pmid'] = get_article_citations(elem)
 						pmid = json_str['pmid']
 							
-
+						
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
 							get_abstract_conceptids_2(json_str, article_text, lmtzr)
+						
 						sentence_annotations_df['ver'] = 0
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
 
+						json_str['treatment_candidates'] = []
+						
 						if annotation_dict['abstract'] is not None:
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
 							json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
+							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(json_str['abstract_conceptids'])))
 
 						else:
 							json_str['abstract_conceptids'] = None
@@ -3136,6 +3140,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr=None):
 						if title_cids is not None:
 							json_str['title_cids'] = title_cids
 							json_str['title_dids'] = title_dids
+							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(title_cids)))
 						else:
 							json_str['title_cids'] = None
 							json_str['title_dids'] = None
@@ -3151,6 +3156,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr=None):
 						if keywords_cids is not None:
 							json_str['keywords_cids'] = keywords_cids
 							json_str['keywords_dids'] = keywords_dids
+							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(keywords_cids)))
 						else:
 							json_str['keywords_cids'] = None
 							json_str['keywords_dids'] = None
@@ -3272,6 +3278,7 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 				"results_did" : {"type" : "keyword"},
 				"unlabelled_did" : {"type" : "keyword"},
 				"keywords_did" : {"type" : "keyword"}}}
+			,"treatment_candidates" : {"type" : "keyword"}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
@@ -3295,13 +3302,13 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 			params = (ET.tostring(elem), filename, issn_list)
 			task_queue.put((index_doc_from_elem, params))
 			elem.clear()
-		# query = """
-		# 	INSERT INTO pubmed.indexed_files_2
-		# 	VALUES
-		# 	(%s, %s)
-		# 	"""
-		# cursor.execute(query, (filename, file_counter))
-		# cursor.connection.commit()
+		query = """
+			INSERT INTO pubmed.indexed_files_2
+			VALUES
+			(%s, %s)
+			"""
+		cursor.execute(query, (filename, file_counter))
+		cursor.connection.commit()
 		file_counter += 1
 		
 	cursor.close()
@@ -3315,18 +3322,21 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 		p.join()
 
 
-def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr=None):
+def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr):
 	cid_dict = {}
 	did_dict = {}
 	result_dict = {}
 
 	cleaned_text = ann2.clean_text(article_text)
 
-	all_words = ann2.get_all_words_list(cleaned_text)
-		
-	cache = ann2.get_cache(all_words, True, True)
+	all_words = ann2.get_all_words_list(cleaned_text, lmtzr)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = get_snomed_annotation(abstract_dict, cache, lmtzr)
+	cache = ann2.get_cache(all_words_list=all_words, case_sensitive=True, \
+			check_pos=False, spellcheck_threshold=100, lmtzr=lmtzr)
+
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
+		get_snomed_annotation(abstract_dict, cache, lmtzr)
+
 	sentence_annotations_df['pmid'] = abstract_dict['pmid']
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
 	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
@@ -3604,7 +3614,7 @@ def get_article_info_2(elem, json_str):
 	return json_str, article_text
 
 
-def get_snomed_annotation(text_dict, cache, lmtzr=None):
+def get_snomed_annotation(text_dict, cache, lmtzr):
 	sentences_df = pd.DataFrame()
 	sentences_df = return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
 
@@ -3615,11 +3625,11 @@ def get_snomed_annotation(text_dict, cache, lmtzr=None):
 	if text_dict['article_keywords'] is not None:
 		sentences_df = return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
-		ann2.annotate_text_not_parallel_2(sentences_df=sentence_df, cache=cache, \
-			case_sensitive=True, check_pos=True, bool_acr_check=True, \
-			write_sentences=True, lmtzr)
 
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
+			ann2.annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
+				case_sensitive=True, check_pos=False, bool_acr_check=True, \
+				write_sentences=True, lmtzr=lmtzr, spellcheck_threshold=100)
 	return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 
@@ -3664,29 +3674,29 @@ def return_lemmatizers_list():
 	lmtzr_list = []
 	for i in range(NUM_PROCESSES):
 		lmtzr = WordNetLemmatizer()
-		lmtzr.lemmatize("cough")
 		lmtzr_list.append(lmtzr)
 	return lmtzr_list
+
 
 if __name__ == "__main__":
 
 	lmtzr_list = return_lemmatizers_list()
 
-	# start_file = get_start_file_num()
-	# end_file = 1062
+	start_file = get_start_file_num()
 
-	# while (start_file <= end_file):
-	# 	# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
-	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline', lmtzr_list)
-	# 	start_file += 5
+	end_file = 1062
 
-	# start_file = get_start_file_num()
-	start_file = 1440
-	end_file = 1440
-	s = u.Timer('file')
 	while (start_file <= end_file):
-		load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
+		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
+		load_pubmed_local_2(start_file, end_file, \
+			'resources/pubmed_baseline/ftp.ncbi.nlm.nih.gov/baseline', lmtzr_list)
 		start_file += 5
-	s.stop()
+
+	# start_file = get_start_file_num()
+	# s = u.Timer('file')
+	# while (start_file <= end_file):
+	# 	load_pubmed_local_2(start_file, end_file, 'resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)
+	# 	start_file += 5
+	# s.stop()
 
 

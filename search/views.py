@@ -594,7 +594,7 @@ def post_search_text(request):
 			case_sensitive=True, check_pos=False, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=False, lmtzr=None)
-			print(query_concepts_df)
+
 		primary_cids = None
 
 

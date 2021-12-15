@@ -127,7 +127,15 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Eur J Med Chem', '0223-5234', 'Print'),
 	('Eur J Med Chem', '1768-3254', 'Electronic'),
 	('Curr Med Chem', '0929-8673', 'Print'),
-	('Curr Med Chem', '1875-533X', 'Electronic')
+	('Curr Med Chem', '1875-533X', 'Electronic'),
+	('Ann Hematol', '0939-5555', 'Print'),
+	('Ann Hematol', '1432-0584', 'Electronic'),
+	('Transfusion', '0041-1132', 'Print'),
+	('Transfusion', '1537-2995', 'Electronic'),
+	('Br J Haematol', '0007-1048', 'Print'),
+	('Br J Haematol', '1365-2141', 'Electronic'),
+	('Curr Rheumatol Rev', '1573-3971', 'Print'),
+	('Curr Rheumatol Rev', '1875-6360', 'Electronic')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

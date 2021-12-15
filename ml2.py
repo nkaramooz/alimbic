@@ -4,7 +4,6 @@ from sqlalchemy import create_engine
 from nltk.stem.wordnet import WordNetLemmatizer
 from operator import itemgetter
 import nltk.data
-from nltk.tag.perceptron import PerceptronTagger
 import numpy as np
 import time
 import utilities.pglib as pg
@@ -736,11 +735,17 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 def analyze_sentence(model_name, sentence, condition_id):
 	term = ann2.clean_text(sentence)
 	all_words = ann2.get_all_words_list(term)
-	tagger = PerceptronTagger()
-	cache = ann2.get_cache(all_words, False, tagger)
-	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(item, cache, True, tagger, True, True)
+	lmtzr = WordNetLemmatizer()
 	
+	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+	cache = get_cache(all_words_list=item, case_sensitive=False, \
+				check_pos=True, spellcheck_threshold=100, lmtzr=lmtzr)
+
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = annotate_text_not_parallel(sentences_df=item, cache=cache, \
+			case_sensitive=True, check_pos=True, bool_acr_check=True,\
+			spellcheck_threshold=100, \
+			write_sentences=True, lmtzr=lmtzr)
+
 	model = load_model(model_name)
 
 	all_conditions_set = get_all_conditions_set()
