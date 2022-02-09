@@ -4,6 +4,7 @@
 	font-family:'Comfortaa';
 	font-weight: bold;
 	color: rgb(251,0,6) !important;
+	text-align: center;
 }
 
 .navbar {
@@ -23,22 +24,20 @@
 	margin-bottom: 0px !important;
 }
 
-.search-btn {
-	/*background-color: #007bff !important;*/
+#submit_button {
+	position: absolute; 
 	visibility: hidden;
+	height: 0px;
+	width:  0px;
+	border:  none;
+	padding:  0px;
 }
+
 
 .body {
 	padding-top: 25px;
 	width: 800px;
 	margin: auto;
-}
-
-.search-bar {
-
-	margin: auto;
-	width: 800px;
-
 }
 
 .nested {
@@ -49,17 +48,29 @@
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
   -webkit-appearance: none; 
-  margin: 0; 
+  margin: 0px; 
 }
 
 .chips > input {
 	margin-bottom: 0px !important;
 }
 
+.chips {
+	width:  100% !important;
+}
+
+.chips .chip {
+	border-radius: 0px !important;
+}
+
 .filters {
 	display: none;
-	padding-top: 5px !important;
 }
+
+#filter_parent {
+	height: 100px;
+}
+
 
 .filter-button {
 	padding: 0px;
@@ -72,8 +83,10 @@ input[type=number]::-webkit-outer-spin-button {
 }
 
 .filter-item {
-	margin: 0px !important;
+	/*margin: 0px !important;*/
 }
+
+
 
 .rotate-down{
 	transform:rotate(90deg) !important;
@@ -84,22 +97,6 @@ input[type=number]::-webkit-outer-spin-button {
 	transform:rotate(0deg);
 	transition: 0.5s;
 }
-
-.chips .chip {
-	border-radius: 0px !important;
-}
-
-.search-bar {
-	padding-top: 20px;
-}
-
-.search-bar > form > .filters {
-	color: #6f7072;
-	padding-top: 15px;
-	padding-bottom: 15px;
-}
-
-
 
 
 .abstract-body {

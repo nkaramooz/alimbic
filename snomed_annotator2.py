@@ -157,6 +157,10 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 				w='release'
 			elif w=='ovarian' or w=='ovaries':
 				w='ovary'
+			elif w=='opiate' or w=='opiates' or w=='opioids':
+				w='opioid'
+			elif w=='was' or w=='were' or w=='is':
+				w='is'
 			else:
 				if check_pos:
 					w = lmtzr.lemmatize(w, pos_tag[i])
@@ -181,17 +185,24 @@ def get_wordnet_pos(ln_words):
 
 def return_line_snomed_annotation(line, spellcheck_threshold, case_sensitive, check_pos, cache, lmtzr):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
-
 	ln_words = line.split()
+	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
+	
+	if len(cache) == 0:
+		words_df = pd.DataFrame()
+		ln_words = line.split()
+		for index,word in enumerate(ln_lemmas):
+			words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
+		words_df['line'] = line
+		return words_df, None
 
 	candidate_df_arr = []
 	results_df = pd.DataFrame()
 	words_df = pd.DataFrame()
 	final_results = pd.DataFrame()
 
-	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
-
 	# word is query word (not necessarily correctly spelled word)
+
 	for index,word in enumerate(ln_lemmas):
 		words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
 
@@ -605,6 +616,10 @@ def annotate_line(sentence_df, case_sensitive, check_pos, cache, \
 		words_df['ln_num'] = sentence_df['ln_num']
 		words_df['section'] = sentence_df['section']
 		words_df['section_ind'] = sentence_df['section_ind']
+	else:
+		words_df['ln_num'] = 0
+		words_df['section'] = sentence_df['section']
+		words_df['section_ind'] = sentence_df['section_ind']
 
 	return words_df, annotation
 
@@ -637,66 +652,59 @@ def get_annotated_tuple(c_df):
 		return None
 
 
-def query_expansion(conceptid_series, cursor):
-	conceptid_tup = tuple(conceptid_series.tolist())
-	if len(conceptid_tup) > 0:
-		# child_query = """
-		# 	select 
-		# 		child_acid
-		# 		,parent_acid
-		# 	from (
-		# 		select
-		# 			parent_acid,
-	 #    			child_acid,
-	 #    			cnt,
-	 #    			row_number() over (partition by parent_acid order by cnt desc) as rn
-		# 		from
-		# 		(
-		# 			select 
-		# 				parent_acid
-	 #            		,child_acid
-	 #            		,ct.cnt
-		# 			from (
-		# 				select child_acid, parent_acid
-		# 				from snomed2.transitive_closure_acid where parent_acid in %s
-		# 			) tb1
-		# 			join annotation2.concept_counts ct
-		# 	  		on tb1.child_acid = ct.concept
-	 #    		) tb2
-		# 	) tb3
-		# 	where rn <= 50
-		# """
+# when child_candidates is provided, it does not expand the query
+# but rather reformats arrays around primary cids and filters
+# to only child acids that exist in the search results
+def query_expansion(conceptid_series, child_candidates, cursor):
+	conceptid_tup = tuple(conceptid_series)
+
+	if child_candidates is None and len(conceptid_tup) > 0:
+
 		## artificially need to limit query size to not overwhelm elastic search
 		child_query = """
 			select
 				child_acid
 				,parent_acid
 			from snomed2.transitive_closure_acid where parent_acid in %s
-			limit 40
 		"""
+		# get rid of limit 30 when come up with more clever way
 
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
 			["child_acid", "parent_acid"])
 
-		results_list = []
+		
+	elif child_candidates is not None and len(conceptid_tup) > 0:
+		child_candidates_tup = tuple(child_candidates)
+		child_query = """
+			select
+				child_acid
+				,parent_acid
+			from snomed2.transitive_closure_acid where parent_acid in %s
+			and child_acid in %s
+		"""
 
-		for item in conceptid_series:
-			temp_res = [item]
-			added_other = False
-			# JUST CHANGED PARENTHESES location
-
-			if len(child_df[child_df['parent_acid'] == item].index) > 0:
-				temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
-				added_other = True
-
-			if added_other:
-				results_list.append(temp_res)
-			else:
-				results_list.extend(temp_res)
-
-		return results_list
+		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup, child_candidates_tup), \
+			["child_acid", "parent_acid"])
+		
 	else:
 		return []
+
+	results_list = []
+	for item in conceptid_series:
+		temp_res = [item]
+		added_other = False
+		# JUST CHANGED PARENTHESES location
+
+		if len(child_df[child_df['parent_acid'] == item].index) > 0:
+			temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
+			added_other = True
+
+		if added_other:
+			results_list.append(temp_res)
+		else:
+			results_list.extend(temp_res)
+
+	return results_list
 
 def get_children(conceptid, cursor):
 	child_query = """
@@ -718,7 +726,8 @@ def get_children(conceptid, cursor):
 def get_all_words_list(text, lmtzr):
 	tokenized = nltk.sent_tokenize(text)
 	all_words = []
-	lmtzr = WordNetLemmatizer()
+	if lmtzr is None:
+		lmtzr = WordNetLemmatizer()
 	for ln_num, line in enumerate(tokenized):
 		words = line.split()
 
@@ -731,33 +740,35 @@ def get_all_words_list(text, lmtzr):
 
 def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold, lmtzr):
 	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos, lmtzr)
-
 	cache = get_new_candidate_df(lemmas, case_sensitive, spellcheck_threshold)
 
-	if spellcheck_threshold != 100:
-		cache = cache.to_dict('records')
-		for row in cache:
-			max_fuzz = 0
-			for i in lemmas:
-				new_fuzz = fuzz.ratio(i, row['word'])
-				if new_fuzz > max_fuzz:
-					max_fuzz = new_fuzz
-				row[i] = new_fuzz
-			row['max_fuzz'] = max_fuzz
-		cache = pd.DataFrame.from_dict(cache)
+	if len(cache) > 0:
+		if spellcheck_threshold != 100:
+			cache = cache.to_dict('records')
+			for row in cache:
+				max_fuzz = 0
+				for i in lemmas:
+					new_fuzz = fuzz.ratio(i, row['word'])
+					if new_fuzz > max_fuzz:
+						max_fuzz = new_fuzz
+					row[i] = new_fuzz
+				row['max_fuzz'] = max_fuzz
+			cache = pd.DataFrame.from_dict(cache)
 
-		cache = cache[cache['max_fuzz'] >= spellcheck_threshold]
-		cache['points'] = 1
+			cache = cache[cache['max_fuzz'] >= spellcheck_threshold]
+			cache['points'] = 1
+		else:
+			cache['points'] = 0
+			cache.loc[cache.word.isin(lemmas), 'points'] = 1
+
+		csf = cache[['adid', 'term_length', 'points']].groupby(['adid', 'term_length'], as_index=False)['points'].sum()
+
+		candidate_dids = csf[csf['term_length'] == csf['points']]['adid'].tolist()
+		cache = cache[cache['adid'].isin(candidate_dids)].copy()
+		cache = cache.drop(['points'], axis=1)
+		return cache
 	else:
-		cache['points'] = 0
-		cache.loc[cache.word.isin(lemmas), 'points'] = 1
-
-	csf = cache[['adid', 'term_length', 'points']].groupby(['adid', 'term_length'], as_index=False)['points'].sum()
-
-	candidate_dids = csf[csf['term_length'] == csf['points']]['adid'].tolist()
-	cache = cache[cache['adid'].isin(candidate_dids)].copy()
-	cache = cache.drop(['points'], axis=1)
-	return cache
+		return pd.DataFrame()
 
 
 # Returns 3 dataframes to be eventually materialized into tables
@@ -779,8 +790,9 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 	for row in sentence_dict:
 		line_words_df, res_df = annotate_line(sentence_df=row, case_sensitive=case_sensitive, \
 			check_pos=check_pos, cache=cache, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
-		
-		concepts_df = concepts_df.append(res_df, sort=False)
+
+		if res_df is not None:
+			concepts_df = concepts_df.append(res_df, sort=False)
 		words_df = words_df.append(line_words_df, sort=False)
 
 	if len(concepts_df.index) > 0:
@@ -821,12 +833,16 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 				and t1.ln_num = t2.ln_num and t1.section_ind = t2.section_ind
 		"""
 		ann_df = pd.read_sql_query(query, conn)
+	# Scenario where only unmatched terms in sentence
 	else:
 		ann_df = words_df.copy()
 		ann_df['acid'] = np.nan
 		ann_df['adid'] = np.nan
-		ann_df['description_start_index'] = ann_df['term_index']
-		ann_df['description_end_index'] = ann_df['term_index']
+
+		ann_df.insert(0, 'description_start_index', 0, 0+len(ann_df))
+		ann_df.insert(0, 'description_end_index', 0, 0+len(ann_df))
+		# ann_df['description_start_index'] = words_df['term_index']
+		# ann_df['description_end_index'] = words_df['term_index']
 
 
 	section_max = ann_df['section_ind'].max()+1
@@ -1055,39 +1071,38 @@ if __name__ == "__main__":
 	query88="distal DVT"
 	query89="luteinizing hormone releasing hormone deficiency in thyroid hormone deficiency"
 	query90 = "Antibiotic concentrations used for exposure were either the MIC of each agent for the sensitive isolates or the recommended sensitivity breakpoint concentrations for the resistant isolates"
-	query91="protein C deficiency"
+	query91="biomarker"
 	unittest.main()
 	
-	counter = 0
-	d = u.Timer('t')
-	lmtzr = WordNetLemmatizer()
-	# lmtzr.lemmatize("cough")
-	while (counter < 1):
-		
-		term = query91
+	# counter = 0
+	# d = u.Timer('t')
 
-		term = clean_text(term)
+	# lmtzr = WordNetLemmatizer()
 
-		all_words = get_all_words_list(term, lmtzr)
-	
-		spellcheck_threshold = 100
+	# while (counter < 1):
+	# 	term = query91
+	# 	term = clean_text(term)
 
-		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
-			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+	# 	all_words = get_all_words_list(term, lmtzr)
 
-		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
-			columns=['line', 'section', 'section_ind', 'ln_num'])
-		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+	# 	spellcheck_threshold = 100
 
-		res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
-			case_sensitive=True, check_pos=False, bool_acr_check=False,\
-			spellcheck_threshold=spellcheck_threshold, \
-			write_sentences=True, lmtzr=None)
+	# 	cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+	# 		check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 
-		d.stop()
-		u.pprint(g['sentence_tuples'].tolist())
-		u.pprint(res)
+	# 	sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
+	# 		columns=['line', 'section', 'section_ind', 'ln_num'])
+	# 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-		counter += 1
+	# 	res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
+	# 		case_sensitive=True, check_pos=False, bool_acr_check=False,\
+	# 		spellcheck_threshold=spellcheck_threshold, \
+	# 		write_sentences=True, lmtzr=None)
+
+	# 	d.stop()
+	# 	u.pprint(g['sentence_tuples'].tolist())
+	# 	u.pprint(res)
+
+	# 	counter += 1
 	
 	

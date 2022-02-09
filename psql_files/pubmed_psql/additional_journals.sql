@@ -135,7 +135,11 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Br J Haematol', '0007-1048', 'Print'),
 	('Br J Haematol', '1365-2141', 'Electronic'),
 	('Curr Rheumatol Rev', '1573-3971', 'Print'),
-	('Curr Rheumatol Rev', '1875-6360', 'Electronic')
+	('Curr Rheumatol Rev', '1875-6360', 'Electronic'),
+	('J Clin Oncol', '0732-183X', 'Print'),
+	('J Clin Oncol', '1527-7755', 'Electronic'),
+	('J Clin Oncol', '0732-183X', 'Print'),
+	('J Clin Oncol', '1527-7755', 'Electronic')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

@@ -3,74 +3,62 @@
 
 
 <script src="{% static "js/search-bar.js" %}"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
+<div class="container" id="search_bar_container">
+		<div class="row">
+			<div class="col s12 center">
+				<h1><a class="name_header" href="http://www.alimbic.com">alimbic</a></h1>
+			</div>
 
-<div class="container">
-	<!-- <div class="row"> -->
-		<div class="col s2">
-		</div>
-		<div class="col s8 center">
-			<h1><a class="name_header" href="http://www.alimbic.com">alimbic</a></h1>
-		</div>
-		<div class="col s2">
-		</div>
-	<!-- </div> -->
 	<form action="/post_search_text/" method="POST" id="post_search_text"> 
 		{% csrf_token %}
 
-		<div class="row form-row">
-			<div class="col s2">
-			</div>
-			<div class="input-field col s8">
+			<div class="input-field col s12 m8 l8 offset-m2 offset-l2 center">
 				<input type="text" name="query" class="search-box browser-default" value="{{query}}" id="search_box">
+				<input type="submit" value="search" id="submit_button">
 			</div>
-			<!-- <div class="col s2">
-			</div> -->
-			<div class="input-field col s2">
-				<button type="submit" value="search" class="waves-effect waves-light btn search-btn">Search</button>
-			</div>
+
 			
-		</div>
-		<div class="row filter-item">
-			<div class="col s2"></div>
-			<div class="col s8 right-align">
-				<!-- <div class="filter-button"> -->
-					<btn id="expand_filters" class="right-align">Filters<div class="col s2"></div><i class="tiny material-icons chevron">chevron_right</i></btn>
-				<!-- </div> -->
+		<div class="filter_parent" id="filter_parent">
+		<div class="filter-item">
+			<div class="col s8 offset-s4 offset-l2 offset-m2 right-align">
+					<btn id="expand_filters" class="right-align">Filters<div class="col s2"></div><i class="tiny material-icons chevron rotate-up">chevron_right</i></btn>
 			</div>
 		</div>
 		<div class="filters" id="filters">
-			<div class="row filter-item">
-				<div class="col s2"></div>
-				<div class="col s4" id="journals2">
+			<div class="filter-item">
+				<div class="col s12 m4 l4 offset-m2 offset-l2" id="journals2">
 					<div class="chips chips-autocomplete input-field inline" id="journals"></div>
 				</div>
 				
-	    		<div class="input-field col s2">
+	    		<div class="input-field col s6 l2 m2">
 	      			<input type="number" class="validate" id="start_year" name="start_year" value={{start_year}} min="1900" max={% now 'Y' %}>
 	      			<label for="start_year">Start year</label>
 	    		</div>
 
-	    		<div class="input-field col s2">
+	    		<div class="input-field col s6 l2 m2">
 	    			<input type="number" class="validate" id="end_year" name="end_year" value={{end_year}} min="1900" max={% now 'Y' %}>
 	    			<label for="end_year">End year</label>
 	    		</div>
-	    		<div class="col s1"></div>
 	    		
 			</div>
 		</div>
+	</div>
 	</form>
+</div>
 	<div class="row">
-		<div class="col s4"></div>
-		<div class="col s4 center-align">
-	<div class="preloader-wrapper big inactive" id="loader">
-    <div class="spinner-layer spinner-blue-only">
-      <div class="circle-clipper left">
-        <div class="circle"></div>
-      </div><div class="gap-patch">
-        <div class="circle"></div>
-      </div><div class="circle-clipper right">
-        <div class="circle"></div>
+		<div class="col s12 center-align">
+		<div class="preloader-wrapper big inactive" id="loader">
+	    <div class="spinner-layer spinner-blue-only">
+	      <div class="circle-clipper left">
+	        <div class="circle"></div>
+	      </div>
+	    <div class="gap-patch">
+	      <div class="circle"></div>
+	    </div>
+	    <div class="circle-clipper right">
+	        <div class="circle"></div>
       </div>
     </div>
   </div>

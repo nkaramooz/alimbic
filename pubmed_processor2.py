@@ -18,13 +18,15 @@ import nltk.data
 import sys
 import sqlalchemy as sqla
 import regex as re
-from ml2 import get_all_treatments_set
+from ml2 import get_all_concepts_of_interest
 from ftplib import FTP
 from bs4 import BeautifulSoup
+from time import sleep
 
 INDEX_NAME = 'pubmedx2.0'
 NUM_PROCESSES = 48
-TREATMENT_CANDIDATES = get_all_treatments_set()
+CONCEPTS_OF_INTEREST = get_all_concepts_of_interest()
+
 nlm_cat_dict = {
 	"a case report" :"methods"
 	,"abbreviations" :"background"
@@ -3089,9 +3091,9 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 
 		if json_str['journal_pub_year'] is not None:
 
-			if ((int(json_str['journal_pub_year']) >= 1990) and json_str['lang'] == 'eng'):
+			if ((int(json_str['journal_pub_year']) >= 1985) and json_str['lang'] == 'eng'):
 				json_str, article_text = get_article_info_2(elem, json_str)
-				
+
 				# Some abstracts in Pubmed don't have titles
 				# Exclude protocols 
 				if (json_str['article_title'] is not None and json_str['article_title'] != '') and ('a protocol for ' not in json_str['article_title'].lower() and \
@@ -3105,7 +3107,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 								'Retracted Publication', 'Clinical Trial Protocol', 'Research Design', 'Duplicate Publication', \
 								'Expression of Concern', 'Interview', 'Legal Case', 'Newspaper Article', 'Personal Narrative', \
 								'Portrait', 'Video-Audio Media', 'Webcast']))):
-						
+
 						json_str = get_pmid(elem, json_str)
 						json_str = get_article_ids(elem, json_str)					
 						json_str['citations_pmid'] = get_article_citations(elem)
@@ -3119,12 +3121,14 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
 
-						json_str['treatment_candidates'] = []
+						json_str['concepts_of_interest'] = []
 						
 						if annotation_dict['abstract'] is not None:
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
 							json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
-							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(json_str['abstract_conceptids'])))
+							concept_list = annotation_dict['abstract']['cid_dict'].values()
+							concept_list = [i for sublist in concept_list for i in sublist]
+							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(concept_list)))
 
 						else:
 							json_str['abstract_conceptids'] = None
@@ -3140,7 +3144,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						if title_cids is not None:
 							json_str['title_cids'] = title_cids
 							json_str['title_dids'] = title_dids
-							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(title_cids)))
+							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(title_cids)))
 						else:
 							json_str['title_cids'] = None
 							json_str['title_dids'] = None
@@ -3156,18 +3160,28 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						if keywords_cids is not None:
 							json_str['keywords_cids'] = keywords_cids
 							json_str['keywords_dids'] = keywords_dids
-							json_str['treatment_candidates'].extend(list(TREATMENT_CANDIDATES & set(keywords_cids)))
+							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(keywords_cids)))
 						else:
 							json_str['keywords_cids'] = None
 							json_str['keywords_dids'] = None
 
 						json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 						json_str['filename'] = filename
-							
+												
+						sentence_concept_arr = sentence_concept_arr_df['concept_arr'].tolist()
+						abstract_concept_arr = [i for sublist in sentence_concept_arr for i in sublist]
+						abstract_concept_df = pd.DataFrame([[json_str['pmid'], abstract_concept_arr, json_str['journal_pub_year'], \
+							json_str['journal_iso_abbrev']]], columns=['pmid', 'abs_concept_arr', 'journal_pub_year', 'journal_iso_abbrev'])
+						
+						abstract_sentence_tuples = sentence_tuples_df['sentence_tuples'].tolist()
+						abstract_sentence_tuples_arr = [i for sublist in abstract_sentence_tuples for i in sublist]
+						abstract_sentence_df = pd.DataFrame([[json_str['pmid'], abstract_sentence_tuples_arr, json_str['journal_pub_year'], \
+							json_str['journal_iso_abbrev']]], columns=['pmid', 'abs_tuples', 'journal_pub_year', 'journal_iso_abbrev'])
+
 						json_str =json.dumps(json_str)
 						json_obj = json.loads(json_str)
 						
-
+						
 						es = u.get_es_client()
 						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
 
@@ -3179,43 +3193,65 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							except:
 								print(json_obj)
 								raise ValueError('incompatible json obj')
-
+							engine = pg.return_sql_alchemy_engine()
 							try:
-								engine = pg.return_sql_alchemy_engine()
-
 								sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 								sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
+								abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
+								abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
+									if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
 								engine.dispose()
 							except:
 								try:
-									engine = pg.return_sql_alchemy_engine()
 									sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 									sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
+									abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
+									abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
+										if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
 									engine.dispose()
 								except:
 									try: 
-										engine = pg.return_sql_alchemy_engine()
+
 										sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
 											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 										sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
 										sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
+										abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
+										abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
+											if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
 										engine.dispose()
 
 									except:
-										print("could not save the following")
-										u.pprint(sentence_tuples_df)
-										u.pprint(sentence_annotations_df)
-										u.pprint(sentence_concept_arr_df)
+										try:
+											sleep(0.5)
+											sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
+												if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+											sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
+												if_exists='append', index=False)
+											sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
+												if_exists='append', index=False)
+											abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
+											abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
+												if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
+											engine.dispose()
+										except:
+											print("could not save the following")
+											u.pprint(sentence_tuples_df)
+											u.pprint(sentence_annotations_df)
+											u.pprint(sentence_concept_arr_df)
+											u.pprint(abstract_concept_df)
+											u.pprint(abstract_sentence_df)
+											engine.dispose()
 
 							# Below should delete old annotations and update with new ones in tables
 							# Basically drop segments with that pmid and then append these values						
@@ -3278,7 +3314,7 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 				"results_did" : {"type" : "keyword"},
 				"unlabelled_did" : {"type" : "keyword"},
 				"keywords_did" : {"type" : "keyword"}}}
-			,"treatment_candidates" : {"type" : "keyword"}
+			,"concepts_of_interest" : {"type" : "keyword"}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
@@ -3293,9 +3329,8 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 
 	while file_counter <= start_file+4 and file_counter <= end_file:
 		print(file_counter)
-		filename = 'pubmed21n' + str(file_counter).zfill(4) + '.xml'
+		filename = 'pubmed22n' + str(file_counter).zfill(4) + '.xml'
 		file_path = folder_path + '/' + filename
-
 
 		for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
 			json_str = {}
@@ -3665,7 +3700,7 @@ def get_update_end_file_num(start_file_num):
 	max_file_num = start_file_num
 	for i in filenames:
 		if re.match(".*\.xml\.gz$", i):
-			file_num = int(re.findall('pubmed21n(.*)\.xml.gz$', i)[0])
+			file_num = int(re.findall('pubmed22n(.*)\.xml.gz$', i)[0])
 			if file_num > max_file_num:
 				max_file_num = file_num
 	return max_file_num
@@ -3684,7 +3719,7 @@ if __name__ == "__main__":
 
 	start_file = get_start_file_num()
 
-	end_file = 1062
+	end_file = 1114
 
 	while (start_file <= end_file):
 		# load_pubmed_local_2(start_file, '../resources/pubmed_update/ftp.ncbi.nlm.nih.gov', lmtzr_list)

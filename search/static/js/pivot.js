@@ -12,8 +12,18 @@ $(document).ready(function() {
 	$('[name="query_annotation[]"]').each(function() {
 		query_list.push($(this).val());
 	}).get();
-
 	
+	var expanded_query_acids = [];
+	$('[name="expanded_query_acids[]"]').each(function() {
+		expanded_query_acids.push($(this).val());
+	}).get();
+
+	var pivot_complete_acid = []
+	form.find('#pivot_complete_acid').each(function(){
+		pivot_complete_acid.push($(this).val());
+	}).get()
+
+	console.log(pivot_complete_acid);
 
 	var chipInstance = M.Chips.getInstance($(".chips"));
 
@@ -23,6 +33,8 @@ $(document).ready(function() {
 			journals : chipInstance.chipsData,
 			query_type : "pivot",
 			query_annotation : query_list,
+			expanded_query_acids : expanded_query_acids,
+			pivot_complete_acid : pivot_complete_acid,
 			unmatched_terms : $('#unmatched_terms').val(),
 			pivot_cid : form.find('#pivot_cid').val(),
 			pivot_term : form.find('#pivot_term').val(),
@@ -51,7 +63,7 @@ $(document).ready(function() {
 			console.log('xhr.status + ": " + xhr.responseText');
 			 $('#loader').removeClass("active");
         $('#loader').addClass("inactive");
-        $("#results").html("<div id=\"results\" class=\"results\"> Oops, something went wrong. Try another query </div>")
+        $("#results").html("<div class=\"row s12\"> <div class=\"col s12\" style=\"text-align: center\"> Something went wrong. Try another query </div> </div>")
         $('#results').show();
 		}
 	});
@@ -63,9 +75,7 @@ $(document).ready(function() {
 });
 
 function post_pivot_search(item) {
-
   var pivot_cid = $(item).parent().children('#pivot_cid');
-
-
 };
+
 

@@ -1,8 +1,8 @@
 {% include 'search/main_header.html' with css='css/search.css' search_active='active' vanc_active='' %}
-<!-- {% url 'search:concept_search_results' as concept_search %} -->
+
 {% include 'search/search_bar_template.html' with action=concept_search %}
 
-<body style="font-family: sans-serif;">
+<body id="main_body" style="font-family: sans-serif;">
 	<div class="results" id="results">
 		{% include 'search/concept_search_results_page.html' %}
 	</div>

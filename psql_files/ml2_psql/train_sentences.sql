@@ -19,7 +19,7 @@ create table train_sentences as (
     	,label
     	,ver
     from ml2.all_training_sentences
-    where rand <= 0.985
+    where rand <= 0.950
 );
 -- alter table ml2.train_sentences add constraint 
 --     train_sent_unique_constraint unique(sentence_id,condition_acid,treatment_acid);

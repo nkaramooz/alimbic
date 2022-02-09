@@ -31,6 +31,7 @@ window.addEventListener('popstate', function(event) {
         $('#end_year').val(event.state['end_year']);
         $('#query_type').val(event.state['query_type']);
         $('#query_annotation').val(event.state['query_annotation']);
+        $('#expanded_query_acids').val(event.state['expanded_query_acids']);
         $('#unmatched_terms').val(event.state['unmatched_terms']);
         $('#pivot_cid').val(event.state['pivot_cid']);
         $('#pivot_term').val(event.state['pivot_term']);
@@ -55,7 +56,7 @@ window.addEventListener('popstate', function(event) {
         console.log("error");
         $('#loader').removeClass("active");
         $('#loader').addClass("inactive");
-        $("#results").html("<div id=\"results\" class=\"results\"> Oops, something went wrong. Try another query </div>")
+        $("#results").html("<div class=\"row s12\"><div class=\"col s12\" style=\"text-align: center\"> Something went wrong. Try another query </div> </div>")
         $('#results').show();
       }
 
@@ -89,7 +90,19 @@ $(document).ready(function() {
       event.preventDefault();
       post_search_text();
     });
-
+    $('#start_year').on('keypress', function(event) {
+      if(event.code == 13) {
+        event.preventDefault();
+        post_search_text();
+      }
+    });
+    $('#end_year').on('keypress', function(event) {
+      if(event.code == 13) {
+        event.preventDefault();
+        post_search_text();
+      }
+    });
+    
     $('.collapsible').collapsible();
     $('.chips').chips();
     $('.chips-autocomplete').chips({
@@ -347,6 +360,7 @@ $(document).ready(function() {
 
 
 function post_search_text() {
+  $(':focus').blur()
   document.getElementById('search_box').disabled = true;
   document.getElementById('start_year').disabled = true;
   document.getElementById('end_year').disabled = true;
@@ -362,6 +376,7 @@ function post_search_text() {
         journals : chipInstance.chipsData,
         query_type : "keyword",
         query_annotation : $('#query_annotation').val(),
+        expanded_query_acids : $('#expanded_query_acids').val(),
         unmatched_terms : $('#unmatched_terms').val(),
         pivot_cid : null,
         pivot_term : null,
@@ -398,7 +413,7 @@ function post_search_text() {
       document.getElementById('journals').disabled = false;
       $('#loader').removeClass("active");
       $('#loader').addClass("inactive");
-      $("#results").html("<div id=\"results\" class=\"results\"> Oops, something went wrong. Try another query </div>")
+      $("#results").html("<div class=\"row s12\"> <div class=\"col s12\" style=\"text-align: center\"> Something went wrong. Try another query </div> </div>")
       $('#results').show();
     }
   });

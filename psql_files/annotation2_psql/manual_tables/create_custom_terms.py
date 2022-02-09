@@ -54,6 +54,7 @@ custom_term_synonym_dict = {
 	,'echocardiography' : 'echocardiogram'
 	,'receptor agonist' : 'agonist'
 	,'Propionibacterium' : 'P.'
+	,'glomerulonephritis' : 'glomerulopathy'
 
 }
 

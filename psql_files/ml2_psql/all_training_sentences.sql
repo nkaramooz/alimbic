@@ -1,11 +1,10 @@
 set schema 'ml2';
 
+drop table if exists all_training_sentences;
+
 create index if not exists training_sentences_staging_condition_acid_ind on ml2.training_sentences_staging(condition_acid);
 create index if not exists training_sentences_staging_treatment_acid_ind on ml2.training_sentences_staging(treatment_acid);
 create index if not exists training_sentences_staging_sentence_id_ind on ml2.training_sentences_staging(sentence_id);
-
-
-drop table if exists all_training_sentences;
 
 create table all_training_sentences as (
 	select

@@ -26,7 +26,19 @@ create index if not exists sentence_annotations_2_ver_ind on sentence_annotation
 create index if not exists sentence_concept_arr_2_sentence_id_ind on sentence_concept_arr_2(sentence_id);
 create index if not exists sentence_concept_arr_2_section_ind on sentence_concept_arr_2(section);
 create index if not exists sentence_concept_arr_2_section_ind_ind on sentence_concept_arr_2(section_ind);
+create index if not exists sentence_concept_arr_2_concept_arr_ind on sentence_concept_arr_2(concept_arr);
 create index if not exists sentence_concept_arr_2_pmid_ind on sentence_concept_arr_2(pmid);
 create index if not exists sentence_concept_arr_2_journal_pub_year_ind on sentence_concept_arr_2(journal_pub_year);
 create index if not exists sentence_concept_arr_2_journal_iso_abbrev_ind on sentence_concept_arr_2(journal_iso_abbrev);
 create index if not exists sentence_concept_arr_2_ver_ind on sentence_concept_arr_2(ver);
+
+
+create index if not exists abstract_tuples_2_pmid_ind on abstract_tuples_2(pmid);
+create index if not exists abstract_tuples_2_journal_pub_year_ind on abstract_tuples_2(journal_pub_year);
+create index if not exists abstract_tuples_2_journal_iso_abbrev_ind on abstract_tuples_2(journal_iso_abbrev);
+
+
+create index if not exists abstract_concept_arr_2_pmid_ind on abstract_concept_arr_2(pmid);
+create index if not exists abstract_concept_arr_2_journal_pub_year_ind on abstract_concept_arr_2(journal_pub_year);
+create index if not exists abstract_concept_arr_2_journal_iso_abbrev_ind on abstract_concept_arr_2(journal_iso_abbrev);
+create index if not exists abstract_concept_arr_2_abs_concept_arr_ind on abstract_concept_arr_2(abs_concept_arr);	

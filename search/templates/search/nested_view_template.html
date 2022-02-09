@@ -19,6 +19,9 @@
 
 						<input type="hidden" id="pivot_cid" value="{{key}}">
 						<input type="hidden" id="pivot_term" value="{{item.name}}">
+						{% for i in item.complete_acid %}
+							<input type="hidden" name="pivot_complete_acid[]" id="pivot_complete_acid" value="{{i}}">
+						{% endfor %}
 						</div>
 					{% else %}
 					<div class="line-item">
