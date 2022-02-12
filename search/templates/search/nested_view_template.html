@@ -8,12 +8,17 @@
 						{% else %}
 							<a href='#' class="collection-item" id="{{key}}"> {{item.name}}
 						{% endif %}
-							{% if item.children|length > 0 %}
-								({{item.children.0}} 
+						
+						{% if item.children|length > 0 %}
 
-								{% if item.children|length > 1 %}
-									, {{item.children.1}} ...
-								{% endif %})
+							{% if item.children|length == 1 %}
+								({{item.children.0}}) 
+							{% elif item.children|length == 2 %}
+								({{item.children.0}}, {{item.children.1}})
+							{% else %}
+								({{item.children.0}}, {{item.children.1}}, ...)
+							{% endif %}
+							
 							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %} 
 						</a>
 
@@ -31,12 +36,16 @@
 							<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}}
 						{% endif %}
 							{% if item.children|length > 0 %}
-								({{item.children.0}} 
 
-								{% if item.children|length > 2 %}
-									, {{item.children.1}} ...
-								{% endif %})
-							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %}
+							{% if item.children|length == 1 %}
+								({{item.children.0}}) 
+							{% elif item.children|length == 2 %}
+								({{item.children.0}}, {{item.children.1}})
+							{% else %}
+								({{item.children.0}}, {{item.children.1}}, ...)
+							{% endif %}
+							
+							{% endif %} - {{item.count}} {% if item.count > 1 %} papers {% else %} paper {% endif %} 
 						</a>
 
 						<input type="hidden" id="pivot_cid" value="{{key}}">

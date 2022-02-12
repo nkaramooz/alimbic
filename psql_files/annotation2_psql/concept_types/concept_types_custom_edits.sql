@@ -3,7 +3,7 @@
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('98381', 'diagnostic', 0, now())
+-- 	('145193', 'diagnostic', 0, now())
 -- ;
 
 -- insert into annotation2.concept_types_app
@@ -13,7 +13,7 @@
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='98381'
+-- 	where parent_acid='145193'
 -- ;
 
 
@@ -60,7 +60,7 @@
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('515062', 'symptom', 0, now())
+-- 	('92491', 'symptom', 0, now())
 -- ;
 
 
@@ -71,7 +71,7 @@
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='515062'
+-- 	where parent_acid='92491'
 -- ;
 
 
@@ -94,19 +94,19 @@
 
 
 
-insert into annotation2.concept_types_app
-	VALUES 
-	('887743', 'outcome', 1, now())
-;
+-- insert into annotation2.concept_types_app
+-- 	VALUES 
+-- 	('887743', 'outcome', 1, now())
+-- ;
 
-insert into annotation2.concept_types_app
-	select 
-		child_acid as acid
-		,'outcome' as rel_type
-		,1 as active
-		,now() as effectivetime
-	from snomed2.transitive_closure_acid 
-	where parent_acid='887760'
-;
+-- insert into annotation2.concept_types_app
+-- 	select 
+-- 		child_acid as acid
+-- 		,'outcome' as rel_type
+-- 		,1 as active
+-- 		,now() as effectivetime
+-- 	from snomed2.transitive_closure_acid 
+-- 	where parent_acid='887760'
+-- ;
 
 

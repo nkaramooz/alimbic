@@ -660,15 +660,15 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 
 	if child_candidates is None and len(conceptid_tup) > 0:
 
-		## artificially need to limit query size to not overwhelm elastic search
+		# may need to artificially limit query size at some point for 
+		# elastic search
 		child_query = """
 			select
-				child_acid
-				,parent_acid
-			from snomed2.transitive_closure_acid where parent_acid in %s
+				t1.child_acid
+				,t1.parent_acid
+			from snomed2.transitive_closure_acid t1
+			where parent_acid in %s
 		"""
-		# get rid of limit 30 when come up with more clever way
-
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
 			["child_acid", "parent_acid"])
 

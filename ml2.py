@@ -976,8 +976,8 @@ if __name__ == "__main__":
 	# train_with_rnn(max_cnt)
 
 
-	gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_deep_27.hdf5')
+	# gen_treatment_data_top()
+	gen_treatment_predictions_top('gen_bidi_500_deep_20.hdf5')
 
 
 	

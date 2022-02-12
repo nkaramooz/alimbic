@@ -23,7 +23,6 @@ $(document).ready(function() {
 		pivot_complete_acid.push($(this).val());
 	}).get()
 
-	console.log(pivot_complete_acid);
 
 	var chipInstance = M.Chips.getInstance($(".chips"));
 

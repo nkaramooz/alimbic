@@ -6,8 +6,8 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 def get_es_client():
-	# es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
+	es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
 	return es
 
 class Timer:
@@ -413,36 +413,7 @@ def add_concept(description, cursor):
 	else:
 		raise ValueError("possible duplicate")
 
-#### HELPER FUNCTIONS
 
-
-def insert_new_vc_user(name, cursor):
-	insert_query = """
-			set schema 'vancocalc';
-			CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
-
-			INSERT INTO users (uid, username, active, effectivetime)
-			VALUES (public.uuid_generate_v4(), %s, 1, now());
-	"""
-
-	cursor.execute(insert_query, (name,))
-	cursor.connection.commit()
-	return True
-
-def insert_new_vc_case(uid, casename, cursor):
-	insert_query = """
-			set schema 'vancocalc';
-			CREATE EXTENSION IF NOT EXISTS "uuid-ossp" ;
-
-			INSERT INTO cases (cid, uid, casename, active, effectivetime)
-			VALUES (public.uuid_generate_v4(), %s, %s, 1, now())
-			RETURNING cid;
-	"""
-	cursor.execute(insert_query, (uid,casename))
-	ids = cursor.fetchall()
-	cid = ids[0][0]
-	cursor.connection.commit()
-	return cid
 
 
 

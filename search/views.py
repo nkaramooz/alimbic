@@ -19,6 +19,7 @@ import re
 
 INDEX_NAME='pubmedx2.0'
 
+# Initialize lemmatizer
 lmtzr = WordNetLemmatizer()
 lmtzr.lemmatize("cough")
 
@@ -471,7 +472,6 @@ def post_search_text(request):
 	spellcheck_threshold = 85
 	# If GET request, this is from a link
 	if request.method == 'GET': 
-		print("GET")
 		parsed = urlparse.urlparse(request.path)
 		parsed = parse_qs(parsed.path)
 
@@ -485,7 +485,6 @@ def post_search_text(request):
 
 		if 'pivot_complete_acid[]' in parsed:
 			pivot_complete_acid = parsed['pivot_complete_acid[]']
-			print(pivot_complete_acid)
 
 		if unmatched_terms in parsed:
 			unmatched_terms = parsed['unmatched_terms'][0]
@@ -608,10 +607,11 @@ def post_search_text(request):
 		primary_cids = None
 
 		if not query_concepts_df['acid'].isnull().all():
+			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].drop_duplicates(subset=['acid']).copy()
 			original_query_concepts_list = set(query_concepts_df['acid'].tolist())
 
 			query_types_list = get_query_concept_types_df(original_query_concepts_list, cursor)['concept_type'].tolist()
-			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].drop_duplicates(subset=['acid']).copy()
+			
 			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
 
 			full_query_concepts_list = ann2.query_expansion(original_query_concepts_list, None, cursor)
@@ -973,7 +973,8 @@ def get_query(full_conceptid_list, unmatched_terms, query_types_list, journals, 
 								[{"query_string": {"fields" : fields_arr, \
 								 "query" : get_concept_query_string(full_conceptid_list)}}], \
 							"should": \
-								[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]}}, \
+								[{"query_string" : {"fields" : fields_arr, 
+								"query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]}}, \
 								 "functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "1990"}}}, "weight" : 1.4}]}
 
 	else:
@@ -986,8 +987,9 @@ def get_query(full_conceptid_list, unmatched_terms, query_types_list, journals, 
 							 	"query" : get_concept_query_string(full_conceptid_list)}}, {"query_string": {\
 								"query" : get_unmatched_query_string(unmatched_terms)}}],
 						"should": \
-							[{"query_string" : {"fields" : fields_arr, "query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]
-						}}, \
+							[{"query_string" : {"fields" : fields_arr, 
+							"query" : get_article_type_query_string(query_types_list, unmatched_terms)}}]
+						}}, 
 						"functions" : [{"filter" : {"range": {"journal_pub_year": {"gte" : "1990"}}}, "weight" : 1.4}]}
 
 	if (len(journals) > 0) or start_year or end_year:

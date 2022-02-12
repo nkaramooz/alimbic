@@ -18,7 +18,6 @@ window.addEventListener('popstate', function(event) {
       contentType: 'application/json',
       data : JSON.stringify(event.state),
 
-
       success : function(json) {
         chips = event.state['journals'];
         $('.chip .close').click();
@@ -33,6 +32,7 @@ window.addEventListener('popstate', function(event) {
         $('#query_annotation').val(event.state['query_annotation']);
         $('#expanded_query_acids').val(event.state['expanded_query_acids']);
         $('#unmatched_terms').val(event.state['unmatched_terms']);
+        $('#pivot_complete_acid').val(event.state['pivot_complete_acid']);
         $('#pivot_cid').val(event.state['pivot_cid']);
         $('#pivot_term').val(event.state['pivot_term']);
         $('#search_box').val(event.state['query']);
