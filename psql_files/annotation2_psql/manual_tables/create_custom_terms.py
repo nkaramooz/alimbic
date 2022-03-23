@@ -55,6 +55,7 @@ custom_term_synonym_dict = {
 	,'receptor agonist' : 'agonist'
 	,'Propionibacterium' : 'P.'
 	,'glomerulonephritis' : 'glomerulopathy'
+	,'refractory' : 'resistant'
 
 }
 

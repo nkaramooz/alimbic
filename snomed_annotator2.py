@@ -41,7 +41,7 @@ def get_new_candidate_df(word, case_sensitive, spellcheck_threshold):
 				  on tb1.adid = ANY(tb2.adid_agg)
 				join (select unnest(%s) as query_word) tb3
 				  on levenshtein(tb3.query_word, tb2.word) < 3
-				where soundex(query_word) = soundex(tb2.word)
+				where soundex(query_word) = tb2.soundex
 			"""
 		else:
 			for i,v in enumerate(word):
@@ -61,7 +61,7 @@ def get_new_candidate_df(word, case_sensitive, spellcheck_threshold):
 				  on tb1.adid = ANY(tb2.adid_agg)
 				join (select unnest(%s) as query_word) tb3
 				  on levenshtein(tb3.query_word, lower(tb2.word)) < 3
-				where soundex(query_word) = soundex(tb2.word)
+				where soundex(query_word) = tb2.soundex
 			"""
 		new_candidate_df = pg.return_df_from_query(cursor, new_candidate_query, (list(word),), \
 	 		["adid", "acid", "term", "word", "word_ord", "term_length", "is_acronym"])
@@ -564,40 +564,16 @@ def resolve_conflicts(results_df):
 	return final_results
 
 
-def add_names(results_df):
-	conn,cursor = pg.return_postgres_cursor()
+def add_names(results_df, cursor):
 	if results_df is None:
-		cursor.close()
 		return None
 	else:
-		# Using old table since augmented tables include the acronyms
 		search_query = "select acid, term from annotation2.preferred_concept_names \
 			where acid in %s"
-
 		params = (tuple(results_df['acid']),)
 		names_df = pg.return_df_from_query(cursor, search_query, params, ['acid', 'term'])
-
 		results_df = results_df.merge(names_df, on='acid')
-		cursor.close()
-		conn.close
-		return results_df
 
-def add_names_2(results_df):
-	conn,cursor = pg.return_postgres_cursor()
-	if results_df is None:
-		cursor.close()
-		return None
-	else:
-		# Using old table since augmented tables include the acronyms
-		search_query = "select acid as parent_acid, term from annotation2.preferred_concept_names \
-			where acid in %s"
-
-		params = (tuple(results_df['parent_acid']),)
-		names_df = pg.return_df_from_query(cursor, search_query, params, ['parent_acid', 'term'])
-
-		results_df = results_df.merge(names_df, on='parent_acid')
-		cursor.close()
-		conn.close
 		return results_df
 
 
@@ -668,6 +644,7 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 				,t1.parent_acid
 			from snomed2.transitive_closure_acid t1
 			where parent_acid in %s
+			limit 600
 		"""
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
 			["child_acid", "parent_acid"])
@@ -706,6 +683,7 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 
 	return results_list
 
+## removed limit 15 for generating training dataset
 def get_children(conceptid, cursor):
 	child_query = """
 		select 
@@ -715,7 +693,6 @@ def get_children(conceptid, cursor):
 			on tb1.child_acid = tb2.concept
 		where tb1.parent_acid = %s and tb2.cnt is not null
 		order by tb2.cnt desc
-		limit 15
 	"""
 	child_df = pg.return_df_from_query(cursor, child_query, (conceptid,), \
 		["child_acid"])

@@ -303,12 +303,12 @@ def check_inactive_concepts(concept_name, cursor):
 
 # Will need to rerun pipeline for update to propagate
 def acronym_override(adid, is_acronym, cursor):
-	
+	print("TEST")
 	df = get_existing_adid(adid, cursor)
 
 	if len(df.index) > 0:
 		modify_acronym_query = """
-			set schema 'annotation';
+			set schema 'annotation2';
 			INSERT INTO acronym_override (id, adid, is_acronym, effectivetime)
 			VALUES (public.uuid_generate_v4(), %s, %s, now())
 		"""
@@ -319,11 +319,9 @@ def acronym_override(adid, is_acronym, cursor):
 		return "adid invalid"
 
 
-
-
 def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cursor):
 	remove_query = """
-		set schema 'annotation';
+		set schema 'annotation2';
 		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
 		VALUES (%s, %s, %s, %s, now())
 	"""
@@ -331,7 +329,7 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	cursor.connection.commit()
 
 	remove_query = """
-		set schema 'annotation';
+		set schema 'annotation2';
 		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
 		VALUES (%s, %s, %s, %s, now())
 	"""
@@ -339,7 +337,7 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	cursor.connection.commit()
 
 	insert_query = """
-		set schema 'annotation';
+		set schema 'annotation2';
 		INSERT INTO concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
 		VALUES (%s, %s, %s, %s, now())
 	"""
@@ -347,7 +345,7 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	cursor.connection.commit()
 
 	insert_query = """
-		set schema 'annotation';
+		set schema 'annotation2';
 		INSERT INTO override_concept_types (root_cid, associated_cid, rel_type, active, effectivetime)
 		VALUES (%s, %s, %s, %s, now())
 	"""
@@ -356,62 +354,6 @@ def modify_concept_type(root_cid, associated_cid, new_rel_type, old_rel_type, cu
 	cursor.connection.commit()
 
 	return True
-
-def treatment_label(condition_id, treatment_id, treatment_label, cursor):
-	query = """
-		set schema 'annotation';
-		INSERT INTO labelled_treatments_app (condition_id, treatment_id, label)
-		VALUES (%s, %s, %s)
-	"""
-	cursor.execute(query, (condition_id, treatment_id, treatment_label))
-	cursor.connection.commit()
-
-	query = """
-		set schema 'annotation';
-		CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-		INSERT INTO labelled_treatments (id, condition_id, treatment_id, label, ver)
-		VALUES (public.uuid_generate_v4(), %s, %s, %s, 0)
-	"""
-	cursor.execute(query, (condition_id, treatment_id, treatment_label))
-	cursor.connection.commit()
-	print("COMMIT")
-
-
-
-def add_concept(description, cursor):
-
-	if not description_does_exist(description, cursor):
-		insert_query = """
-			set schema 'annotation';
-			CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-			INSERT INTO new_concepts (conceptid, description_id, description, effectivetime)
-			VALUES (public.uuid_generate_v4()::text, public.uuid_generate_v4()::text, %s, now())
-			RETURNING conceptid, description_id;
-		"""
-		cursor.execute(insert_query, (description,))
-		all_ids = cursor.fetchall()
-		conceptid = all_ids[0][0]
-		description_id = all_ids[0][1]
-		tmp = "conceptid: " + conceptid + " description_id: " + description_id
-
-		cursor.connection.commit()
-
-		insert_query = """
-			set schema 'annotation';
-			INSERT into augmented_selected_concept_descriptions (description_id, conceptid, term, active, effectivetime)
-			VALUES (%s, %s, %s,'1'::text, now())
-		"""
-		cursor.execute(insert_query, (description_id, conceptid, description))
-		cursor.connection.commit()
-
-		### augmented_active_selected_concept_key_words_v2
-		insert_description_id_into_key_words_v3(conceptid, description_id, description, cursor)
-
-		### augmented_active_selected_concept_key_words_lemmas_2
-		lemmatize_description_id_3(description_id, cursor)
-	else:
-		raise ValueError("possible duplicate")
 
 
 

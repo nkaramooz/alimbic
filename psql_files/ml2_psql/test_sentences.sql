@@ -27,7 +27,7 @@ create table test_sentences as (
     -- on t1.condition_acid = t3.acid
     -- join annotation2.preferred_concept_names t4
     -- on t1.treatment_acid=t4.acid
-    where rand >= 0.980 
+    where rand >= 0.99 
     -- and section != 'results' and section !='methods'
     --  and rand < 0.9994
 );

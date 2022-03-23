@@ -194,7 +194,7 @@ def train_with_rnn(max_cnt):
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1.36}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:1.3}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 
@@ -519,32 +519,49 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 	cursor.close()
 	conn.close()
 	return sample_gen, sample_spec, generic_mask
-
-def gen_datasets_mp(new_version):
+# spec == True
+# Generates a broader training set where for example
+# the model will train that a symptom in a sentence is not 
+# a treatment for a condition in the same sentence
+# so it should learn features specific to the word of concept
+def gen_datasets_mp(new_version, spec):
 	number_of_processes = 40
 	old_version = new_version-1
 	conditions_set = get_all_conditions_set()
-	treatments_set = get_all_treatments_set() #model did not learn well with using inactive
+
+	if spec == False:
+		treatments_set = get_all_treatments_set() #model did not learn well with using inactive
+	else:
+		# for specific word + mask dataset, will broaden to include all concepts of interest
+		treatments_set = get_all_concepts_of_interest()
 
 	task_queue = mp.Queue()
 	pool = []
 
 	for i in range(number_of_processes):
-		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set))
+		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set, spec))
 		pool.append(p)
 		p.start()
 
 	conn,cursor = pg.return_postgres_cursor()
 
-	# if broadened to ignore whether active, model not learning well
-	get_query = """
-			select t1.id, condition_acid::text, treatment_acid::text, label, ver 
-			from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1)
-			and treatment_acid in 
-				(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) 
-			limit %s
-		"""
-	labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+	# for generic, if broadened to ignore whether active, model not learning well
+	if spec == False:
+		get_query = """
+				select t1.id, condition_acid::text, treatment_acid::text, label, ver 
+				from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1)
+				and treatment_acid in 
+					(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) 
+				limit %s
+			"""
+	else:
+		get_query = """
+				select t1.id, condition_acid::text, treatment_acid::text, label, ver 
+				from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1)
+				limit %s
+			"""
+	labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes),
+		['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 	
 
 	while len(labels_df.index) > 0:
@@ -556,7 +573,8 @@ def gen_datasets_mp(new_version):
 		cursor.execute(update_query, (new_version, tuple(labels_df['id'].values.tolist())))
 		cursor.connection.commit()
 
-		labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes), ['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
+		labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes),
+			['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 		
 		
 	for i in range(number_of_processes):
@@ -572,7 +590,7 @@ def gen_datasets_mp(new_version):
 	conn.close()
 
 
-def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set):
+def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
 	sentences_df = pd.DataFrame()
 
@@ -636,7 +654,7 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 
 	if len(sentences_df.index) > 0:
 		sentences_df['label'] = label
-		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, 'gen')
+		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, spec)
 
 
 def gen_treatment_data_top():
@@ -652,19 +670,19 @@ def gen_treatment_data_top():
 	curr_version = old_version
 
 	while curr_version != new_version:
-		gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set)
+		gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set, False)
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
 
 
 		
-def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatments_set):
+def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatments_set, spec):
 	number_of_processes = 35
 
 	task_queue = mp.Queue()
 	pool = []
 
 	for i in range(number_of_processes):
-		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set))
+		p = mp.Process(target=gen_dataset_worker, args=(task_queue, conditions_set, treatments_set, spec))
 		pool.append(p)
 		p.start()
 
@@ -713,7 +731,7 @@ def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatmen
 	cursor.close()
 	conn.close()
 
-def gen_treatment_dataset(treatment_candidates_df, all_conditions_set, all_treatments_set):
+def gen_treatment_dataset(treatment_candidates_df, all_conditions_set, all_treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
 	engine = pg.return_sql_alchemy_engine()
 
@@ -728,35 +746,41 @@ def gen_treatment_dataset(treatment_candidates_df, all_conditions_set, all_treat
 	engine.dispose()
 
 
-def gen_dataset_worker(input, conditions_set, treatments_set):
+def gen_dataset_worker(input, conditions_set, treatments_set, spec):
 	for func,args in iter(input.get, 'STOP'):
-		gen_dataset_calculate(func, args, conditions_set, treatments_set)
+		gen_dataset_calculate(func, args, conditions_set, treatments_set, spec)
 
 
-def gen_dataset_calculate(func, args, conditions_set, treatments_set):
-	func(*args, conditions_set, treatments_set)
+def gen_dataset_calculate(func, args, conditions_set, treatments_set, spec):
+	func(*args, conditions_set, treatments_set, spec)
 
 
-def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, write_type):
+def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
 	engine = pg.return_sql_alchemy_engine()
 
 	if len(sentences_df.index) > 0:
-		if write_type == 'gen': 
-			sentences_df = sentences_df.apply(apply_get_generic_labelled_data, \
-				all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
+		sentences_df = sentences_df.apply(apply_get_generic_labelled_data, \
+			all_conditions_set=conditions_set, all_treatments_set=treatments_set, axis=1)
 
-			sentences_df['ver'] = 0
-			sentences_df = sentences_df[['sentence_id', 'sentence_tuples', 'condition_acid', 'treatment_acid',\
-			 'og_condition_acid', 'og_treatment_acid', 'x_train_gen', 'x_train_gen_mask', \
-			 'x_train_spec_mask','x_train_spec', 'label', 'ver']]
-			sentences_df.to_sql('training_sentences_staging', engine, schema='ml2', if_exists='append', index=False, \
-				dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_gen_mask' : sqla.types.JSON, \
-					'x_train_spec_mask' : sqla.types.JSON, 'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
+		sentences_df['ver'] = 0
+		sentences_df = sentences_df[['sentence_id', 'sentence_tuples', 'condition_acid', 'treatment_acid',\
+		 'og_condition_acid', 'og_treatment_acid', 'x_train_gen', 'x_train_gen_mask', \
+		 'x_train_spec_mask','x_train_spec', 'label', 'ver']]
+
+
+		if spec == False: 
+			table_name = 'training_sentences_staging'
+		else:
+			table_name = 'spec_training_sentences_staging'
+
+		sentences_df.to_sql(table_name, engine, schema='ml2', if_exists='append', index=False, \
+			dtype={'sentence_tuples' : sqla.types.JSON, 'x_train_gen' : sqla.types.JSON, 'x_train_gen_mask' : sqla.types.JSON, \
+				'x_train_spec_mask' : sqla.types.JSON, 'x_train_spec' : sqla.types.JSON, 'sentence' : sqla.types.Text})
 			
-		cursor.close()
-		conn.close()
-		engine.dispose()
+	cursor.close()
+	conn.close()
+	engine.dispose()
 
 
 def analyze_sentence(model_name, sentence, condition_id):
@@ -956,18 +980,20 @@ if __name__ == "__main__":
 	# sentence = "Bariatric Surgery in Patients With acute interstitial nephritis-The Silver Bullet"
 	# sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
 	# sentence = "alcohol and incident severe acute interstitial nephritis treated with prednisone"
-	# sentence = "Metoprolol alleviated lung cancer in patients with acute interstitial nephritis"
+	# sentence = "Metoprolol improved symptoms of lung cancer in patients with acute interstitial nephritis"
 	# sentence = "acute interstitial nephritis due to omeprazole"
 	# sentence = "omeprazole is a primary cause of acute interstitial nephritis"
 	# sentence = "Gangrenous acute interstitial nephritis presenting as acute abdominal pain in a patient on peritoneal dialysis"
 	# sentence = "lenvatinib-pembrolizumab causing advanced acute interstitial nephritis"
+	# sentence = "Barium in the diagnosis of acute interstitial nephritis"
+	# sentence = "Who underwent esophageal manometry to investigate the relationship between solid food dysphagia and peristaltic dysfunction in acute interstitial nephritis"
 	# sentence = sentence.lower()
-	# model_name = 'gen_bidi_500_deep_20.hdf5'
+	# model_name = 'gen_bidi_500_deep_30.hdf5'
 	# condition_id = '10603'
 	# analyze_sentence(model_name, sentence, condition_id)
 
 	
-	# gen_datasets_mp(1)
+	# gen_datasets_mp(1, True)
 	# conn, cursor = pg.return_postgres_cursor()
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
@@ -977,7 +1003,7 @@ if __name__ == "__main__":
 
 
 	# gen_treatment_data_top()
-	gen_treatment_predictions_top('gen_bidi_500_deep_20.hdf5')
+	gen_treatment_predictions_top('gen_bidi_500_deep_30.hdf5')
 
 
 	
@@ -1014,7 +1040,7 @@ if __name__ == "__main__":
 	# print_contingency('gen_bidi_500_deep_27.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_28.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_29.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_30.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_30.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_31.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_32.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_33.hdf5', True)

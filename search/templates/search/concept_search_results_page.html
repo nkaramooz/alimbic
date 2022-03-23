@@ -29,7 +29,7 @@
 
 				{% if treatment|length > 0 %}
 					<li>
-						<div class="collapsible-header"> Interventions / Drugs <span class="new badge" data-badge-caption=""><b>{{treatment|length}} topics </b></span><i class="material-icons">arrow_drop_down</i></div>
+						<div class="collapsible-header"> Intervention candidates <span class="new badge" data-badge-caption=""><b>{{treatment|length}} topics </b></span><i class="material-icons">arrow_drop_down</i></div>
 						<div class="collapsible-body" id='treatments'>
 							 <ul class="collection">
 								{% for node in treatment %}

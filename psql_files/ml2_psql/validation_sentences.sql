@@ -27,7 +27,7 @@ create table validation_sentences as (
     -- on t1.treatment_acid = t3.acid
     -- join pubmed.sentence_tuples_2 t4
     -- on t1.sentence_id = t4.sentence_id
-    where rand > 0.950 and rand < 0.980 
+    where rand > 0.98 and rand < 0.99 
     -- and section != 'results' and section !='methods'
 
 );

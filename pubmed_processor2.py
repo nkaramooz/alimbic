@@ -3384,11 +3384,15 @@ def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr):
 	sentence_tuples_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
 	sentence_concept_arr_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
 
-	title_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
-	title_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
+	title_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') 
+		& (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
+	title_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_title') 
+		& (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
 
-	keywords_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
-	keywords_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
+	keywords_cids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') 
+		& (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
+	keywords_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'article_keywords') 
+		& (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
 
 	result_dict['title'] = {'cids' : title_cids, 'dids' : title_dids}
 	result_dict['article_keywords'] = {'cids' : keywords_cids, 'dids' : keywords_dids}
@@ -3717,8 +3721,8 @@ if __name__ == "__main__":
 
 	lmtzr_list = return_lemmatizers_list()
 
-	start_file = get_start_file_num()
-
+	# start_file = get_start_file_num()
+	start_file=860
 	end_file = 1114
 
 	while (start_file <= end_file):

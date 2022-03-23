@@ -14,4 +14,4 @@ create table first_word as (
 );
 
 create index word on first_word(word);
-create index first_word_soundex on first_word(soundex(word));
+create index first_word_soundex on first_word(soundex);

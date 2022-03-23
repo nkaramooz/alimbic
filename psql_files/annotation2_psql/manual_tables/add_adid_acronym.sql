@@ -26,9 +26,10 @@ insert into add_adid_acronym
         ,concept_table.word
         ,concept_table.word_ord 
         ,len_tb.term_length
-        ,case when term ~ '^\d+(\.\d+)?$' then 'f' 
+        ,case 
+            when acr.is_acronym is not NULL then acr.is_acronym
+            when term ~ '^\d+(\.\d+)?$' then 'f' 
             when term ~ '[0-9\."]+$' then 'f'
-            when acr.is_acronym is not NULL then acr.is_acronym 
             else concept_table.is_acronym end as is_acronym 
     from (
         select 
