@@ -809,7 +809,7 @@ def rollups(cids_df, cursor):
 		
 		distinct_parents = distinct_parents.merge(parents_count, how='left', left_on='parent_acid', right_on='parent_acid')
 		distinct_parents = distinct_parents.sort_values(by=['count'], ascending=False)
-		print(distinct_parents)
+
 		distinct_parents = distinct_parents['parent_acid'].tolist()
 
 		assigned_child_acid = []
