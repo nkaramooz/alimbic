@@ -809,9 +809,9 @@ def rollups(cids_df, cursor):
 		
 		distinct_parents = distinct_parents.merge(parents_count, how='left', left_on='parent_acid', right_on='parent_acid')
 		distinct_parents = distinct_parents.sort_values(by=['count'], ascending=False)
-
+		print(distinct_parents)
 		distinct_parents = distinct_parents['parent_acid'].tolist()
-		k = u.Timer("rollup for loop")
+
 		assigned_child_acid = []
 		for parent in distinct_parents:
 			children_df = joined_df[(joined_df['parent_acid'] == parent) & (~joined_df['child_acid'].isin(assigned_child_acid))]
@@ -825,15 +825,13 @@ def rollups(cids_df, cursor):
 			parent_dict = {parent : {'name' : parent_name, 'count' : count, 
 				'children' : children_name_list, 'complete_acid' : complete_acid_list}}
 			json.append(parent_dict)
-		k.stop()
 
-		l = u.Timer("orphan for")
 		orphan_dict = orphan_df.to_dict('records')
 		for row in orphan_dict:
 			r = {row['acid'] : {'name' : row['term'], 'count' : row['count'], 
 				'children' : [], 'complete_acid' : [row['acid']]}}
 			json.append(r)
-		l.stop()
+
 		return json
 	else:
 		return None
