@@ -634,7 +634,6 @@ def get_annotated_tuple(c_df):
 # to only child acids that exist in the search results
 def query_expansion(conceptid_series, child_candidates, cursor):
 	conceptid_tup = tuple(conceptid_series)
-
 	if child_candidates is None and len(conceptid_tup) > 0:
 
 		# may need to artificially limit query size at some point for 
@@ -645,7 +644,7 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 				,t1.parent_acid
 			from snomed2.transitive_closure_acid t1
 			where parent_acid in %s
-			limit 600
+			limit 1000
 		"""
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
 			["child_acid", "parent_acid"])
@@ -663,7 +662,7 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup, child_candidates_tup), \
 			["child_acid", "parent_acid"])
-		
+
 	else:
 		return []
 

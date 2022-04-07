@@ -525,7 +525,7 @@ def post_search_text(request):
 	query = ''
 	filters = {}
 	query = None
-	spellcheck_threshold = 90
+	spellcheck_threshold = 100
 	# If GET request, this is from a link
 	if request.method == 'GET': 
 		parsed = urlparse.urlparse(request.path)
@@ -568,9 +568,11 @@ def post_search_text(request):
 			query_type = parsed['query_type'][0]
 
 	if request.method == 'POST':
+
 		data = json.loads(request.body)
 
 		query = data['query']
+
 		filters = get_query_filters(data)
 		query_type = data['query_type']
 		if 'unmatched_terms' in data:
@@ -606,9 +608,10 @@ def post_search_text(request):
 		query_concepts_df = pd.DataFrame(primary_cids, columns=['acid'])
 		query_concepts_types = get_query_concept_types_df(query_concepts_df['acid'].tolist(), cursor)
 		query_types_list = query_concepts_types['concept_type'].tolist()
-		full_query_concepts_list = ann2.query_expansion(primary_cids, expanded_query_acids.extend(pivot_complete_acid), cursor)
-		pivot_term = None
+		expanded_query_acids.extend(pivot_complete_acid)
+		full_query_concepts_list = ann2.query_expansion(primary_cids, expanded_query_acids, cursor)
 
+		pivot_term = None
 
 		if request.method == 'POST':
 			pivot_term = data['pivot_term']
@@ -636,10 +639,8 @@ def post_search_text(request):
 		
 	elif query_type == 'keyword':
 		original_query_concepts_list = []
-		a = u.Timer('raw_query concepts')
 		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query.lower(),), ["acid"])
-		a.stop()
 
 		if (len(query_concepts_df.index) != 0):
 			query_concepts_df['term_start_index'] = 0
@@ -650,39 +651,30 @@ def post_search_text(request):
 			query = ann2.clean_text(query)
 
 			all_words = ann2.get_all_words_list(query, lmtzr)
-			b = u.Timer('get_cache')
 			cache = ann2.get_cache(all_words_list=all_words, case_sensitive=False, \
 			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
-			b.stop()
 
-			c = u.Timer('query_concepts_df')
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
 			query_concepts_df = ann2.annotate_text_not_parallel(sentences_df=query_df, cache=cache, \
 			case_sensitive=False, check_pos=False, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=False, lmtzr=lmtzr)
-			c.stop()
 
 		primary_cids = None
 
 		if not query_concepts_df['acid'].isnull().all():
 			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].drop_duplicates(subset=['acid']).copy()
 			original_query_concepts_list = set(query_concepts_df['acid'].tolist())
-			d = u.Timer('concept_types')
 			query_types_list = get_query_concept_types_df(original_query_concepts_list, cursor)['concept_type'].tolist()
-			d.stop()
-			e = u.Timer('unmatched_terms')
-			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
-			e.stop()
 
-			f = u.Timer("query_expansion")
+			unmatched_terms = get_unmatched_terms(query, query_concepts_df)
+
 			full_query_concepts_list = ann2.query_expansion(original_query_concepts_list, None, cursor)
-			f.stop()
+
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 
 			query_concept_count = len(query_concepts_df.index)
 
-			g = u.Timer('search')
 			es_query = {"from" : 0, \
 						 "size" : 50, \
 						 "query": get_query(full_query_concepts_list, unmatched_terms, query_types_list \
@@ -690,7 +682,6 @@ def post_search_text(request):
 						 	,["title_cids^10", "abstract_conceptids.*^1"], cursor)}
 
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
-			g.stop()
 
 			history_query = """
 				select 
@@ -705,7 +696,7 @@ def post_search_text(request):
 			"""
 
 			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
-				['expanded_query_acid', 'treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
+				['expanded_query_acids', 'treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
 			
 			query_logs_df = pd.DataFrame()
 
@@ -714,12 +705,10 @@ def post_search_text(request):
 				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
 				condition_dict = query_logs_df['condition_dict'][0]
 				cause_dict = query_logs_df['cause_dict'][0]
-				expanded_query_acids = query_logs_df['expanded_query_acids']
+				expanded_query_acids = query_logs_df['expanded_query_acids'][0]
 			else:			
-				h = u.Timer('get_related_concepts')
 				treatment_dict, diagnostic_dict, condition_dict, cause_dict, expanded_query_acids = get_related_conceptids(full_query_concepts_list, \
 					original_query_concepts_list, flattened_query, query_types_list, unmatched_terms, filters, cursor)
-				h.stop()
 			primary_cids = query_concepts_df['acid'].tolist()
 
 			###UPDATE QUERY BELOW FOR FILTERS
@@ -883,7 +872,7 @@ def get_sr_payload(sr, expanded_query_acids, unmatched_terms, cursor):
 	sr_list = []
 
 	terms = []
-	if expanded_query_acids != None:
+	if len(expanded_query_acids) > 0:
 		query = """
 			select term from annotation2.used_descriptions where acid in %s order by length(term) desc
 		"""
@@ -1196,7 +1185,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 	jj.stop()
 	try:
 		res = sr['aggregations']['concepts_of_interest']['buckets']
-	
 		cids_of_interest_df = pd.DataFrame.from_dict(res)
 		cids_of_interest_df.columns = ['acid', 'count']
 

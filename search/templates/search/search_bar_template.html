@@ -15,7 +15,7 @@
 		{% csrf_token %}
 
 			<div class="input-field col s12 m8 l8 offset-m2 offset-l2 center">
-				<input type="text" name="query" class="search-box browser-default" value="{{query}}" id="search_box">
+				<input placeholder="Search medical concepts (Ex. &quot;COVID-19&quot;)"type="text" name="query" class="search-box browser-default" value="{{query}}" id="search_box">
 				<input type="submit" value="search" id="submit_button">
 			</div>
 
