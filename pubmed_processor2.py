@@ -3721,8 +3721,8 @@ if __name__ == "__main__":
 
 	lmtzr_list = return_lemmatizers_list()
 
-	# start_file = get_start_file_num()
-	start_file=860
+	start_file = get_start_file_num()
+	# start_file=860
 	end_file = 1114
 
 	while (start_file <= end_file):

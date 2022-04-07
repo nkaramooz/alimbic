@@ -56,6 +56,9 @@ custom_term_synonym_dict = {
 	,'Propionibacterium' : 'P.'
 	,'glomerulonephritis' : 'glomerulopathy'
 	,'refractory' : 'resistant'
+	,'carcinoma' : 'cancer'
+	,'HER2' : 'Human epidermal growth factor receptor 2'
+	,'Needed' : 'Necessary'
 
 }
 

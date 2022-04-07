@@ -13,38 +13,27 @@ import os
 import random
 import sys
 import snomed_annotator2 as ann2
-from keras.preprocessing import sequence
-from keras import Sequential
-from keras.layers import Embedding, LSTM, Dense, Dropout, Flatten
-from keras.models import load_model
-from keras.layers.convolutional import Conv1D
-from keras.layers.convolutional import MaxPooling1D
-from numpy import array 
+import tensorflow as tf
+from tensorflow import keras
 from tensorflow.keras import layers
-from keras.layers import GlobalMaxPooling1D
-from keras.layers import Bidirectional
-from keras.layers import TimeDistributed
 from keras.layers import Input
-from keras.layers import Concatenate
-from keras.layers import Activation
+from keras.layers import Embedding, LSTM, Dense, Dropout, Flatten
+from keras.layers import Bidirectional
 from keras.models import Model
+from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
-from keras.wrappers.scikit_learn import KerasClassifier
 import sqlalchemy as sqla
 import multiprocessing as mp
 import datetime
-import tensorflow as tf
-from gensim.models import Word2Vec
 
 
 # index 0 = filler
 # index 1 = UNK
-
 spacer_ind = 0
 UNK_ind = 1
 vocabulary_size = 50000
-
+max_words = 60
 
 # Vocabulary spacer should be 4
 vocabulary_spacer = 4
@@ -53,14 +42,11 @@ target_condition_key = vocabulary_size-vocabulary_spacer+2 #49,998
 generic_condition_key = vocabulary_size-vocabulary_spacer+1 #49,997
 generic_treatment_key = vocabulary_size-vocabulary_spacer #49,996
 
-max_words = 60
-
 # bounded
 b_target_treatment_key_start = target_treatment_key # 49997
 b_target_treatment_key_end = vocabulary_size+1 # 50001
 b_generic_treatment_key_start = generic_treatment_key # 4995
 b_generic_treatment_key_stop = vocabulary_size+2 # 50002
-
 
 def get_all_concepts_of_interest():
 	concepts_of_interest = get_all_conditions_set()
@@ -70,11 +56,12 @@ def get_all_concepts_of_interest():
 	return concepts_of_interest
 
 def get_all_conditions_set():
-	query = "select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom') and active=1"
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='condition' or rel_type='symptom' or rel_type='cause') 
+		and active=1"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
-
 
 def get_all_treatments_set():
 	query = "select root_acid from annotation2.concept_types where rel_type='treatment' and active=1"
@@ -94,7 +81,6 @@ def get_all_causes_set():
 	all_cause_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_cause_set
 
-
 def get_all_diagnostics_set():
 	query = "select root_acid from annotation2.concept_types where rel_type='diagnostic'"
 	conn,cursor = pg.return_postgres_cursor()
@@ -111,7 +97,6 @@ def get_word_index(word, cursor):
 	else:
 		return int(ind_df['rn'][0])
 
-
 def get_word_from_ind(index):
 	if index == UNK_ind:
 		return 'UNK'
@@ -121,7 +106,6 @@ def get_word_from_ind(index):
 		word_df = pg.return_df_from_query(cursor, query, (index,), ['word'])
 		return str(word_df['word'][0])
 
-
 def train_data_generator_v2(batch_size, cursor):
 
 	while True:
@@ -130,8 +114,19 @@ def train_data_generator_v2(batch_size, cursor):
 
 		new_version = curr_version + 1
 		
-		query = "select id, x_train_gen, x_train_spec, x_train_gen_mask, x_train_spec_mask, label from ml2.train_sentences where ver = %s limit %s"
-		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), ['id', 'x_train_gen', 'x_train_spec', 'x_train_gen_mask', 'x_train_spec_mask', 'label'])
+		query = """
+			select 
+				id
+				,x_train_gen
+				,x_train_spec
+				,x_train_gen_mask
+				,x_train_spec_mask
+				,label
+			from ml2.train_sentences 
+			where ver = %s order by random() limit %s 
+			"""
+		train_df = pg.return_df_from_query(cursor, query, (curr_version, batch_size), 
+			['id', 'x_train_gen', 'x_train_spec', 'x_train_gen_mask', 'x_train_spec_mask', 'label'])
 
 		x_train_gen = train_df['x_train_gen'].tolist()
 		x_train_spec = train_df['x_train_spec'].tolist()
@@ -150,25 +145,22 @@ def train_data_generator_v2(batch_size, cursor):
 			cursor.execute(query, (new_version, id_df))
 			cursor.connection.commit()
 
-
 			yield (np.asarray(x_train_gen), np.asarray(y_train))
 		except:
 			print("update version failed. Rolling back")
 			cursor.connection.rollback()
 			yield None
 
-	
 def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
-	embedding_size=500
+	embedding_size=750
 	batch_size = 500
 	num_epochs = 40
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
 	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4, return_sequences=True))(model_gen_emb)
-	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4))(lstm_model)
 	lstm_model = Dropout(0.4)(lstm_model)
@@ -188,15 +180,17 @@ def train_with_rnn(max_cnt):
              metrics=['accuracy'])
 
 	checkpointer = ModelCheckpoint(filepath='./gen_bidi_500_deep_{epoch:02d}.hdf5', verbose=1)
-
 	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
 	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1.3}, steps_per_epoch =((max_cnt//batch_size)+1),
-	  callbacks=[checkpointer, tensorboard_callback])
+	x_val, y_val = get_validation_set(cursor)
 
+	history = model.fit(train_data_generator_v2(batch_size, cursor), \
+	 epochs=num_epochs, class_weight={0:1, 1:1.4}, steps_per_epoch =((max_cnt//batch_size)+1),
+	  validation_data=(x_val, y_val), callbacks=[checkpointer, tensorboard_callback])
+	cursor.close()
+	conn.close()
 
 def update_rnn(model_name, max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
@@ -212,7 +206,6 @@ def update_rnn(model_name, max_cnt):
 	 epochs=num_epochs, class_weight={0:1, 1:2.2}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  callbacks=[checkpointer])
 
-
 def gen_treatment_predictions_top(model_name):
 	conn,cursor = pg.return_postgres_cursor()
 	query = "select min(ver) from ml2.treatment_dataset_subset_staging"
@@ -225,7 +218,6 @@ def gen_treatment_predictions_top(model_name):
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
 	conn.close()
 	cursor.close()
-
 
 def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 	number_of_processes = 5
@@ -280,7 +272,6 @@ def gen_treatment_predictions_bottom(model_name, old_version, conn, cursor):
 	for p in pool:
 		p.join()
 	
-
 def batch_treatment_predictions(model_name, treatment_candidates_df):
 	model = load_model(model_name)
 	conn,cursor = pg.return_postgres_cursor()
@@ -289,13 +280,12 @@ def batch_treatment_predictions(model_name, treatment_candidates_df):
 	data = np.asarray(treatment_candidates_df['x_train_gen'].tolist()).astype('float32')
 	res = model.predict(data)
 	treatment_candidates_df['score'] = res
-	treatment_candidates_df.to_sql('treatment_recs_staging', engine, schema='ml2', if_exists='append', \
+	treatment_candidates_df.to_sql('treatment_recs_staging_2', engine, schema='ml2', if_exists='append', \
 	 index=False, dtype={'sentence_tuples' : sqla.types.JSON})
 
 	cursor.close()
 	conn.close()
 	engine.dispose()
-
 
 def parallel_treatment_recategorization_bottom(model_name, old_version, all_conditions_set, all_treatments_set):
 	conn,cursor = pg.return_postgres_cursor()
@@ -358,19 +348,15 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 	for p in pool:
 		p.join()
 
-
 def recat_worker(input):
 	for func,args in iter(input.get, 'STOP'):
 		recat_calculate(func, args)
 
-
 def recat_calculate(func, args):
 	func(*args)
 
-
 def apply_get_generic_labelled_data(row, all_conditions_set, all_treatments_set):
 	return get_labelled_data_sentence_generic_v2(row, all_conditions_set, all_treatments_set)
-
 
 def batch_treatment_recategorization(model_name, treatment_candidates_df, all_conditions_set, all_treatments_set):
 	model = load_model(model_name)
@@ -462,9 +448,6 @@ def get_labelled_data_sentence_generic_v2(sentence, conditions_set, all_treatmen
 	sentence['x_train_spec'] = sample_spec
 
 	return sentence
-
-			
-
 
 # used for analyzing sentence
 def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, conditions_set, all_treatments_set):
@@ -589,7 +572,6 @@ def gen_datasets_mp(new_version, spec):
 	cursor.close()
 	conn.close()
 
-
 def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
 	sentences_df = pd.DataFrame()
@@ -656,7 +638,6 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 		sentences_df['label'] = label
 		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, spec)
 
-
 def gen_treatment_data_top():
 	conn,cursor = pg.return_postgres_cursor()
 	
@@ -672,9 +653,7 @@ def gen_treatment_data_top():
 	while curr_version != new_version:
 		gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set, False)
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
-
-
-		
+	
 def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatments_set, spec):
 	number_of_processes = 35
 
@@ -745,15 +724,12 @@ def gen_treatment_dataset(treatment_candidates_df, all_conditions_set, all_treat
 	conn.close()
 	engine.dispose()
 
-
 def gen_dataset_worker(input, conditions_set, treatments_set, spec):
 	for func,args in iter(input.get, 'STOP'):
 		gen_dataset_calculate(func, args, conditions_set, treatments_set, spec)
 
-
 def gen_dataset_calculate(func, args, conditions_set, treatments_set, spec):
 	func(*args, conditions_set, treatments_set, spec)
-
 
 def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
@@ -782,7 +758,6 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 	conn.close()
 	engine.dispose()
 
-
 def analyze_sentence(model_name, sentence, condition_id):
 	term = ann2.clean_text(sentence)
 	lmtzr = WordNetLemmatizer()
@@ -799,6 +774,8 @@ def analyze_sentence(model_name, sentence, condition_id):
 			write_sentences=True, lmtzr=lmtzr)
 
 	model = load_model(model_name)
+	# model = get_transformer_model()
+	# model.load_weights(model_name)
 
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
@@ -818,12 +795,11 @@ def analyze_sentence(model_name, sentence, condition_id):
 			# mask_arr = np.array([mask])
 
 			# res = float(model.predict([sample_gen_arr, sample_spec_arr, mask_arr]))
+			res = model.predict(sample_gen_arr)
 			res = float(model.predict([sample_gen_arr]))
 			final_res.append((word[0], word[1], res))
-
 	print(final_res)
 	return final_res
-
 
 def print_contingency(model_name, validation):
 	conn, cursor = pg.return_postgres_cursor()
@@ -879,9 +855,9 @@ def print_contingency(model_name, validation):
 	
 	for item in sentences_dict:
 		x_train_gen = np.array([item['x_train_gen']])
-		x_train_mask = np.array([item['x_train_gen_mask']])
+		# x_train_mask = np.array([item['x_train_gen_mask']])
 
-		res = float(model.predict([x_train_gen, x_train_mask])[0][0])
+		res = float(model.predict([x_train_gen])[0][0])
 
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
@@ -918,9 +894,87 @@ def print_contingency(model_name, validation):
 	cursor.close()
 	conn.close()
 
+def get_validation_set(cursor):
+	query = "select x_train_gen, label from ml2.train_sentences"
+	train_df = pg.return_df_from_query(cursor, query, None, ['x_train_gen', 'label'])
+	x_train_gen = train_df['x_train_gen'].tolist()
+	y_train = train_df['label'].tolist()
+	return (np.asarray(x_train_gen), np.asarray(y_train))
+
+class TransformerBlock(layers.Layer):
+	def __init__(self, embed_dim, num_heads, ff_dim, rate=0.1):
+		super(TransformerBlock, self).__init__()
+		self.att = layers.MultiHeadAttention(num_heads=num_heads,
+			key_dim=embed_dim)
+		self.ffn = keras.Sequential([layers.Dense(ff_dim, activation='relu'),
+			layers.Dense(embed_dim),])
+		self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
+		self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
+		self.dropout1 = layers.Dropout(rate)
+		self.dropout2 = layers.Dropout(rate)
+
+	def call(self, inputs, training):
+		attn_output = self.att(inputs, inputs)
+		attn_output = self.dropout1(attn_output, training=training)
+		out1 = self.layernorm1(inputs + attn_output)
+		ffn_output = self.ffn(out1)
+		ffn_output = self.dropout2(ffn_output, training=training)
+		return self.layernorm2(out1 + ffn_output)
+
+class TokenAndPositionEmbedding(layers.Layer):
+    def __init__(self, maxlen, vocab_size, embed_dim):
+        super(TokenAndPositionEmbedding, self).__init__()
+        self.token_emb = layers.Embedding(input_dim=vocab_size, output_dim=embed_dim)
+        self.pos_emb = layers.Embedding(input_dim=maxlen, output_dim=embed_dim)
+
+    def call(self, x):
+        maxlen = tf.shape(x)[-1]
+        positions = tf.range(start=0, limit=maxlen, delta=1)
+        positions = self.pos_emb(positions)
+        x = self.token_emb(x)
+        return x + positions
+
+def get_transformer_model():
+	embed_dim = 1000
+	num_heads = 4  # Number of attention heads
+	ff_dim = 16  # Hidden layer size in feed forward network inside transformer
+	inputs = layers.Input(shape=(max_words,))
+	embedding_layer = TokenAndPositionEmbedding(max_words, vocabulary_size, embed_dim)
+	x = embedding_layer(inputs)
+	transformer_block = TransformerBlock(embed_dim, num_heads, ff_dim)
+	x = transformer_block(x)
+	x = layers.GlobalAveragePooling1D()(x)
+	x = layers.Dropout(0.1)(x)
+	x = layers.Dense(20, activation="relu")(x)
+	x = layers.Dropout(0.1)(x)
+	outputs = layers.Dense(1, activation="sigmoid")(x)
+	model = keras.Model(inputs=inputs, outputs=outputs)
+	model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+	return model
+
+def train_with_transformer(max_cnt):
+	conn,cursor = pg.return_postgres_cursor()
+	batch_size = 500
+	num_epochs = 20
+
+	model = get_transformer_model()
+	
+	checkpointer = ModelCheckpoint(filepath='./gen_transformer_1000_deep_{epoch:02d}.hdf5', save_weights_only=True, verbose=1)
+	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+
+	x_val, y_val = get_validation_set(cursor)
+
+	history = model.fit(train_data_generator_v2(batch_size, cursor), \
+	 epochs=num_epochs, class_weight={0:1, 1:1.3}, steps_per_epoch =((max_cnt//batch_size)+1), validation_data=(x_val, y_val),
+	  callbacks=[checkpointer, tensorboard_callback])
+
+	cursor.close()
+	conn.close()
 
 
 if __name__ == "__main__":
+
 	# caused by and associated with not working well
 	# sentence = "Montelukast as a treatment for acute interstitial nephritis"
 	# sentence = "metoprolol improves cough in severe acute interstitial nephritis caused by amiodarone"
@@ -976,7 +1030,7 @@ if __name__ == "__main__":
 	# sentence = "amiodarone drug levels as a biomarker in acute interstitial nephritis"
 	# sentence = "it is advisable to investigate thoroughly any sign of acute interstitial nephritis in patients who undergo any procedure requiring significant neck extension, particularly if on long-term haemodialysis"
 	# sentence = "Relapse of acute interstitial nephritis induced by temozolomide based chemoradiation"
-	# sentence = "Parathyroidectomy Improves acute interstitial nephritis in Patients on Hemodialysis"
+	# sentence = "Parathyroidectomy improves acute interstitial nephritis in Patients on Hemodialysis"
 	# sentence = "Bariatric Surgery in Patients With acute interstitial nephritis-The Silver Bullet"
 	# sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
 	# sentence = "alcohol and incident severe acute interstitial nephritis treated with prednisone"
@@ -987,23 +1041,34 @@ if __name__ == "__main__":
 	# sentence = "lenvatinib-pembrolizumab causing advanced acute interstitial nephritis"
 	# sentence = "Barium in the diagnosis of acute interstitial nephritis"
 	# sentence = "Who underwent esophageal manometry to investigate the relationship between solid food dysphagia and peristaltic dysfunction in acute interstitial nephritis"
+	# sentence = "Levels of metoprolol among patients with acute interstitial nephritis"
+	# sentence = "Eleven clinical isolates of acute interstitial nephritis from Stockholm hospitals were found to be resistant to aztreonam and cefuroxime, but susceptible to cefotaxime, ceftazidime and imipenem"
+	# sentence = "Effect of Piperacillin-Tazobactam vs Meropenem on 30-Day Mortality for Patients With Acute interstitial nephritis or Klebsiella pneumoniae Bloodstream Infection and Ceftriaxone Resistance: A Randomized Clinical Trial"
+	# sentence = "less than a week after starting celecoxib therapy for rheumatoid arthritis, acute intersitial nephritis occurred"
+	# sentence = "metoprolol for the management of rheumatoid arthritis among patients with acute interstitial nephritis"
+	# sentence = "Amiodarone-induced acute interstitial nephritis: the possible contribution of digoxin"
+	# sentence = "Suppression of acute interstitial nephritis by atropine"
+	# sentence = "Treatment of acute interstitial nephritis with esophageal atrial pacing"
+	# sentence = "Attenuated proliferation and trans-differentiation of prostatic stromal cells indicate suitability of phosphodiesterase type 5 inhibitors for prevention and treatment of acute interstitial nephritis"
+	# sentence = "Acute interstitial nephritis can be caused by metoprolol, digoxin, and amiodarone"
 	# sentence = sentence.lower()
-	# model_name = 'gen_bidi_500_deep_30.hdf5'
+	# model_name = 'gen_bidi_500_deep_21.hdf5'
 	# condition_id = '10603'
 	# analyze_sentence(model_name, sentence, condition_id)
 
-	
-	# gen_datasets_mp(1, True)
+	# gen_datasets_mp(1, False)
 	# conn, cursor = pg.return_postgres_cursor()
 	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
 	# 		None, ['cnt'])['cnt'][0])
 	# cursor.close()
 	# conn.close()
 	# train_with_rnn(max_cnt)
+	# train_with_transformer(max_cnt)
+
 
 
 	# gen_treatment_data_top()
-	gen_treatment_predictions_top('gen_bidi_500_deep_30.hdf5')
+	gen_treatment_predictions_top('gen_bidi_500_deep_21.hdf5')
 
 
 	
@@ -1031,19 +1096,19 @@ if __name__ == "__main__":
 	# print_contingency('gen_bidi_500_deep_18.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_19.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_20.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_21.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_22.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_21.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_22.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_23.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_24.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_25.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_26.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_27.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_28.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_29.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_26.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_27.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_28.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_29.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_30.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_31.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_32.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_33.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_31.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_32.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_33.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_34.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_35.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_36.hdf5', True)

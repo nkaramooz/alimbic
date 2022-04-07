@@ -46,7 +46,8 @@ INSERT INTO treatment_candidates_2
  		 on t6.sentence_id = t7.sentence_id
  		where t7.section != 'results' and t7.section != 'methods'
  	) t1
- 	join (select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom') and active=1) t2 
+ 	join (select root_acid from annotation2.concept_types where (rel_type='condition' or rel_type='symptom' or rel_type='cause') 
+ 			and active=1) t2 
  		on t1.condition_acid = t2.root_acid
  	join (select distinct sentence_id, acid as treatment_acid 
  			from pubmed.sentence_annotations_2 

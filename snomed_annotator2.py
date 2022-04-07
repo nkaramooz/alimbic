@@ -161,6 +161,8 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 				w='opioid'
 			elif w=='was' or w=='were' or w=='is':
 				w='is'
+			elif w=='echocardiographic': 
+				w='echocardiography'
 			else:
 				if check_pos:
 					w = lmtzr.lemmatize(w, pos_tag[i])
@@ -483,7 +485,7 @@ def prune_results_v2(scores_df, og_results):
 # to using previous concept frequencies. Examples where this would pertain is where a 
 # document references pneumocystis pneumonia and phencyclidine, both of which have the
 # acronym PCP
-# will defer fixing this till later
+# THIS NOW NEEDS TO BE FIXED
 def resolve_conflicts(results_df):
 	acronym_df = results_df[results_df['is_acronym'] == True].copy()
 	results_df = results_df[results_df['is_acronym'] == False].copy()
@@ -560,7 +562,6 @@ def resolve_conflicts(results_df):
 		# 		last_section_ind = row['section_ind']
 
 	final_results = final_results.append(acronym_df)
-
 	return final_results
 
 
@@ -716,16 +717,22 @@ def get_all_words_list(text, lmtzr):
 	return all_words
 
 def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold, lmtzr):
+	z = u.Timer('get_lemmas')
 	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos, lmtzr)
+	z.stop()
+	f = u.Timer('get_candidates')
 	cache = get_new_candidate_df(lemmas, case_sensitive, spellcheck_threshold)
-
-	if len(cache) > 0:
+	f.stop()
+	if len(cache.index) > 0:
 		if spellcheck_threshold != 100:
 			cache = cache.to_dict('records')
+
 			for row in cache:
 				max_fuzz = 0
 				for i in lemmas:
+
 					new_fuzz = fuzz.ratio(i, row['word'])
+
 					if new_fuzz > max_fuzz:
 						max_fuzz = new_fuzz
 					row[i] = new_fuzz
@@ -1049,37 +1056,40 @@ if __name__ == "__main__":
 	query89="luteinizing hormone releasing hormone deficiency in thyroid hormone deficiency"
 	query90 = "Antibiotic concentrations used for exposure were either the MIC of each agent for the sensitive isolates or the recommended sensitivity breakpoint concentrations for the resistant isolates"
 	query91="biomarker"
-	unittest.main()
+	query92="hyaluronic acid lung cancer"
+	query93="CT-directed pelvic oblique radiograph conventional hip radiographs, computed axial tomography (CT)"
+	query94="Gastric cancer insulin"
+	# unittest.main()
 	
-	# counter = 0
-	# d = u.Timer('t')
+	counter = 0
+	d = u.Timer('t')
 
-	# lmtzr = WordNetLemmatizer()
+	lmtzr = WordNetLemmatizer()
 
-	# while (counter < 1):
-	# 	term = query91
-	# 	term = clean_text(term)
+	while (counter < 1):
+		term = query94
+		term = clean_text(term)
 
-	# 	all_words = get_all_words_list(term, lmtzr)
+		all_words = get_all_words_list(term, lmtzr)
 
-	# 	spellcheck_threshold = 100
+		spellcheck_threshold = 100
 
-	# 	cache = get_cache(all_words_list=all_words, case_sensitive=True, \
-	# 		check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 
-	# 	sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
-	# 		columns=['line', 'section', 'section_ind', 'ln_num'])
-	# 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
+		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
+			columns=['line', 'section', 'section_ind', 'ln_num'])
+		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
-	# 	res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
-	# 		case_sensitive=True, check_pos=False, bool_acr_check=False,\
-	# 		spellcheck_threshold=spellcheck_threshold, \
-	# 		write_sentences=True, lmtzr=None)
+		res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
+			case_sensitive=True, check_pos=False, bool_acr_check=False,\
+			spellcheck_threshold=spellcheck_threshold, \
+			write_sentences=True, lmtzr=None)
 
-	# 	d.stop()
-	# 	u.pprint(g['sentence_tuples'].tolist())
-	# 	u.pprint(res)
+		d.stop()
+		u.pprint(g['sentence_tuples'].tolist())
+		u.pprint(res)
 
-	# 	counter += 1
+		counter += 1
 	
 	

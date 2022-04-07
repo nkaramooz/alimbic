@@ -17,7 +17,6 @@ create table used_descriptions as (
 			from annotation2.description_counts tb1
 			join annotation2.downstream_root_did tb2
 			on tb1.adid = tb2.adid
-			where tb2.term != upper(tb2.term)
 			) tb3
 		) tb4
 	join annotation2.downstream_root_did tb5

@@ -224,7 +224,7 @@ def remove_adid(adid, cursor):
 
 def add_labelled_treatment(condition_acid, treatment_acid, relationship, cursor):
 	if condition_acid != None and treatment_acid != None and relationship != None:
-		if (condition_acid == '%' and check_acid(treatment_acid)) or \
+		if (condition_acid == '%' and check_acid(treatment_acid, cursor)) or \
 			check_acid(condition_acid, cursor) and check_acid(treatment_acid, cursor):
 
 			if not check_existing_labelled_treatments(condition_acid, treatment_acid, cursor):

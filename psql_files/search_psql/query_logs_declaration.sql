@@ -4,7 +4,8 @@ drop table if exists query_logs;
 create table query_logs (
   ip_address varchar(40)
   ,query varchar(400)
-  ,annotation jsonb
+  ,primary_cids jsonb
+  ,expanded_query_acids jsonb
   ,unmatched_terms varchar(400)
   ,start_year varchar(4)
   ,end_year varchar(4)

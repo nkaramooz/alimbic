@@ -24,6 +24,66 @@ lmtzr = WordNetLemmatizer()
 lmtzr.lemmatize("cough")
 
 ### ML training data
+
+def labelling(request):
+	conn,cursor = pg.return_postgres_cursor()
+	query = """
+		select
+			condition_acid
+			,condition
+			,treatment_acid
+			,treatment
+			,t1avg
+			,t2avg
+		from ml2.rapid_labelling
+		where ver=0
+		limit 1
+	"""
+	entry = pg.return_df_from_query(cursor, query, None,
+		['condition_acid', 'condition', 'treatment_acid', 'treatment',
+		't1avg', 't2avg'])
+
+	cursor.close()
+	conn.close()
+	return render(request, 'search/labelling.html', 
+		{'condition_acid': entry['condition_acid'][0], 'condition': entry['condition'][0],
+		'treatment_acid': entry['treatment_acid'][0], 'treatment': entry['treatment'][0],
+		't1avg' : entry['t1avg'][0], 't2avg': entry['t2avg'][0]})
+
+def post_labelling(request):
+	conn,cursor = pg.return_postgres_cursor()
+	payload_dict = {}
+	condition_acid = request.POST['condition_acid']
+	treatment_acid = request.POST['treatment_acid']
+
+	if condition_acid != None and treatment_acid != None:
+		message = None
+		label = None
+		if 'rel_0' in request.POST:
+			label = 0
+		elif 'rel_1' in request.POST:
+			label = 1
+		elif 'rel_2' in request.POST: 
+			label = 2
+		if label == 2:
+			message = "Skipped"
+		else:
+			message = u.add_labelled_treatment(condition_acid, treatment_acid, label, cursor)
+		if label != None:
+			query = """
+					UPDATE ml2.rapid_labelling
+					set ver=1
+					where condition_acid=%s 
+					and treatment_acid=%s
+				"""
+			cursor.execute(query, (condition_acid,treatment_acid))
+			cursor.connection.commit()
+	cursor.close()
+	conn.close()
+	# return render(request, 'search/labelling.html', {'message' : message})
+	return HttpResponseRedirect(reverse('search:labelling'))
+
+
 def training(request):
 	conn,cursor = pg.return_postgres_cursor()
 	query = """
@@ -128,10 +188,6 @@ def is_conceptid(conceptid, cursor):
 		return True
 	else:
 		return False
-
-
-
-
 
 
 def ml(request):
@@ -469,7 +525,7 @@ def post_search_text(request):
 	query = ''
 	filters = {}
 	query = None
-	spellcheck_threshold = 85
+	spellcheck_threshold = 90
 	# If GET request, this is from a link
 	if request.method == 'GET': 
 		parsed = urlparse.urlparse(request.path)
@@ -595,14 +651,14 @@ def post_search_text(request):
 
 			all_words = ann2.get_all_words_list(query, lmtzr)
 			b = u.Timer('get_cache')
-			cache = ann2.get_cache(all_words_list=all_words, case_sensitive=True, \
+			cache = ann2.get_cache(all_words_list=all_words, case_sensitive=False, \
 			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
 			b.stop()
 
 			c = u.Timer('query_concepts_df')
 			query_df = return_section_sentences(query, 'query', 0, pd.DataFrame())
 			query_concepts_df = ann2.annotate_text_not_parallel(sentences_df=query_df, cache=cache, \
-			case_sensitive=True, check_pos=False, bool_acr_check=False,\
+			case_sensitive=False, check_pos=False, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=False, lmtzr=lmtzr)
 			c.stop()
@@ -638,7 +694,8 @@ def post_search_text(request):
 
 			history_query = """
 				select 
-					treatment_json as treatment_dict
+					expanded_query_acids
+					,treatment_json as treatment_dict
 					,diagnostic_json as diagnostic_dict
 					,condition_json as condition_dict
 					,cause_json as cause_dict
@@ -648,7 +705,7 @@ def post_search_text(request):
 			"""
 
 			query_logs_df = pg.return_df_from_query(cursor, history_query, (query,), \
-				['treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
+				['expanded_query_acid', 'treatment_dict', 'diagnostic_dict', 'condition_dict', 'cause_dict'])
 			
 			query_logs_df = pd.DataFrame()
 
@@ -657,6 +714,7 @@ def post_search_text(request):
 				diagnostic_dict = query_logs_df['diagnostic_dict'][0]
 				condition_dict = query_logs_df['condition_dict'][0]
 				cause_dict = query_logs_df['cause_dict'][0]
+				expanded_query_acids = query_logs_df['expanded_query_acids']
 			else:			
 				h = u.Timer('get_related_concepts')
 				treatment_dict, diagnostic_dict, condition_dict, cause_dict, expanded_query_acids = get_related_conceptids(full_query_concepts_list, \
@@ -676,7 +734,7 @@ def post_search_text(request):
 
 	calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
-	log_query(ip, query, primary_cids, unmatched_terms, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor)
+	log_query(ip, query, primary_cids, expanded_query_acids, unmatched_terms, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor)
 	cursor.close()
 	conn.close()
 
@@ -745,7 +803,7 @@ def rollups(cids_df, cursor):
 			(select child_acid from snomed2.transitive_closure_acid where child_acid in %s and parent_acid in %s)
 		"""
 		parents_df = pg.return_df_from_query(cursor, query, params, ["child_acid", "parent_acid"])
-		
+
 		parents_df = parents_df[parents_df['parent_acid'].isin(parents_df['child_acid'].tolist()) == False].copy()
 
 		orphan_df = cids_df[(cids_df['acid'].isin(parents_df['child_acid'].tolist()) == False) 
@@ -765,12 +823,14 @@ def rollups(cids_df, cursor):
 
 		distinct_parents = distinct_parents['parent_acid'].tolist()
 		k = u.Timer("rollup for loop")
+		assigned_child_acid = []
 		for parent in distinct_parents:
-			children_df = joined_df[joined_df['parent_acid'] == parent]
+			children_df = joined_df[(joined_df['parent_acid'] == parent) & (~joined_df['child_acid'].isin(assigned_child_acid))]
 			count = children_df['count'].sum()
 			count = int(count + cids_df[cids_df['acid'] == parent]['count'].values[0])
 			parent_name = cids_df[cids_df['acid'] == parent]['term'].values[0]
 			children_name_list = children_df['term'].tolist()
+			assigned_child_acid.extend(children_df['child_acid'].tolist())
 			complete_acid_list = children_df['child_acid'].tolist()
 			complete_acid_list.append(parent)
 			parent_dict = {parent : {'name' : parent_name, 'count' : count, 
@@ -804,13 +864,13 @@ def get_json(item_df, prev_json):
 			get_json(item_df, r[list(r.keys())[0]]['children'])
 			return prev_json
 
-def log_query (ip_address, query, primary_cids, unmatched_terms, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor):
+def log_query (ip_address, query, primary_cids, expanded_query_acids, unmatched_terms, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor):
 	insert_query = """
 		insert into search.query_logs
-		VALUES(%s, %s, %s,%s, %s, %s,%s, %s, %s,%s, %s, now())
+		VALUES(%s, %s, %s, %s,%s, %s, %s,%s, %s, %s,%s, %s, now())
 	"""
 	cursor.execute(insert_query, (ip_address, query,json.dumps(primary_cids), \
-		unmatched_terms,filters['start_year'], filters['end_year'], json.dumps(filters['journals']), \
+		json.dumps(expanded_query_acids), unmatched_terms,filters['start_year'], filters['end_year'], json.dumps(filters['journals']), \
 		json.dumps(condition_dict), json.dumps(treatment_dict), json.dumps(diagnostic_dict), json.dumps(cause_dict)))
 
 	cursor.connection.commit()
@@ -1060,6 +1120,7 @@ def get_flattened_query_concept_list(concept_list):
 	return flattened_query_concept_list
 
 def get_query_concept_types_df(flattened_concept_list, cursor):
+
 	concept_type_query_string = """
 		select root_acid as acid, rel_type as concept_type 
 		from annotation2.concept_types where active=1 and root_acid in %s
@@ -1090,7 +1151,7 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			
 			select distinct(treatment_acid) as acid
 				,'treatment' as concept_type
-			from ml2.treatment_recs_final_2
+			from ml2.treatment_recs_final_1
 			where condition_acid in %s and treatment_acid in %s 
 			and treatment_acid in
 				(select root_acid from annotation2.concept_types where active=1 and rel_type='treatment')
@@ -1171,7 +1232,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 			zz.stop()
 			agg_tx = concept_types_df[concept_types_df['concept_type'] == 'treatment']
 			if len(agg_tx.index) > 0:
-				print(agg_tx)
 				sub_dict['treatment'] = rollups(agg_tx, cursor)
 
 			agg_dx = concept_types_df[concept_types_df['concept_type'] == 'diagnostic']
