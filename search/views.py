@@ -717,9 +717,8 @@ def post_search_text(request):
 			es_query = get_text_query(query)
 			sr = es.search(index=INDEX_NAME, body=es_query)
 
-		i = u.Timer("get_payload; bold")
 		sr_payload = get_sr_payload(sr['hits']['hits'], expanded_query_acids, unmatched_terms, cursor)
-		i.stop()
+
 
 	calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
@@ -1170,7 +1169,6 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 	es = es_util.get_es_client()
 	# size zero means only aggregation results returned
 
-	jj = u.Timer("related agg query")
 	es_query = {
 				 "size" : 0, \
 				 "query": get_query(query_concept_list, unmatched_terms, query_types_list \
@@ -1180,7 +1178,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 				 	}}
 
 	sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
-	jj.stop()
+
 	try:
 		res = sr['aggregations']['concepts_of_interest']['buckets']
 		cids_of_interest_df = pd.DataFrame.from_dict(res)
@@ -1207,15 +1205,11 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 	sub_dict['cause'] = []
 
 	if len(cids_of_interest_df.index) > 0:
-		ff = u.Timer("get_query_concepts_types_df_3")
-		concept_types_df = get_query_concept_types_df_3(cids_of_interest_df, flattened_query, cursor)
-		ff.stop()
 
-		gg = u.Timer("actual aggs")
+		concept_types_df = get_query_concept_types_df_3(cids_of_interest_df, flattened_query, cursor)
+
 		if len(concept_types_df.index) > 0:
-			zz = u.Timer("add_names")
 			concept_types_df = ann2.add_names(concept_types_df, cursor)
-			zz.stop()
 			agg_tx = concept_types_df[concept_types_df['concept_type'] == 'treatment']
 			if len(agg_tx.index) > 0:
 				sub_dict['treatment'] = rollups(agg_tx, cursor)
@@ -1232,7 +1226,7 @@ def get_related_conceptids(query_concept_list, original_query_concepts_list, fla
 			agg_condition = concept_types_df[concept_types_df['concept_type'] == 'condition']
 			if len(agg_condition) > 0:
 				sub_dict['condition'] = rollups(agg_condition, cursor)
-		gg.stop()
+
 	return sub_dict['treatment'], sub_dict['diagnostic'], sub_dict['condition'], sub_dict['cause'], expanded_query_acids
 	
 
