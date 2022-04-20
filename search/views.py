@@ -639,15 +639,23 @@ def post_search_text(request):
 		
 	elif query_type == 'keyword':
 		original_query_concepts_list = []
-		raw_query = "select acid from annotation2.lemmas where term_lower=%s limit 1"
+		
+		if len(query.split(' ')) == 1:
+			raw_query = """
+				select acid from annotation2.lemmas t1 
+				join annotation2.concept_counts t2 on t1.acid=t2.concept where term_lower=%s
+				order by cnt desc limit 1 
+			"""
+		else:
+			raw_query = "select acid from annotation2.lemmas where term_lower=%s"
 		query_concepts_df = pg.return_df_from_query(cursor, raw_query, (query.lower(),), ["acid"])
 
-		if (len(query_concepts_df.index) != 0):
+		if (len(query_concepts_df.index) == 1):
 			query_concepts_df['term_start_index'] = 0
 			query_concepts_df['term_end_index'] = len(query.split(' '))-1
 
 
-		elif (len(query_concepts_df.index) == 0):
+		elif (len(query_concepts_df.index) != 1):
 			query = ann2.clean_text(query)
 
 			all_words = ann2.get_all_words_list(query, lmtzr)
@@ -659,7 +667,7 @@ def post_search_text(request):
 			case_sensitive=False, check_pos=False, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=False, lmtzr=lmtzr)
-
+			print(query_concepts_df)
 		primary_cids = None
 
 		if not query_concepts_df['acid'].isnull().all():

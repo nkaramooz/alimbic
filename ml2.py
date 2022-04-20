@@ -57,7 +57,7 @@ def get_all_concepts_of_interest():
 
 def get_all_conditions_set():
 	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='condition' or rel_type='symptom' or rel_type='cause') 
+		where (rel_type='condition' or rel_type='symptom') 
 		and active=1"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
@@ -82,7 +82,7 @@ def get_all_causes_set():
 	return all_cause_set
 
 def get_all_diagnostics_set():
-	query = "select root_acid from annotation2.concept_types where rel_type='diagnostic'"
+	query = "select root_acid from annotation2.concept_types where rel_type='diagnostic' and active=1 "
 	conn,cursor = pg.return_postgres_cursor()
 	all_diagnostic_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_diagnostic_set

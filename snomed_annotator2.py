@@ -533,33 +533,30 @@ def resolve_conflicts(results_df):
 	# Really should only want below for query annotation. Not document annotation
 	 #first try and choose most common concept. If not choose randomly
 	# else:
-	## ADD BACK CURSOR HERE
-	# 	u.p(results_df)
-	# 	u.pprint(final_results)
-	# 	u.pprint("STOP")
-	# 	sys.exit(0)
-		# conc_count_query = "select acid, count from annotation.concept_counts where acid in %s"
-		# params = (tuple(conflicted_df['acid']),)
-		# cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
+	# 	print("ELSE")
+	# 	conn,cursor = pg.return_postgres_cursor()
+	# 	conc_count_query = "select acid, count from annotation.concept_counts where acid in %s"
+	# 	params = (tuple(conflicted_df['acid']),)
+	# 	cid_cnt_df = pg.return_df_from_query(cursor, conc_count_query, params, ['acid', 'cnt'])
 
 
-		# conflicted_df = conflicted_df.merge(cid_cnt_df, on=['acid'], how='left')
-		# conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
+	# 	conflicted_df = conflicted_df.merge(cid_cnt_df, on=['acid'], how='left')
+	# 	conflicted_df['cnt'] = conflicted_df['cnt'].fillna(value=1)
 
-		# conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
+	# 	conflicted_df['final_score'] = conflicted_df['final_score'] * conflicted_df['cnt']
 
-		# conflicted_df = conflicted_df.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
+	# 	conflicted_df = conflicted_df.sort_values(['section_ind', 'ln_num', 'term_start_index', 'final_score'], ascending=False)
 
-		# last_term_start_index = None
-		# last_ln_num = None
-		# last_section_ind = None
-		# for index,row in conflicted_df.iterrows():
-		# 	if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
-		# 		last_section_ind != row['last_section_ind']:
-		# 		final_results = final_results.append(row, sort=False)
-		# 		last_term_start_index = row['term_start_index']
-		# 		last_ln_num = row['ln_num']
-		# 		last_section_ind = row['section_ind']
+	# 	last_term_start_index = None
+	# 	last_ln_num = None
+	# 	last_section_ind = None
+	# 	for index,row in conflicted_df.iterrows():
+	# 		if last_term_start_index != row['term_start_index'] or last_ln_num != row['ln_num'] or \
+	# 			last_section_ind != row['last_section_ind']:
+	# 			final_results = final_results.append(row, sort=False)
+	# 			last_term_start_index = row['term_start_index']
+	# 			last_ln_num = row['ln_num']
+	# 			last_section_ind = row['section_ind']
 
 	final_results = final_results.append(acronym_df)
 	return final_results
@@ -716,12 +713,10 @@ def get_all_words_list(text, lmtzr):
 	return all_words
 
 def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold, lmtzr):
-	z = u.Timer('get_lemmas')
 	lemmas = get_lemmas(all_words_list, case_sensitive, check_pos, lmtzr)
-	z.stop()
-	f = u.Timer('get_candidates')
+
 	cache = get_new_candidate_df(lemmas, case_sensitive, spellcheck_threshold)
-	f.stop()
+
 	if len(cache.index) > 0:
 		if spellcheck_threshold != 100:
 			cache = cache.to_dict('records')

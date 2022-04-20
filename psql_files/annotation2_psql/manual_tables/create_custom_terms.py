@@ -59,6 +59,7 @@ custom_term_synonym_dict = {
 	,'carcinoma' : 'cancer'
 	,'HER2' : 'Human epidermal growth factor receptor 2'
 	,'Needed' : 'Necessary'
+	,'Multiple sclerosis' : 'MS'
 
 }
 

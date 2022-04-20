@@ -19,6 +19,7 @@ import sys
 import sqlalchemy as sqla
 import regex as re
 from ml2 import get_all_concepts_of_interest
+from ml2 import get_all_conditions_set, get_all_causes_set, get_all_treatments_set, get_all_diagnostics_set
 from ftplib import FTP
 from bs4 import BeautifulSoup
 from time import sleep
@@ -26,6 +27,10 @@ from time import sleep
 INDEX_NAME = 'pubmedx2.0'
 NUM_PROCESSES = 48
 CONCEPTS_OF_INTEREST = get_all_concepts_of_interest()
+CONDITIONS_OF_INTEREST = get_all_conditions_set()
+TREATMENTS_OF_INTEREST = get_all_treatments_set()
+DIAGNOSTICS_OF_INTEREST = get_all_diagnostics_set()
+CAUSES_OF_INTEREST = get_all_causes_set()
 
 nlm_cat_dict = {
 	"a case report" :"methods"
@@ -3122,6 +3127,10 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						sentence_tuples_df['ver'] = 0
 
 						json_str['concepts_of_interest'] = []
+						json_str['conditions_of_interest'] = []
+						json_str['treatments_of_interest'] = []
+						json_str['diagnostics_of_interest'] = []
+						json_str['causes_of_interest'] = []
 						
 						if annotation_dict['abstract'] is not None:
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
@@ -3129,6 +3138,10 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							concept_list = annotation_dict['abstract']['cid_dict'].values()
 							concept_list = [i for sublist in concept_list for i in sublist]
 							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(concept_list)))
+							json_str['conditions_of_interest'].extend(list(CONDITIONS_OF_INTEREST & set(concept_list)))
+							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(concept_list)))
+							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(concept_list)))
+							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(concept_list)))
 
 						else:
 							json_str['abstract_conceptids'] = None
@@ -3145,6 +3158,10 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['title_cids'] = title_cids
 							json_str['title_dids'] = title_dids
 							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(title_cids)))
+							json_str['conditions_of_interest'].extend(list(CONDITIONS_OF_INTEREST & set(title_cids)))
+							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(title_cids)))
+							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(title_cids)))
+							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(title_cids)))
 						else:
 							json_str['title_cids'] = None
 							json_str['title_dids'] = None
@@ -3161,6 +3178,10 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['keywords_cids'] = keywords_cids
 							json_str['keywords_dids'] = keywords_dids
 							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(keywords_cids)))
+							json_str['conditions_of_interest'].extend(list(CONDITIONS_OF_INTEREST & set(keywords_cids)))
+							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(keywords_cids)))
+							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(keywords_cids)))
+							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(keywords_cids)))
 						else:
 							json_str['keywords_cids'] = None
 							json_str['keywords_dids'] = None
@@ -3180,7 +3201,6 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 
 						json_str =json.dumps(json_str)
 						json_obj = json.loads(json_str)
-						
 						
 						es = u.get_es_client()
 						get_article_query = {'_source': ['id', 'pmid'], 'query': {'constant_score': {'filter' : {'term' : {'pmid': pmid}}}}}
@@ -3315,6 +3335,10 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 				"unlabelled_did" : {"type" : "keyword"},
 				"keywords_did" : {"type" : "keyword"}}}
 			,"concepts_of_interest" : {"type" : "keyword"}
+			,"conditions_of_interest" : {"type" : "keyword"}
+			,"treatments_of_interest" : {"type" : "keyword"}
+			,"diagnostics_of_interest" : {"type" : "keyword"}
+			,"causes_of_interest" : {"type" : "keyword"}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
@@ -3722,7 +3746,6 @@ if __name__ == "__main__":
 	lmtzr_list = return_lemmatizers_list()
 
 	start_file = get_start_file_num()
-	# start_file=860
 	end_file = 1114
 
 	while (start_file <= end_file):

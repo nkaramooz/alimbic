@@ -11,8 +11,8 @@ urlpatterns = [
     # url(r'^pivot/$', views.post_pivot_search, name='pivot_search'),
 
     # url(r'^results/$', views.concept_search_results,  name='concept_search_results'),
-    # url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
-    # url(r'^concept_override/', views.concept_override, name='concept_override'),
+    url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
+    url(r'^concept_override/', views.concept_override, name='concept_override'),
     # url(r'^training/post/$', views.post_training, name='post_training'),
     # url(r'^training/', views.training, name='training'),
     url(r'^search/', views.post_search_text, name='post_search_text'),
