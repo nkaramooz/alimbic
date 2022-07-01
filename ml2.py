@@ -58,31 +58,65 @@ def get_all_concepts_of_interest():
 def get_all_conditions_set():
 	query = """select root_acid from annotation2.concept_types 
 		where (rel_type='condition' or rel_type='symptom') 
-		and active=1"""
+		and (active=1 or active=3)
+	"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
+def get_all_outcomes_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='outcome') 
+		and (active=1 or active=3)
+	"""
+	conn,cursor = pg.return_postgres_cursor()
+	all_outcomes_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	return all_outcomes_set
+
+def get_all_statistics_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='statistic') 
+		and (active=1 or active=3)
+	"""
+	conn,cursor = pg.return_postgres_cursor()
+	all_statistics_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	return all_statistics_set
+
 def get_all_treatments_set():
-	query = "select root_acid from annotation2.concept_types where rel_type='treatment' and active=1"
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='treatment' 
+		and (active=1 or active=3)
+	"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
 
 def get_all_treatments_with_inactive():
-	query = "select root_acid from annotation2.concept_types where rel_type='treatment'"
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='treatment'
+	"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
 
 def get_all_causes_set():
-	query = "select root_acid from annotation2.concept_types where rel_type='cause' and active=1"
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='cause' 
+		and (active=1 or active=3)
+	"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_cause_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_cause_set
 
 def get_all_diagnostics_set():
-	query = "select root_acid from annotation2.concept_types where rel_type='diagnostic' and active=1 "
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='diagnostic' 
+		and (active=1 or active=3) 
+	"""
 	conn,cursor = pg.return_postgres_cursor()
 	all_diagnostic_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_diagnostic_set
@@ -154,16 +188,16 @@ def train_data_generator_v2(batch_size, cursor):
 def train_with_rnn(max_cnt):
 	conn,cursor = pg.return_postgres_cursor()
 
-	embedding_size=750
+	embedding_size=500
 	batch_size = 500
 	num_epochs = 40
 
 	model_input_gen = Input(shape=(max_words,))
 	model_gen_emb = Embedding(vocabulary_size+1, embedding_size, trainable=True, mask_zero=True)(model_input_gen)
 	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4, return_sequences=True))(model_gen_emb)
-	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4, return_sequences=True))(lstm_model)
+	lstm_model = Bidirectional(LSTM(500, recurrent_dropout=0.5, return_sequences=True))(lstm_model)
 	lstm_model = Bidirectional(LSTM(256, recurrent_dropout=0.4))(lstm_model)
-	lstm_model = Dropout(0.4)(lstm_model)
+	lstm_model = Dropout(0.3)(lstm_model)
 	lstm_model = Dense(256)(lstm_model)
 	lstm_model = Dropout(0.3)(lstm_model)
 	# pred = TimeDistributed(Dense(1))(lstm_model)
@@ -187,7 +221,7 @@ def train_with_rnn(max_cnt):
 	x_val, y_val = get_validation_set(cursor)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1.4}, steps_per_epoch =((max_cnt//batch_size)+1),
+	 epochs=num_epochs, class_weight={0:1, 1:1.2}, steps_per_epoch =((max_cnt//batch_size)+1),
 	  validation_data=(x_val, y_val), callbacks=[checkpointer, tensorboard_callback])
 	cursor.close()
 	conn.close()
@@ -534,7 +568,9 @@ def gen_datasets_mp(new_version, spec):
 				select t1.id, condition_acid::text, treatment_acid::text, label, ver 
 				from ml2.labelled_treatments t1 where ver=%s and (label=0 or label=1)
 				and treatment_acid in 
-					(select root_acid from annotation2.concept_types where rel_type='treatment' and active=1) 
+					(select root_acid from annotation2.concept_types 
+						where rel_type='treatment' 
+						and (active=1 or active=3)) 
 				limit %s
 			"""
 	else:
@@ -590,7 +626,9 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 							,t1.pmid
 						from pubmed.sentence_concept_arr_2 t1
 						join (select root_acid as condition_acid 
-						from annotation2.concept_types where rel_type='condition' or rel_type='symptom' or rel_type='cause') t2
+							from annotation2.concept_types 
+							where rel_type='condition' or rel_type='symptom' or rel_type='cause'
+							and (active=1 or active=3)) t2
 							on t2.condition_acid = ANY(t1.concept_arr::text[])
 						join (select acid as treatment_acid from annotation2.downstream_root_cid where acid in %s) t3
 							on t3.treatment_acid = ANY(t1.concept_arr::text[])
@@ -705,7 +743,8 @@ def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatmen
 	for p in pool:
 		p.join()
 
-	for p in pool:		p.close()
+	for p in pool:		
+		p.close()
 
 	cursor.close()
 	conn.close()
@@ -758,7 +797,8 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 	conn.close()
 	engine.dispose()
 
-def analyze_sentence(model_name, sentence, condition_id):
+def analyze_sentence(model_name, sentence):
+	conn,cursor = pg.return_postgres_cursor()
 	term = ann2.clean_text(sentence)
 	lmtzr = WordNetLemmatizer()
 	all_words = ann2.get_all_words_list(term, lmtzr)
@@ -780,25 +820,30 @@ def analyze_sentence(model_name, sentence, condition_id):
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
 
-	final_res = []
-
+	relevant_conditions = {}
 	for ind,word in enumerate(sentence_tuples_df['sentence_tuples'][0]):
-		if word[1] == condition_id:
-			continue
-		elif word[1] != 0:
+		if word[1] in all_conditions_set and word[1] not in relevant_conditions:
+			condition_name = ann2.get_preferred_concept_names(word[1], cursor)
+			relevant_conditions[word[1]] = condition_name
 
-			sample_gen,sample_spec, mask = get_labelled_data_sentence_generic_v2_custom(sentence_tuples_df, condition_id, word[1], \
-				all_conditions_set, all_treatments_set)
-			# t1= [49996,1709,1271,1289,12,500,6,49999,9,49998,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-			sample_gen_arr = np.array([sample_gen])
-			# sample_spec_arr = np.array([sample_spec])
-			# mask_arr = np.array([mask])
+	final_res = {}
 
-			# res = float(model.predict([sample_gen_arr, sample_spec_arr, mask_arr]))
-			res = model.predict(sample_gen_arr)
-			res = float(model.predict([sample_gen_arr]))
-			final_res.append((word[0], word[1], res))
-	print(final_res)
+	for condition_id in relevant_conditions.keys():
+		for ind,word in enumerate(sentence_tuples_df['sentence_tuples'][0]):
+			if word[1] == condition_id:
+				continue
+			elif word[1] != 0 and word[1] in all_treatments_set:
+				sample_gen,sample_spec, mask = get_labelled_data_sentence_generic_v2_custom(sentence_tuples_df, condition_id, word[1], \
+					all_conditions_set, all_treatments_set)
+				sample_gen_arr = np.array([sample_gen])
+	
+				res = model.predict(sample_gen_arr)
+				res = float(model.predict([sample_gen_arr]))
+				if relevant_conditions[condition_id] in final_res.keys():
+					final_res[relevant_conditions[condition_id]].append((word[0], word[1], res))
+				else:
+					final_res[relevant_conditions[condition_id]] = [(word[0], word[1], res)]
+
 	return final_res
 
 def print_contingency(model_name, validation):
@@ -878,18 +923,21 @@ def print_contingency(model_name, validation):
 			# print("end")
 			zero_one += 1
 
-	print(model_name)	
+	print(model_name)
+	print("precision : " + str((one_one/(one_one+zero_one))))
+	print("recall : " + str((one_one/(one_one + one_zero))))
+	
 	print("label 1, res 1: " + str(one_one))
 	print("label 1, res 0: " + str(one_zero))
 	print("label 0, res 0: " + str(zero_zero))
 	print("label 0, res 1: " + str(zero_one))
 
-	if (one_one + one_zero) != 0:
-		sens = (one_one) / (one_one + one_zero)
-		print("sensitivity : " + str(sens))
-	if (zero_one + zero_zero) != 0:
-		spec = zero_zero / (zero_one + zero_zero)
-		print("specificity : " + str(spec))
+	# if (one_one + one_zero) != 0:
+	# 	sens = (one_one) / (one_one + one_zero)
+	# 	print("sensitivity : " + str(sens))
+	# if (zero_one + zero_zero) != 0:
+	# 	spec = zero_zero / (zero_one + zero_zero)
+	# 	print("specificity : " + str(spec))
 
 	cursor.close()
 	conn.close()
@@ -966,7 +1014,7 @@ def train_with_transformer(max_cnt):
 	x_val, y_val = get_validation_set(cursor)
 
 	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1.3}, steps_per_epoch =((max_cnt//batch_size)+1), validation_data=(x_val, y_val),
+	 epochs=num_epochs, class_weight={0:1, 1:1.2}, steps_per_epoch =((max_cnt//batch_size)+1), validation_data=(x_val, y_val),
 	  callbacks=[checkpointer, tensorboard_callback])
 
 	cursor.close()
@@ -1051,10 +1099,19 @@ if __name__ == "__main__":
 	# sentence = "Treatment of acute interstitial nephritis with esophageal atrial pacing"
 	# sentence = "Attenuated proliferation and trans-differentiation of prostatic stromal cells indicate suitability of phosphodiesterase type 5 inhibitors for prevention and treatment of acute interstitial nephritis"
 	# sentence = "Acute interstitial nephritis can be caused by metoprolol, digoxin, and amiodarone"
-	# sentence = sentence.lower()
-	# model_name = 'gen_bidi_500_deep_21.hdf5'
-	# condition_id = '10603'
-	# analyze_sentence(model_name, sentence, condition_id)
+	# sentence = "amiodarone mutation is a novel biomarker for acute interstitial nephritis"
+	# sentence = "This article discusses challenges for acute interstitial nephritis research in South America (SA) and examines the acute interstitial nephritis scientific record to explore the interactions and synergies of research, clinical care, and patient advocacy in underdeveloped regions"
+	# sentence = "acute interstitial nephritis and active cytomegaloviral infection after lung transplantation"
+	# sentence = "Managing Persistent Hypertension and Tachycardia Following acute interstitial nephritis, Limb Ischemia, and Amputation"
+	# sentence = "Acute interstitial nephritis associated with intravenous methylprednisolone"
+	# sentence = "symptomatic acute interstitial nephritis in a woman treated with methylprednisolone for breast cancer"
+	# sentence = "Intravenous methylprednisolone worsened breast cancer in patients treated for acute interstitial nephritis"
+	# sentence = "Biologic medicines like tofacitinib are often a cause for acute interstitial nephritis when used to treat myocardial infarction"
+	sentence = "acute interstitial nephritis was treated with nitroglycerin"
+	sentence = sentence.lower()
+	model_name = 'gen_bidi_500_deep_18.hdf5'
+	condition_id = '10603'
+	print(analyze_sentence(model_name, sentence))
 
 	# gen_datasets_mp(1, False)
 	# conn, cursor = pg.return_postgres_cursor()
@@ -1068,7 +1125,7 @@ if __name__ == "__main__":
 
 
 	# gen_treatment_data_top()
-	gen_treatment_predictions_top('gen_bidi_500_deep_21.hdf5')
+	# gen_treatment_predictions_top('gen_bidi_500_deep_18.hdf5')
 
 
 	
@@ -1093,21 +1150,21 @@ if __name__ == "__main__":
 	# print_contingency('gen_bidi_500_deep_15.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_16.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_17.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_18.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_18.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_19.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_20.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_21.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_22.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_21.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_22.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_23.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_24.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_25.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_26.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_27.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_28.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_26.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_27.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_28.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_29.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_30.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_31.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_32.hdf5', False)
+	# print_contingency('gen_bidi_500_deep_30.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_31.hdf5', True)
+	# print_contingency('gen_bidi_500_deep_32.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_33.hdf5', False)
 	# print_contingency('gen_bidi_500_deep_34.hdf5', True)
 	# print_contingency('gen_bidi_500_deep_35.hdf5', True)

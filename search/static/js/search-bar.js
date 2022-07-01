@@ -30,8 +30,8 @@ window.addEventListener('popstate', function(event) {
         $('#end_year').val(event.state['end_year']);
         $('#query_type').val(event.state['query_type']);
         $('#query_annotation').val(event.state['query_annotation']);
-        $('#expanded_query_acids').val(event.state['expanded_query_acids']);
-        $('#unmatched_terms').val(event.state['unmatched_terms']);
+        $('#narrowed_query_a_cids').val(event.state['narrowed_query_a_cids']);
+        $('#unmatched_list').val(event.state['unmatched_list']);
         $('#pivot_complete_acid').val(event.state['pivot_complete_acid']);
         $('#pivot_cid').val(event.state['pivot_cid']);
         $('#pivot_term').val(event.state['pivot_term']);
@@ -376,8 +376,8 @@ function post_search_text() {
         journals : chipInstance.chipsData,
         query_type : "keyword",
         query_annotation : $('#query_annotation').val(),
-        expanded_query_acids : $('#expanded_query_acids').val(),
-        unmatched_terms : $('#unmatched_terms').val(),
+        narrowed_query_a_cids : $('#narrowed_query_a_cids').val(),
+        unmatched_list : $('#unmatched_list').val(),
         pivot_cid : null,
         pivot_term : null,
   }

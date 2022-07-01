@@ -13,9 +13,14 @@ $(document).ready(function() {
 		query_list.push($(this).val());
 	}).get();
 	
-	var expanded_query_acids = [];
-	$('[name="expanded_query_acids[]"]').each(function() {
-		expanded_query_acids.push($(this).val());
+	var narrowed_query_a_cids = [];
+	$('[name="narrowed_query_a_cids[]"]').each(function() {
+		narrowed_query_a_cids.push($(this).val());
+	}).get();
+
+	var unmatched_list = [];
+	$('[name="unmatched_list[]"]').each(function() {
+		unmatched_list.push($(this).val());
 	}).get();
 
 	var pivot_complete_acid = []
@@ -32,9 +37,9 @@ $(document).ready(function() {
 			journals : chipInstance.chipsData,
 			query_type : "pivot",
 			query_annotation : query_list,
-			expanded_query_acids : expanded_query_acids,
+			narrowed_query_a_cids : narrowed_query_a_cids,
 			pivot_complete_acid : pivot_complete_acid,
-			unmatched_terms : $('#unmatched_terms').val(),
+			unmatched_list : unmatched_list,
 			pivot_cid : form.find('#pivot_cid').val(),
 			pivot_term : form.find('#pivot_term').val(),
   		}

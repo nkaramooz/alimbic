@@ -21,8 +21,8 @@ import regex as re
 from ml2 import get_all_concepts_of_interest
 from ml2 import get_all_conditions_set, get_all_causes_set, get_all_treatments_set, get_all_diagnostics_set
 from ftplib import FTP
-from bs4 import BeautifulSoup
 from time import sleep
+import numpy as np
 
 INDEX_NAME = 'pubmedx2.0'
 NUM_PROCESSES = 48
@@ -3121,7 +3121,11 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
 							get_abstract_conceptids_2(json_str, article_text, lmtzr)
-						
+
+						sentence_annotations_df['final_ann'] = np.where((sentence_annotations_df['final_ann'].str.replace('.','').str.isnumeric()) &
+							(sentence_annotations_df['acid'] == '-1'), 'NUM' + sentence_annotations_df['final_ann'], sentence_annotations_df['final_ann'])
+
+
 						sentence_annotations_df['ver'] = 0
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
@@ -3388,7 +3392,7 @@ def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr):
 
 	cleaned_text = ann2.clean_text(article_text)
 
-	all_words = ann2.get_all_words_list(cleaned_text, lmtzr)
+	all_words = ann2.get_all_words_list(cleaned_text)
 
 	cache = ann2.get_cache(all_words_list=all_words, case_sensitive=True, \
 			check_pos=False, spellcheck_threshold=100, lmtzr=lmtzr)

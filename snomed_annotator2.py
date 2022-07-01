@@ -561,6 +561,12 @@ def resolve_conflicts(results_df):
 	final_results = final_results.append(acronym_df)
 	return final_results
 
+def get_preferred_concept_names(a_cid, cursor):
+	search_query = "select acid, term from annotation2.preferred_concept_names \
+			where acid = %s"
+	params = (a_cid,)
+	names_df = pg.return_df_from_query(cursor, search_query, params, ['acid', 'term'])
+	return names_df['term'][0]
 
 def add_names(results_df, cursor):
 	if results_df is None:
@@ -697,11 +703,10 @@ def get_children(conceptid, cursor):
 
 	return child_df['child_acid'].tolist()
 
-def get_all_words_list(text, lmtzr):
+def get_all_words_list(text):
 	tokenized = nltk.sent_tokenize(text)
 	all_words = []
-	if lmtzr is None:
-		lmtzr = WordNetLemmatizer()
+
 	for ln_num, line in enumerate(tokenized):
 		words = line.split()
 
@@ -1053,6 +1058,10 @@ if __name__ == "__main__":
 	query92="hyaluronic acid lung cancer"
 	query93="CT-directed pelvic oblique radiograph conventional hip radiographs, computed axial tomography (CT)"
 	query94="Gastric cancer insulin"
+	query95="Alzheimer's disease"
+	query96="Covid-19"
+	query97="ALS"
+	query98="A 16-Year-Old Boy With Cough and Fever in the Era of COVID-19."
 	# unittest.main()
 	
 	counter = 0
@@ -1061,22 +1070,22 @@ if __name__ == "__main__":
 	lmtzr = WordNetLemmatizer()
 
 	while (counter < 1):
-		term = query94
+		term = query98
 		term = clean_text(term)
 
-		all_words = get_all_words_list(term, lmtzr)
+		all_words = get_all_words_list(term)
 
 		spellcheck_threshold = 100
 
 		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
-			check_pos=False, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
-
+			check_pos=True, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
+		print(cache)
 		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
 			columns=['line', 'section', 'section_ind', 'ln_num'])
 		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
 		res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
-			case_sensitive=True, check_pos=False, bool_acr_check=False,\
+			case_sensitive=True, check_pos=True, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=True, lmtzr=None)
 

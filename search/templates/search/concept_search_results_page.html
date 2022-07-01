@@ -13,11 +13,13 @@
 				<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
 			{% endfor %}
 
-			{% for i in expanded_query_acids %}
-				<input type="hidden" name="expanded_query_acids[]" id="expanded_query_acids" value="{{i}}">
+			{% for i in narrowed_query_a_cids %}
+				<input type="hidden" name="narrowed_query_a_cids[]" id="narrowed_query_a_cids" value="{{i}}">
 			{% endfor %}
 
-			<input type="hidden" name="unmatched_terms" id="unmatched_terms" value="{{unmatched_terms}}">
+			{% for i in unmatched_list %}
+				<input type="hidden" name="unmatched_list[]" id="unmatched_list" value="{{i}}">
+			{% endfor %}
 		</div>
 
 

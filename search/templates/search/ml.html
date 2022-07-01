@@ -1,15 +1,29 @@
-<head> 
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
-</head>
+{% include 'search/main_header.html' with css='css/search.css' search_active='active' vanc_active='' %}
 
-<h1> ML / Treatment example </h1>
+
+<div body>
+
+<div class="container">
+	<h1> Treatment candidate generation </h1>
+	<br>
 <form action="{% url 'search:post_ml' %}" method="post"> 
 {% csrf_token %}
-	<h3> sentence: <input type="textarea" name="sentence" value="{{input_sentence}}"> </h3> <br> 
-	<h3> index: <input type="text" name="index"></h3><br>
-
-	<h3> {{ sentence_tuple }} </h3> <br><br>
-	<h3> {{res }} </h3><br> <br>
+	<h4> Input sentence <input class='materialize-textarea' name="sentence" value="{{input_sentence}}"> </h4> <br> 
+	<!-- {{results}} -->
+	{% for key,value in results.items %}
+		<b>{{key}}</b>
+		<br>
+		{% for i in value %}
+			{{i}}
+			<br>
+		{% endfor %}
+		<!-- {{ key }} -->
+		<!-- {% for i in results.key %}
+			{{i}}
+		{% endfor %} -->
+	{% endfor %}
+	<br>
 	<input type="submit" value="submit">
 </form>
+</div>
+</div>

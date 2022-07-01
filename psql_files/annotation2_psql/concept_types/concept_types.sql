@@ -1,4 +1,6 @@
 set schema 'annotation2';
+-- active=2 - too broad to use in training and too broad to display
+-- active=3 - too broad to display
 
 drop table if exists concept_types;
 
