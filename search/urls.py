@@ -20,8 +20,8 @@ urlpatterns = [
     # url(r'^labelling/post/$', views.post_labelling, name='post_labelling'),
     # url(r'^labelling/', views.labelling, name='labelling'),
 
-    url(r'^ml/post/$', views.post_ml, name='post_ml'),
-    url(r'^ml/', views.ml, name='ml'),
+    # url(r'^ml/post/$', views.post_ml, name='post_ml'),
+    # url(r'^ml/', views.ml, name='ml'),
 
     # url(r'^ajax/getJournals/$', views.getJournals, name='getJournals'),
 ]
