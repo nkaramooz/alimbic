@@ -8,7 +8,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils2 as u
 import pandas as pd
 import utilities.es_utilities as es_util
-from ml2 import analyze_sentence
+# from ml2 import analyze_sentence
 import math
 from django.http import JsonResponse
 import json
