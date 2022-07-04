@@ -3,20 +3,28 @@ $(document).ready(function() {
     
 	event.preventDefault();
 
-
 	$('#results').hide();
 	$('#loader').removeClass("inactive");
 	$('#loader').addClass("active");
 	var form = $(this).parent();
-	var query_list = [];
-	$('[name="query_annotation[]"]').each(function() {
-		query_list.push($(this).val());
-	}).get();
 	
-	var narrowed_query_a_cids = [];
-	$('[name="narrowed_query_a_cids[]"]').each(function() {
-		narrowed_query_a_cids.push($(this).val());
-	}).get();
+	var primary_a_cids = [];
+	var a_cid_id_array = [];
+
+	$("[id^='primary_a_cids']").each(function(){
+		if(jQuery.inArray(this.id, a_cid_id_array) == -1) {
+			a_cid_id_array.push(this.id);
+		}
+	});
+
+	$.each( a_cid_id_array, function(key, value){
+		sub_array = [];
+
+		$("[id="+value+"]").each(function() {
+				sub_array.push($(this).val());
+			}).get();
+		primary_a_cids.push(sub_array);
+	});
 
 	var unmatched_list = [];
 	$('[name="unmatched_list[]"]').each(function() {
@@ -36,8 +44,7 @@ $(document).ready(function() {
 			end_year : $('#end_year').val(),
 			journals : chipInstance.chipsData,
 			query_type : "pivot",
-			query_annotation : query_list,
-			narrowed_query_a_cids : narrowed_query_a_cids,
+			primary_a_cids : primary_a_cids,
 			pivot_complete_acid : pivot_complete_acid,
 			unmatched_list : unmatched_list,
 			pivot_cid : form.find('#pivot_cid').val(),

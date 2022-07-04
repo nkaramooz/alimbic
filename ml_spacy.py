@@ -6,17 +6,17 @@ import sqlalchemy as sqla
 import multiprocessing as mp
 import pandas as pd
 from spacy.tokens import DocBin
-from typing import Callable, Iterable, Iterator
-from spacy import util
+from typing import Callable, Iterator, List
 from spacy.training import Example
-from spacy import Language
+from spacy.language import Language
+from tqdm import tqdm
 
-conditions_set = ml2.get_all_conditions_set()
-treatments_set = ml2.get_all_treatments_set()
-diagnostics_set = ml2.get_all_diagnostics_set()
-causes_set = ml2.get_all_causes_set()
-outcomes_set = ml2.get_all_outcomes_set()
-statistics_set = ml2.get_all_statistics_set()
+# conditions_set = ml2.get_all_conditions_set()
+# treatments_set = ml2.get_all_treatments_set()
+# diagnostics_set = ml2.get_all_diagnostics_set()
+# causes_set = ml2.get_all_causes_set()
+# outcomes_set = ml2.get_all_outcomes_set()
+# statistics_set = ml2.get_all_statistics_set()
 
 def gen_dataset_worker(input):
 	for func,args in iter(input.get, 'STOP'):
@@ -53,12 +53,13 @@ def gen_ner_data_bottom(old_version, new_version):
 		select 
 			sentence_id
 			,sentence_tuples
+			,rand
 		from spacy.concept_ner_tuples
 		where ver = %s limit 5000
 	"""
 
 	ner_sentences_df = pg.return_df_from_query(cursor, get_query, \
-				(old_version,), ['sentence_id', 'sentence_tuples'])
+				(old_version,), ['sentence_id', 'sentence_tuples', 'rand'])
 
 	counter = 0
 
@@ -74,7 +75,7 @@ def gen_ner_data_bottom(old_version, new_version):
 		cursor.connection.commit()
 
 		ner_sentences_df = pg.return_df_from_query(cursor, get_query, \
-				(old_version,), ['sentence_id', 'sentence_tuples'])
+				(old_version,), ['sentence_id', 'sentence_tuples', 'rand'])
 
 		counter += 1
 
@@ -147,12 +148,12 @@ def gen_ner_dataset(ner_sentences_df):
 
 		full_sentence = full_sentence.rstrip()
 		if len(labels) != 0:
-			res_df = res_df.append(pd.DataFrame([[row['sentence_id'], (full_sentence, labels), 0]], 
-				columns=['sentence_id', 'train', 'ver']))
+			res_df = res_df.append(pd.DataFrame([[row['sentence_id'], (full_sentence, labels), row['rand'], 0]], 
+				columns=['sentence_id', 'train', 'rand', 'ver']))
 
 	engine = pg.return_sql_alchemy_engine()
 
-	res_df.to_sql('concept_ner_train', engine, schema='spacy', if_exists='append', \
+	res_df.to_sql('concept_ner_all', engine, schema='spacy', if_exists='append', \
 		 index=False, dtype={'train' : sqla.types.JSON})
 	engine.dispose()
 
@@ -194,30 +195,57 @@ def save_label_set():
 		"""
 		cursor.execute(update_query, (1, train_df['sentence_id'].values.tolist(), ))
 		cursor.connection.commit()
-		print(label_list)
+
 	cursor.close()
 	conn.close()
 	db.to_disk("./labels.spacy")
 
 
-def get_training_df():
+def get_data_df(is_train):
 	conn,cursor = pg.return_postgres_cursor()
-	query = """
-		select 
-			sentence_id
-			,train
-		from spacy.concept_ner_train
-		limit 500
-	"""
-	train_df = pg.return_df_from_query(cursor, query, None, 
-		['sentence_id', 'train'])
-	return train_df
+	if is_train:
+		query = """
+			select 
+				sentence_id
+				,train
+			from spacy.concept_ner_train
+			where ver=0
+			limit 200000
+		"""
+		data_df = pg.return_df_from_query(cursor, query, None, 
+			['sentence_id', 'train'])
 
-def prepare_train_data():
+		query = """
+			UPDATE spacy.concept_ner_train
+			SET ver=1 where sentence_id = ANY(%s)
+		"""
+		sentence_ids = data_df['sentence_id'].tolist()
+		cursor.execute(query, (sentence_ids,))
+		cursor.connection.commit()
+		conn.close()
+		cursor.close()
+		return data_df
+	else:
+		query = """
+			select 
+				sentence_id
+				,train
+			from spacy.concept_ner_validation
+		"""
+		data_df = pg.return_df_from_query(cursor, query, None, 
+			['sentence_id', 'train'])
+		conn.close()
+		cursor.close()
+		return data_df
+
+def prepare_train_data(is_train):
+	print("start load")
 	nlp = spacy.load("en_core_web_trf")
+	print("end load")
 	db = DocBin()
-	training_data_df = get_training_df()
-	for row in training_data_df.to_dict('records'):
+	data_df = get_data_df(is_train)
+	print("starting iterator")
+	for row in tqdm(data_df.to_dict('records')):
 		doc = nlp(row['train'][0])
 		ents = []
 		for item in row['train'][1]:
@@ -225,19 +253,33 @@ def prepare_train_data():
 			ents.append(span)
 		doc.ents = ents
 		db.add(doc)
-	db.to_disk("./train.spacy")
+	if is_train:
+		db.to_disk("./train_2.spacy")
+	else:
+		db.to_disk("./validation.spacy")
 
 
 # @util.registry.readers("corpus_generator")
 # def create_corpus_generator(limit: int = -1) -> Callable[[Language], Iterable[Example]]:
+# 	return CorpusGenerator(limit)
+
+# class CorpusGenerator:
+# 	def __init__(self, limit):
+# 		self.limit = limit
+
+# 	def __call__(self, nlp: Language) -> Iterator[Example]:
+
 
 if __name__ == "__main__":
 	# save_label_set()
-	gen_ner_data_top()
-	# prepare_train_data()
+	# gen_ner_data_top()
+	prepare_train_data(is_train=True)
 	# nlp = spacy.load("en_core_web_trf")
-	# nlp = spacy.load("./output/model-last")
+	# sentences = [["this is a test"], ['this is another test']]
+	# print(nlp(sentences))
+
+	# nlp = spacy.load("./output/model-best")
 	# contextualSpellCheck.add_to_pipe(nlp)
-	# doc = nlp("subaru went to school on Tuesday")
+	# doc = nlp("Flubiodarone and metroprolol for patients with atria arrhythmia on hemodialysis")
 
 	# displacy.serve(doc, style='ent')

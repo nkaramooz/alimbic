@@ -4,6 +4,7 @@ drop table if exists concept_ner_tuples;
 create table if not exists concept_ner_tuples (
 	 sentence_id varchar(40) not null
 	,sentence_tuples jsonb
+	,rand float
 	,ver integer
 );
 
@@ -11,6 +12,7 @@ insert into concept_ner_tuples
 	select
 		sentence_id
 		,sentence_tuples
+		,random() as rand
 		,0 as ver
 	from pubmed.sentence_tuples_2
 ;

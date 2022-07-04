@@ -20,6 +20,7 @@ txp_*
 *.txt
 *.bak
 *.spacy
-output/
+output*/
+label*/
 
 

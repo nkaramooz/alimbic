@@ -13,9 +13,9 @@ import os
 import random
 import sys
 import snomed_annotator2 as ann2
-# import tensorflow as tf
-# from tensorflow import keras
-# from tensorflow.keras import layers
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
 from keras.layers import Input
 from keras.layers import Embedding, LSTM, Dense, Dropout, Flatten
 from keras.layers import Bidirectional

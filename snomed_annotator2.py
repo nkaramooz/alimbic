@@ -19,6 +19,7 @@ import time
 import sys
 import sqlite3
 
+
 # Below is used to annotate abstracts; faster but no tolerance for typos
 def get_new_candidate_df(word, case_sensitive, spellcheck_threshold):
 	new_candidate_query = ""
@@ -129,6 +130,10 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 		if w.lower() != 'vs' and w.upper() != w:
 			if w == 'doses':
 				w = 'dose'
+			elif w == 'als':
+				pass
+			elif w == 'randomized':
+				w='randomize'
 			elif w == 'does':
 				w = 'do'
 			elif w == 'induces' or w == 'induced' or w == 'inducing':
@@ -167,9 +172,9 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 				if check_pos:
 					w = lmtzr.lemmatize(w, pos_tag[i])
 				else:
-					lmtzr.lemmatize('protein')
 					w = lmtzr.lemmatize(w)
 		ln_lemmas.append(w)
+
 	return ln_lemmas
 
 
@@ -529,7 +534,11 @@ def resolve_conflicts(results_df):
 				last_term_start_index = row['term_start_index']
 				last_ln_num = row['ln_num']
 				last_section_ind = row['section_ind']
-
+		final_results = final_results.append(acronym_df)
+		return final_results
+	else:
+		results_df = results_df.append(acronym_df)
+		return results_df
 	# Really should only want below for query annotation. Not document annotation
 	 #first try and choose most common concept. If not choose randomly
 	# else:
@@ -558,8 +567,7 @@ def resolve_conflicts(results_df):
 	# 			last_ln_num = row['ln_num']
 	# 			last_section_ind = row['section_ind']
 
-	final_results = final_results.append(acronym_df)
-	return final_results
+	
 
 def get_preferred_concept_names(a_cid, cursor):
 	search_query = "select acid, term from annotation2.preferred_concept_names \
@@ -635,8 +643,9 @@ def get_annotated_tuple(c_df):
 # when child_candidates is provided, it does not expand the query
 # but rather reformats arrays around primary cids and filters
 # to only child acids that exist in the search results
-def query_expansion(conceptid_series, child_candidates, cursor):
-	conceptid_tup = tuple(conceptid_series)
+def query_expansion(conceptid_series, flattened_concept_list, child_candidates, cursor):
+
+	conceptid_tup = tuple(flattened_concept_list)
 	if child_candidates is None and len(conceptid_tup) > 0:
 
 		# may need to artificially limit query size at some point for 
@@ -652,7 +661,6 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
 			["child_acid", "parent_acid"])
 
-		
 	elif child_candidates is not None and len(conceptid_tup) > 0:
 		child_candidates_tup = tuple(child_candidates)
 		child_query = """
@@ -670,19 +678,23 @@ def query_expansion(conceptid_series, child_candidates, cursor):
 		return []
 
 	results_list = []
-	for item in conceptid_series:
-		temp_res = [item]
-		added_other = False
-		# JUST CHANGED PARENTHESES location
+	for a_cid_list in conceptid_series:
+		sub_results_list = []
+		for item in a_cid_list:
+			temp_res = [item]
+			added_other = False
+			# JUST CHANGED PARENTHESES location
 
-		if len(child_df[child_df['parent_acid'] == item].index) > 0:
-			temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
-			added_other = True
+			if len(child_df[child_df['parent_acid'] == item].index) > 0:
+				temp_res.extend(child_df[child_df['parent_acid'] == item]['child_acid'].tolist())
+				added_other = True
 
-		if added_other:
-			results_list.append(temp_res)
-		else:
-			results_list.extend(temp_res)
+			if added_other:
+				sub_results_list.append(temp_res)
+			else:
+				sub_results_list.append(temp_res)
+		if len(sub_results_list) > 0:
+			results_list.append(sub_results_list)
 
 	return results_list
 
@@ -779,6 +791,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 		words_df = words_df.append(line_words_df, sort=False)
 
 	if len(concepts_df.index) > 0:
+
 		concepts_df = resolve_conflicts(concepts_df)
 
 		if bool_acr_check:
@@ -1061,7 +1074,8 @@ if __name__ == "__main__":
 	query95="Alzheimer's disease"
 	query96="Covid-19"
 	query97="ALS"
-	query98="A 16-Year-Old Boy With Cough and Fever in the Era of COVID-19."
+	query98="ALS cough"
+	query99 = "Migraine Randomized controlled trial"
 	# unittest.main()
 	
 	counter = 0
@@ -1070,7 +1084,7 @@ if __name__ == "__main__":
 	lmtzr = WordNetLemmatizer()
 
 	while (counter < 1):
-		term = query98
+		term = query99
 		term = clean_text(term)
 
 		all_words = get_all_words_list(term)
@@ -1087,7 +1101,7 @@ if __name__ == "__main__":
 		res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
 			case_sensitive=True, check_pos=True, bool_acr_check=False,\
 			spellcheck_threshold=spellcheck_threshold, \
-			write_sentences=True, lmtzr=None)
+			write_sentences=True, lmtzr=lmtzr)
 
 		d.stop()
 		u.pprint(g['sentence_tuples'].tolist())

@@ -481,7 +481,7 @@ def post_search_text(request):
 	unmatched_list = []
 	pivot_term = None
 	query_type = ''
-	primary_cids = None
+	primary_a_cids = []
 	query = ''
 	filters = {}
 	query = None
@@ -494,11 +494,8 @@ def post_search_text(request):
 
 		query = parsed['/search/query'][0]
 
-		if 'query_annotation[]' in parsed:
-			primary_cids = parsed['query_annotation[]']
-
-		if 'narrowed_query_a_cids[]' in parsed:
-			narrowed_query_a_cids = parsed['narrowed_query_a_cids[]']
+		if 'primary_a_cids[]' in parsed:
+			primary_a_cids = parsed['primary_a_cids[]']
 
 		if 'pivot_complete_acid[]' in parsed:
 			pivot_complete_acid = parsed['pivot_complete_acid[]']
@@ -543,20 +540,17 @@ def post_search_text(request):
 		else: 
 			unmatched_list = []
 
-		if 'query_annotation' in data:
-			primary_cids = data['query_annotation']
-
-		if 'narrowed_query_a_cids' in data:
-			narrowed_query_a_cids = data['narrowed_query_a_cids']
+		if 'primary_a_cids' in data:
+			primary_a_cids = data['primary_a_cids']
 		else:
-			narrowed_query_a_cids = []
+			primary_a_cids = []
 
 		if 'pivot_complete_acid' in data:
 			pivot_complete_acid = data['pivot_complete_acid']
 
 		if 'pivot_cid' in data:
 			if data['pivot_cid'] is not None:
-				primary_cids.append(data['pivot_cid'])
+				primary_a_cids.append([data['pivot_cid']])
 
 	sr = dict()
 	related_dict = {}
@@ -569,12 +563,10 @@ def post_search_text(request):
 	flattened_query = None
 
 	if query_type == 'pivot':
-		query_concepts_df = pd.DataFrame(primary_cids, columns=['acid'])
-		query_concepts_types = get_query_concept_types_df(query_concepts_df['acid'].tolist(), cursor)
-		query_types_list = query_concepts_types['concept_type'].tolist()
-		narrowed_query_a_cids.extend(pivot_complete_acid)
-		full_query_concepts_list = ann2.query_expansion(primary_cids, narrowed_query_a_cids, cursor)
 
+		flattened_concepts_list = [a_cid for item in primary_a_cids for a_cid in item]
+		query_types_list = get_query_concept_types_df(flattened_concepts_list, cursor)['concept_type'].tolist()
+		full_query_concepts_list = ann2.query_expansion(primary_a_cids, flattened_concepts_list, None, cursor)
 		pivot_term = None
 
 		if request.method == 'POST':
@@ -585,7 +577,7 @@ def post_search_text(request):
 		
 		params = filters 
 
-		flattened_query_concepts_list = get_flattened_query_concept_list(full_query_concepts_list)
+		flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 
 		es_query = {"from" : 0, \
 				 "size" : 50, \
@@ -594,9 +586,9 @@ def post_search_text(request):
 
 		sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)
 
-		treatment_dict, diagnostic_dict, condition_dict, cause_dict, narrowed_query_a_cids = get_related_conceptids(full_query_concepts_list, primary_cids,\
-			flattened_query_concepts_list, query_types_list, unmatched_list, filters, cursor)
-		
+		treatment_dict, diagnostic_dict, condition_dict, cause_dict, narrowed_query_a_cids = get_related_conceptids(full_query_concepts_list, \
+			flattened_concepts_list,flattened_query, query_types_list, unmatched_list, filters, cursor)
+
 		sr_payload = get_sr_payload(sr['hits']['hits'], narrowed_query_a_cids, unmatched_list, cursor)
 
 		
@@ -633,19 +625,26 @@ def post_search_text(request):
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=False, lmtzr=lmtzr)
 	
-		primary_cids = None
+		primary_a_cids = []
 
 		if not query_concepts_df['acid'].isnull().all():
 			query_concepts_df = query_concepts_df[query_concepts_df['acid'].notna()].drop_duplicates(subset=['acid']).copy()
-			primary_cids = list(set(query_concepts_df['acid'].tolist()))
-			query_types_list = get_query_concept_types_df(primary_cids, cursor)['concept_type'].tolist()
+
+			term_indices = set(query_concepts_df['term_start_index'].tolist())
+
+			for index in term_indices:
+				primary_a_cids.append(query_concepts_df[query_concepts_df['term_start_index']==index]['acid'].tolist())
+
+			flattened_concepts_list = [a_cid for item in primary_a_cids for a_cid in item]
+
+			query_types_list = get_query_concept_types_df(flattened_concepts_list, cursor)['concept_type'].tolist()
 
 			unmatched_list = get_unmatched_list(query, query_concepts_df)
 
-			full_query_concepts_list = ann2.query_expansion(primary_cids, None, cursor)
+			# full_query_concepts_list format = [[[], []], []]
+			full_query_concepts_list = ann2.query_expansion(primary_a_cids, \
+				flattened_concepts_list, None, cursor)
 
-			# full_query_concepts_list format = [[], []]
-			# flattened reduces to single list
 			flattened_query = get_flattened_query_concept_list(full_query_concepts_list)
 
 			query_concept_count = len(query_concepts_df.index)
@@ -655,31 +654,34 @@ def post_search_text(request):
 						 "query": get_query(full_query_concepts_list, unmatched_list, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
-	
+
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)	
 
 		if query_concepts_df['acid'].isnull().all() or len(sr['hits']['hits']) == 0:
+			print("keyword query")
 			#query filtered for non-alphanumeric standalone characters
 			unmatched_list = words
 			es_query = get_keyword_query(query)
+
 			sr = es.search(index=INDEX_NAME, body=es_query)
+			narrowed_query_a_cids = []
 		else:
 			treatment_dict, diagnostic_dict, condition_dict, cause_dict, narrowed_query_a_cids = get_related_conceptids(full_query_concepts_list, \
-						primary_cids, flattened_query, query_types_list, unmatched_list, filters, cursor)
+						flattened_concepts_list, flattened_query, query_types_list, unmatched_list, filters, cursor)
 
 		sr_payload = get_sr_payload(sr['hits']['hits'], narrowed_query_a_cids, unmatched_list, cursor)
 
 
-	calcs_json = get_calcs(query_concepts_df, cursor)
+	# calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
-	log_query(ip, query, primary_cids, narrowed_query_a_cids, unmatched_list, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor)
+	log_query(ip, query, primary_a_cids, narrowed_query_a_cids, unmatched_list, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor)
 	cursor.close()
 	conn.close()
 
 	if request.method == 'POST':
 		html = render(request, 'search/concept_search_results_page.html', {'sr_payload' : sr_payload, 
-				'query' : query, 'query_annotation' : query_concepts_df['acid'].tolist(),
-				'narrowed_query_a_cids' : narrowed_query_a_cids,
+				'query' : query,
+				'primary_a_cids' : primary_a_cids,
 				'unmatched_list' : unmatched_list, \
 				'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
 				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
@@ -814,6 +816,7 @@ def log_query (ip_address, query, primary_cids, expanded_query_acids, unmatched_
 
 def get_sr_payload(sr, expanded_query_acids, unmatched_list, cursor):
 	sr_list = []
+	expanded_query_acids = [a_cid for item in expanded_query_acids for a_cid in item]
 
 	terms = []
 	if len(expanded_query_acids) > 0:
@@ -926,22 +929,27 @@ def get_concept_string(conceptid_series):
 	return result_string.strip()
 
 def get_concept_query_string(full_conceptid_list):
+	query_string = "( "
+	for a_cid_list in full_conceptid_list:
+		query_string += "( "
+		for item in a_cid_list:
+			query_string += "("
 
-	query_string = ""
-	for item in full_conceptid_list:
-		if type(item) == list:
 			counter = 10
-			query_string += "( "
+			
 			for concept in item:
 				query_string += concept + "^" + str(counter) + " OR "
 				if counter != 1:
 					counter -= 1
 			query_string = query_string.rstrip('OR ')
-			query_string += ") AND "
-		else:
-			query_string += item + " AND "
-	query_string = query_string.rstrip("AND ")
+			query_string += ") OR "
 
+		query_string = query_string.rstrip(" OR ")
+
+		query_string += ") AND " 
+
+	query_string = query_string.rstrip("AND ")
+	query_string += ") "
 	return query_string
 
 def get_article_type_query_string(concept_type_list, unmatched_list):
@@ -1052,12 +1060,11 @@ def get_flattened_query_concept_list(concept_list):
 	return flattened_query_concept_list
 
 def get_query_concept_types_df(flattened_concept_list, cursor):
-
+	
 	concept_type_query_string = """
 		select root_acid as acid, rel_type as concept_type 
 		from annotation2.concept_types where active=1 and root_acid in %s
 	"""
-
 	query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
 		(tuple(flattened_concept_list),), ["acid", "concept_type"])
 
@@ -1066,6 +1073,7 @@ def get_query_concept_types_df(flattened_concept_list, cursor):
 
 def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 
+	query_concept_list = [a_cid for item in query_concept_list for a_cid in item]
 	dist_concept_list = list(set(conceptid_df['acid'].tolist()))
 
 	if len(dist_concept_list) > 0:

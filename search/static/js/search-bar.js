@@ -29,7 +29,7 @@ window.addEventListener('popstate', function(event) {
         $('#start_year').val(event.state['start_year']);
         $('#end_year').val(event.state['end_year']);
         $('#query_type').val(event.state['query_type']);
-        $('#query_annotation').val(event.state['query_annotation']);
+
         $('#narrowed_query_a_cids').val(event.state['narrowed_query_a_cids']);
         $('#unmatched_list').val(event.state['unmatched_list']);
         $('#pivot_complete_acid').val(event.state['pivot_complete_acid']);
@@ -369,14 +369,31 @@ function post_search_text() {
   $('#loader').addClass("active");
   var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
 
+  var primary_a_cids = [];
+  var a_cid_id_array = [];
+
+  $("[id^='primary_cids']").each(function(){
+    if(jQuery.inArray(this.id, a_cid_id_array) == -1) {
+      a_cid_id_array.push(this.id);
+    }
+  });
+
+  $.each( a_cid_id_array, function(key, value){
+    sub_array = [];
+
+    $("[id="+value+"]").each(function() {
+        sub_array.push($(this).val());
+      }).get();
+    primary_a_cids.push(sub_array);
+  });
+
 
   var data1 = { query : $('#search_box').val(),
          start_year : $('#start_year').val(),
         end_year : $('#end_year').val(),
         journals : chipInstance.chipsData,
         query_type : "keyword",
-        query_annotation : $('#query_annotation').val(),
-        narrowed_query_a_cids : $('#narrowed_query_a_cids').val(),
+        primary_a_cids : primary_a_cids,
         unmatched_list : $('#unmatched_list').val(),
         pivot_cid : null,
         pivot_term : null,

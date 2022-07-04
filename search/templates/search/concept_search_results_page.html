@@ -9,12 +9,11 @@
 	<div class="col s12">
 		<div class="query-display">
 
-			{% for i in query_annotation %}
-				<input type="hidden" name="query_annotation[]" id="query_annotation" value="{{i}}">
-			{% endfor %}
-
-			{% for i in narrowed_query_a_cids %}
-				<input type="hidden" name="narrowed_query_a_cids[]" id="narrowed_query_a_cids" value="{{i}}">
+			{% for lst in primary_a_cids %}
+				{{forloop.counter}}
+				{% for i in lst %}
+					<input type="hidden" name="primary_a_cids[]" id="primary_a_cids{{forloop.parentloop.counter}}" value="{{i}}">
+				{% endfor %}
 			{% endfor %}
 
 			{% for i in unmatched_list %}
