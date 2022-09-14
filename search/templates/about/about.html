@@ -1,0 +1,18 @@
+{% load app_filters %}
+{% load static %}
+<script src="{% static "js/search-results.js" %}"></script>
+{% include 'search/main_header.html' with css='css/search.css' search_active='active'%}
+{% include 'search/nav_bar.html' %}
+<body id="main_body" style="font-family: sans-serif;">
+	<div class="row">
+		<div class="col s6 offset-s3"> 
+			<h3> About </h3>
+		</div>
+	</div>
+	<div class="row">
+		<div class="col s9 offset-s3">
+			<p> 
+				This is some text to explain why this was built 
+			</p>
+	</div>
+</body>
