@@ -11,6 +11,7 @@ urlpatterns = [
     url(r'^$', views.concept_search_home_page, name='concept_search_home_page'),
     url(r'^concept_override/post/$', views.post_concept_override, name='post_concept_override'),
     url(r'^concept_override/', views.concept_override, name='concept_override'),
+    url(r'^search/', views.post_search_text, name='post_search_text'),
     # url(r'^training/post/$', views.post_training, name='post_training'),
     # url(r'^training/', views.training, name='training'),
     url(r'^search/', views.post_search_text, name='post_search_text'),
