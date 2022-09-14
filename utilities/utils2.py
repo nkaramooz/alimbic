@@ -6,8 +6,8 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 def get_es_client():
-	# es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
+	es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
 	return es
 
 class Timer:
