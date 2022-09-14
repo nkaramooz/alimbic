@@ -1,6 +1,7 @@
 {% load app_filters %}
 {% load static %}
 
+<script src="{% static "js/search-bar.js" %}"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
 <div class="container" id="search_bar_container">
@@ -10,7 +11,7 @@
 				<h7 class="sub_name_header" style="font-family: Arial;"> clinical search <sub><b>beta</b></sub></h7>
 			</div>
 
-	<form action="/post_search_text/" method="POST" id="post_search_text"> 
+	<form action="/post_search_text/" method="POST" id="post_search_text" onsubmit="return false;"> 
 		{% csrf_token %}
 
 			<div class="input-field col s12 m8 l8 offset-m2 offset-l2 center">

@@ -402,17 +402,19 @@ function post_search_text() {
   $.ajax({
     url : "search/",
     type : "POST",
-    contentType: 'application/json',
+    contentType: "application/json",
+    dataType: "html",
+    async: false,
     data : JSON.stringify(data1),
 
-    success : function(json) {
+    success : function(html) {
       document.getElementById('search_box').disabled = false;
       document.getElementById('start_year').disabled = false;
       document.getElementById('end_year').disabled = false;
       document.getElementById('journals').disabled = false;
       $('#loader').removeClass("active");
       $('#loader').addClass("inactive");
-      $("#results").html(json);
+      $("#results").html(html);
       $('#results').show();
       var f = 'http://alimbic.com/search/' + jQuery.param(data1);
       // var f = 'http://127.0.0.1:8000/search/' + jQuery.param(data1);
@@ -420,10 +422,9 @@ function post_search_text() {
       
     },
 
-    error : function(xhr, errmsf, err) {
-      console.log(xhr);
-      console.log("error");
-      console.log("error here");
+    error : function(jqXHR) {
+      console.log(jqXHR.status);
+      console.log(jqXHR.responseText);
       document.getElementById('search_box').disabled = false;
       document.getElementById('start_year').disabled = false;
       document.getElementById('end_year').disabled = false;
