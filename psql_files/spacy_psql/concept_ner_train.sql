@@ -1,4 +1,5 @@
 set schema 'spacy';
+drop table if exists concept_ner_train;
 
 create table concept_ner_train as (
    select

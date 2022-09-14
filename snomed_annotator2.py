@@ -109,18 +109,35 @@ def get_new_candidate_df(word, case_sensitive, spellcheck_threshold):
 	conn.close()
 	return new_candidate_df
 
+def get_reverse_lemmas():
+	reverse_lemmas = {
+		'dose' : ['doses']
+		,'is' : ['are', 'be', 'was', 'were']
+		,'rct' : ['rcts']
+		,'randomized' : ['randomize']
+		,'do' : ['does']
+		,'bind' : ['bound', 'binding', 'binds']
+		,'control' : ['controlled', 'controlling', 'controls']
+		,'have' : ['has']
+		,'cause' : ['causing', 'causes', 'caused']
+		,'compute' : ['computed', 'computing', 'computes']
+		,'enroll' : ['enrolling', 'enrolled', 'enrolls']
+		,'release' : ['releasing', 'released', 'releases']
+		,'ovary' : ['ovarian', 'ovaries']
+		,'opioid' : ['opiate', 'opioids', 'opiates']
+		,'echocardiography' : ['echocardiographic']
+		,'ultrasonography' : ['ultrasonographic']
+		,'induce' : ['induces', 'induced', 'inducing']
+	}
+	return reverse_lemmas
 
 def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 	if check_pos:
 		pos_tag = get_wordnet_pos(ln_words)
-	
 	if lmtzr is None:
 		lmtzr = WordNetLemmatizer()
-
 	ln_lemmas = []
-
 	for i,w in enumerate(ln_words):
-
 		if not case_sensitive:
 			w = w.lower()
 		else:
@@ -130,14 +147,20 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 		if w.lower() != 'vs' and w.upper() != w:
 			if w == 'doses':
 				w = 'dose'
+			elif w=='is' or w=='are' or w=='be' or w=='was' or w=='were':
+				w='is'
 			elif w == 'als':
+				pass
+			elif w == 'rcts': 
+				w = 'rct'
+			elif w=='asses':
+				pass
+			elif w == 'as':
 				pass
 			elif w == 'randomized':
 				w='randomize'
 			elif w == 'does':
 				w = 'do'
-			elif w == 'induces' or w == 'induced' or w == 'inducing':
-				w = 'cause'
 			elif w == 'bound' or w == 'binding' or w == 'binds':
 				w = 'bind'
 			elif w == 'controlled' or w == 'controlling' or w == 'controls':
@@ -164,10 +187,14 @@ def get_lemmas(ln_words, case_sensitive, check_pos, lmtzr):
 				w='ovary'
 			elif w=='opiate' or w=='opiates' or w=='opioids':
 				w='opioid'
-			elif w=='was' or w=='were' or w=='is':
-				w='is'
 			elif w=='echocardiographic': 
 				w='echocardiography'
+			elif w=='ultrasonographic':
+				w='ultrasonography'
+			elif w=='radiography':
+				w='radiograph'
+			elif w=='electrocardiographic':
+				w='electrocardiograph'
 			else:
 				if check_pos:
 					w = lmtzr.lemmatize(w, pos_tag[i])
@@ -192,12 +219,14 @@ def get_wordnet_pos(ln_words):
 
 def return_line_snomed_annotation(line, spellcheck_threshold, case_sensitive, check_pos, cache, lmtzr):
 	annotation_header = ['query', 'substring', 'substring_start_index', 'substring_end_index', 'acid', 'is_acronym']
-	ln_words = line.split()
-	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
 	
+	cleaned_line = clean_text(line)
+	ln_words = cleaned_line.split()
+	ln_lemmas = get_lemmas(ln_words, case_sensitive, check_pos, lmtzr)
+
 	if len(cache) == 0:
 		words_df = pd.DataFrame()
-		ln_words = line.split()
+
 		for index,word in enumerate(ln_lemmas):
 			words_df = words_df.append(pd.DataFrame([[index, word]], columns=['term_index', 'term']))
 		words_df['line'] = line
@@ -588,11 +617,69 @@ def add_names(results_df, cursor):
 
 		return results_df
 
+# For errors check to make sure that get_reverse_lemmas has reverse lemmas
+def get_original_line_tuples(line, cleaned_tuples, case_sensitive, lmtzr):
+	# line = line.replace('/', ' ')
+	line_words = line.split()
+	max_index = len(line_words)
+	line_words_lemmas = get_lemmas(line_words, case_sensitive, True, lmtzr)
+	current_line_index = 0
+	og_annotated_tuples = []
+	prev_og_word = ""
+	reverse_lemmas = get_reverse_lemmas()
+	reverse_lemmas_keys = reverse_lemmas.keys()
+	split_counter = 0
+	prev_annotated_word = ""
+	# If item[0] is the same as previous item[0] the algorithm is not certain
+	# on the annotation, so both should be included.
+	for index, item in enumerate(cleaned_tuples):
+		# print(index,item, prev_og_word)
+		if current_line_index < max_index:
+
+			if prev_annotated_word == item[0]:
+				og_annotated_tuples.append((line_words[current_line_index-1], item[1]))
+			else:
+
+				cleaned_word = item[0].lower()
+				og_word = line_words_lemmas[current_line_index].lower()
+				# print("og_word", og_word)
+				og_set = set(clean_text(og_word).split())
+				last_word_set = set(clean_text(prev_og_word).split())
+				max_split = len(last_word_set)-1
+
+				if cleaned_word in reverse_lemmas_keys:
+					cleaned_words_plus_lemmas = [cleaned_word]
+					cleaned_words_plus_lemmas.extend(reverse_lemmas[cleaned_word])
+					cleaned_words_plus_lemmas = set(cleaned_words_plus_lemmas)
+				else:
+					new_forms = [cleaned_word]
+					for lem in wordnet.lemmas(cleaned_word):
+						for new_word in lem.derivationally_related_forms():
+							new_forms.append(new_word.name())
+					cleaned_words_plus_lemmas = set(new_forms)
+
+				# Return arbitrary string that wont appear in text. Very inelegant.
+				if len(last_word_set.intersection(cleaned_words_plus_lemmas)) > 0 and split_counter < max_split:
+					split_counter += 1
+					prev_og_word = line_words_lemmas[current_line_index-1].lower()
+				elif len(og_set.intersection(cleaned_words_plus_lemmas)) > 0:
+					og_annotated_tuples.append((line_words[current_line_index], item[1]))
+					current_line_index+=1
+					prev_og_word = og_word
+					split_counter = 0
+				else:
+					og_annotated_tuples.append((line_words[current_line_index], 0))
+					current_line_index += 1
+					last_word = og_word
+					split_counter = 0
+				prev_annotated_word = item[0]
+
+	return og_annotated_tuples
 
 def annotate_line(sentence_df, case_sensitive, check_pos, cache, \
 		spellcheck_threshold, lmtzr):	
 
-	line = clean_text(sentence_df['line'])
+	line = sentence_df['line']
 
 	words_df, annotation = return_line_snomed_annotation(line=line, spellcheck_threshold=spellcheck_threshold,\
 			case_sensitive=case_sensitive, check_pos=check_pos, cache=cache, lmtzr=lmtzr)
@@ -655,7 +742,7 @@ def query_expansion(conceptid_series, flattened_concept_list, child_candidates, 
 				t1.child_acid
 				,t1.parent_acid
 			from snomed2.transitive_closure_acid t1
-			where parent_acid in %s
+			where child_acid in (select acid from annotation2.used_descriptions) and parent_acid in %s
 			limit 1000
 		"""
 		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
@@ -775,7 +862,6 @@ def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold, l
 
 def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 	check_pos, bool_acr_check, write_sentences, lmtzr, spellcheck_threshold):
-	
 	concepts_df = pd.DataFrame()
 	sentence_df = pd.DataFrame()
 	words_df = pd.DataFrame()
@@ -840,7 +926,6 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 		# ann_df['description_start_index'] = words_df['term_index']
 		# ann_df['description_end_index'] = words_df['term_index']
 
-
 	section_max = ann_df['section_ind'].max()+1
 	sentence_annotations_df = pd.DataFrame()
 	sentence_tuples_df = pd.DataFrame()
@@ -859,7 +944,7 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 						concept_arr = list(set(ln_df['acid'].dropna().tolist()))
 						uid = str(uuid.uuid1())
 					
-						s_arr = get_annotated_tuple(ln_df)
+						annotated_tuples = get_annotated_tuple(ln_df)
 
 						ln_df['sentence_id'] = uid
 						ln_df.fillna('-1', inplace=True)
@@ -874,12 +959,13 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 								,acid
 								,adid
 								,case when acid='-1' then term else acid end as final_ann
+								,line
 							from ln_df
 							group by sentence_id,section,section_ind,ln_num, description_start_index, description_end_index, final_ann
 						"""
 						sentence_annotations_df = sentence_annotations_df.append(pd.read_sql_query(query,conn), sort=False)
 
-						single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
+						single_ln_df = ln_df[['sentence_id', 'section', 'section_ind', 'ln_num', 'line']].copy()
 						
 						try: 
 							single_ln_df = single_ln_df.iloc[[0]].copy()
@@ -887,11 +973,14 @@ def annotate_text_not_parallel(sentences_df, cache, case_sensitive, \
 							print("ERROR ERROR")
 							print(single_ln_df)
 							u.pprint(ann_df)
-						single_ln_df['sentence_tuples'] = [s_arr]
+						single_ln_df['sentence_tuples'] = [annotated_tuples]
+
+						single_ln_df['og_sentence_tuples'] = [get_original_line_tuples(single_ln_df['line'].values[0], annotated_tuples, case_sensitive, lmtzr)]
 						sentence_tuples_df = sentence_tuples_df.append(single_ln_df, sort=False)
 						single_concept_arr_df = single_ln_df[['sentence_id', 'section', 'section_ind', 'ln_num']].copy()
 						single_concept_arr_df['concept_arr'] = [concept_arr]
 						sentence_concept_arr_df = sentence_concept_arr_df.append(single_concept_arr_df, sort=False)
+
 		return sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 
 	return ann_df
@@ -911,7 +1000,7 @@ def clean_text(line):
 	line = line.replace(']', ' ')
 	line = line.replace('-', ' ')
 	line = line.replace(':', ' ')
-	line = line.replace('\'', '')
+	# line = line.replace("\'", '')
 	line = line.replace('"', '')
 	line = line.replace(':', '')
 	line = line.replace('(', '')
@@ -939,6 +1028,7 @@ class TestAnnotator(unittest.TestCase):
 			,("Weekly vs. Every-3-Week Paclitaxel and Carboplatin for Ovarian Cancier", 80, 'partial', ['172626', '237562', '105415'])
 			,("Sustained recovery of progressive multifocal leukoencephalopathy after treatment with IL-2.", 100, 'partial', ['73561', '197836'])
 			,("luteinizing hormone releasing hormone in thyroid hormone deficiency", 100, 'partial', ['11008', '111861'])
+			,("Sacubitril/valsartan for congestive heart failure", 100, 'partial', ['215856', '154571'])
 			]
 
 		lmtzr = WordNetLemmatizer()
@@ -951,7 +1041,7 @@ class TestAnnotator(unittest.TestCase):
 			term = q[0]
 			term = clean_text(term)
 			spellcheck_threshold = q[1]
-			all_words = get_all_words_list(term, lmtzr)
+			all_words = get_all_words_list(term)
 
 			s = u.Timer('get_cache')
 			cache = get_cache(all_words_list=all_words, case_sensitive=True, \
@@ -964,7 +1054,6 @@ class TestAnnotator(unittest.TestCase):
 				case_sensitive=True, check_pos=False, bool_acr_check=False, \
 				spellcheck_threshold=spellcheck_threshold, \
 				write_sentences=True, lmtzr=None)
-
 			if q[2] == 'complete':
 				self.assertTrue(set(res['acid'].values) == set(q[3]))
 			else:
@@ -1061,7 +1150,7 @@ if __name__ == "__main__":
 	query82="hepatic and splenic blush on computed tomography in children following blunt force acute interstitial nephritis"
 	query83="White matter lesions (WMLs) are commonly found on brain MRI of migraine patients"
 	query84="Helicobacter pylori"
-	query85="The percutaneous coronary intervention PCI have to be one of the fastest growing therapeutic interventions for patients with ST elevation myocardial infarction"
+	query85="The percutaneous coronary intervention PCI have to be one of the fastest growing therapeutic interventions for patients with ST-elevation myocardial infarction"
 	query86="kaposi's sarcoma"
 	query87="COPD Insulin"
 	query88="distal DVT"
@@ -1071,11 +1160,19 @@ if __name__ == "__main__":
 	query92="hyaluronic acid lung cancer"
 	query93="CT-directed pelvic oblique radiograph conventional hip radiographs, computed axial tomography (CT)"
 	query94="Gastric cancer insulin"
-	query95="Alzheimer's disease"
+	query95="alzheimer's disease"
 	query96="Covid-19"
 	query97="ALS"
 	query98="ALS cough"
-	query99 = "Migraine Randomized controlled trial"
+	query99 = "Randomized controlled trials (RCTs) about patient's with migraines"
+	query100 ="Chronic obstructive pulmonary disease or COPD in patients with cough"
+	query101 = "Alzheimer's disease or AD among elderly patients"
+	query102 = "are associated with risk of Alzheimer disease (AD)"
+	query103 = "Clostridium difficile or C. Diff is a common organism causing diarrhea"
+	query104 = "luteinizing hormone releasing hormone in thyroid hormone deficiency"
+	query105 = "Sustained recovery of progressive multifocal leukoencephalopathy after treatment with IL-2."
+	query106 = "Idiopathic resistance to luteinizing hormone-releasing hormone analogue in a patient with prostatic carcinoma"
+	query107 = "Chronic obstructive pulmonary disease or COPD"
 	# unittest.main()
 	
 	counter = 0
@@ -1084,28 +1181,27 @@ if __name__ == "__main__":
 	lmtzr = WordNetLemmatizer()
 
 	while (counter < 1):
-		term = query99
-		term = clean_text(term)
+		sentence = "Doses of Sacubitril/valsartan for congestive heart failure among patients with chronic obstructive pulmonary disease"
+		cleaned_sentence = clean_text(sentence)
 
-		all_words = get_all_words_list(term)
+		all_words = get_all_words_list(cleaned_sentence)
 
 		spellcheck_threshold = 100
 
-		cache = get_cache(all_words_list=all_words, case_sensitive=True, \
+		cache = get_cache(all_words_list=all_words, case_sensitive=False, \
 			check_pos=True, spellcheck_threshold=spellcheck_threshold, lmtzr=lmtzr)
-		print(cache)
-		sentences_df = pd.DataFrame([[term, 'title', 0,0]], \
+
+		sentences_df = pd.DataFrame([[sentence, 'title', 0,0]], \
 			columns=['line', 'section', 'section_ind', 'ln_num'])
-		item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
 
 		res, g, s = annotate_text_not_parallel(sentences_df=sentences_df, cache=cache, \
-			case_sensitive=True, check_pos=True, bool_acr_check=False,\
+			case_sensitive=False, check_pos=True, bool_acr_check=True,\
 			spellcheck_threshold=spellcheck_threshold, \
 			write_sentences=True, lmtzr=lmtzr)
 
 		d.stop()
 		u.pprint(g['sentence_tuples'].tolist())
-		u.pprint(res)
+		u.pprint(g['og_sentence_tuples'].tolist())
 
 		counter += 1
 	

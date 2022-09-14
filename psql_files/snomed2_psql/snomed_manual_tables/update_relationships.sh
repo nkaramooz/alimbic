@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 echo "full_relationship.sql"
 psql -d alimbic -f full_relationship.sql -q

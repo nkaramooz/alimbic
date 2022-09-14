@@ -38,12 +38,16 @@ def lemmatize_table():
 			adid
 			,acid
 			,term
-			,lower(term) as term_lower
+			,term_lower
 			,word
 			,word_ord
 			,term_length
 			,is_acronym 
 		from annotation2.add_adid_acronym
+		where acid in
+			(select root_acid from annotation2.concept_types 
+			where rel_type in ('condition', 'chemical', 'symptom', 'prevention', 'treatment', 'statistic', 'diagnostic', 'outcome', 'cause', 'anatomy') 
+				and active != 0)
 		"""
 	conn, cursor = pg.return_postgres_cursor()
 

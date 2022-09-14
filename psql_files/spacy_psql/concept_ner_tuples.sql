@@ -11,7 +11,7 @@ create table if not exists concept_ner_tuples (
 insert into concept_ner_tuples
 	select
 		sentence_id
-		,sentence_tuples
+		,og_sentence_tuples
 		,random() as rand
 		,0 as ver
 	from pubmed.sentence_tuples_2

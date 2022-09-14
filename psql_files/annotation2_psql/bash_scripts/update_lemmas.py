@@ -7,7 +7,6 @@ import sqlalchemy as sqla
 import snomed_annotator2 as ann2
 import utils2 as u
 from nltk.stem.wordnet import WordNetLemmatizer
-import sys
 
 lmtzr = WordNetLemmatizer()
 
@@ -34,12 +33,16 @@ def update_lemmas():
 			adid
 			,acid
 			,term
-			,lower(term) as term_lower
+			,term_lower
 			,word
 			,word_ord
 			,term_length
 			,is_acronym 
 		from annotation2.add_adid_acronym
+		where acid in
+			(select distinct(root_acid) from annotation2.concept_types 
+			where rel_type in ('condition', 'study_design', 'chemical', 'symptom', 'prevention', 'treatment', 'statistic', 'diagnostic', 'outcome', 'cause', 'anatomy') 
+				and active != 0)
 		"""
 	conn, cursor = pg.return_postgres_cursor()
 

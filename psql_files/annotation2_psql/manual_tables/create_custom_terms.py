@@ -60,7 +60,16 @@ custom_term_synonym_dict = {
 	,'HER2' : 'Human epidermal growth factor receptor 2'
 	,'Needed' : 'Necessary'
 	,'Multiple sclerosis' : 'MS'
-
+	,'treatment' : 'remedy'
+	,'Clostridium difficile' : 'C. diff'
+	,'Schistosoma' : 'S.'
+	,'prostate' : 'prostatic'
+	,'ulcer' : 'ulceration'
+	,'X-ray' : 'radiography'
+	,'hypoplastic left heart' : 'HLH'
+	,'Expressive language delay' : 'Delayed speech'
+	,'Clostridium' : 'C.'
+	,'Clostridium' : 'C'
 }
 
 def create_custom_phrases():
@@ -85,7 +94,9 @@ def create_custom_phrases():
 						,adid
 						,term 
 					from annotation2.downstream_root_did 
-					where term ~* concat(concat('\m', %s), '\M')
+					where acid in (select distinct(root_acid) from annotation2.concept_types where rel_type in ('condition', 'symptom', 'chemical', 'prevention', 'treatment', 'statistic', 'diagnostic', 'outcome', 'cause', 'anatomy') 
+						and active != 0)
+					and term ~* concat(concat('\m', %s), '\M')
 					and term not ilike concat('%%', %s, '%%', %s)
 
 				) t1 

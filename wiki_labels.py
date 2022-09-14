@@ -8,25 +8,28 @@ import snomed_annotator2 as ann2
 from search.views import return_section_sentences
 import utilities.pglib as pg
 import sqlalchemy as sqla
+import wikipediaapi
 
-def get_wiki_concept_links():
+def get_wiki_concept_links(categorymembers, wiki_wiki, counter):
 
-	for letter in string.ascii_uppercase:
-		url = "https://en.wikipedia.org/wiki/List_of_diseases_(" + letter + ")"
-		# url = "https://en.wikipedia.org/wiki/Category:Symptoms"
-		# url = "https://en.wikipedia.org/wiki/Category:Symptoms_and_signs"
-		# url = "https://en.wikipedia.org/wiki/Category:Diseases_and_disorders"
-		# url = "https://en.wikipedia.org/wiki/Category:Medical_treatments"
-		# url = "https://en.wikipedia.org/wiki/Category:Antibiotics"
-		response = requests.get(url=url)
-		soup = BeautifulSoup(response.content, 'html.parser', 
-			parse_only=SoupStrainer('a', href=True))
-
-		for link in soup.find_all("a"):
-			condition_url = "https://en.wikipedia.org/" + str(link.get('href'))
-
-			check_entity_url(condition_url)
-
+	for c in categorymembers.values():
+		print(c.title, c.ns)
+		if c.ns == 14 and 'deaths from' not in c.title.lower() and 'alcohol' not in c.title.lower()\
+			and 'cannabis' not in c.title.lower() and 'doping' not in c.title.lower() and counter < 3:
+			print(c.title, 'category')
+			new_cat = wiki_wiki.page(c.title)
+			print(new_cat.categorymembers)
+			get_wiki_concept_links(new_cat.categorymembers, wiki_wiki, counter+1)
+		elif c.ns == 0 and 'deaths from' not in c.title.lower() \
+			and 'hospital' not in c.title.lower() and 'president' not in c.title.lower() \
+			and 'cannabis' not in c.title.lower() and 'doping' not in c.title.lower() :
+			try:
+				print(c)
+				page_url = c.fullurl
+				print(page_url)
+				check_entity_url(page_url)
+			except:
+				continue
 
 def check_entity_url(entity_url):
 	response = requests.get(url=entity_url)
@@ -79,11 +82,15 @@ def check_entity_url(entity_url):
 					columns=['a_cid', 'term', 'desc'])
 
 				engine = pg.return_sql_alchemy_engine()
-				entity_df.to_sql('entities', engine, schema='spacy', if_exists='append', index=False)
+				entity_df.to_sql('wiki_spacy_entities', engine, schema='spacy', if_exists='append', index=False)
 				engine.dispose()
 
 
-
 if __name__ == "__main__":
-	get_wiki_concept_links()
+	# get_wiki_concept_links()
 	# check_entity_url("https://en.wikipedia.org/wiki/Myocardial_infarction")
+	wiki_wiki = wikipediaapi.Wikipedia('en')
+	cat = wiki_wiki.page("Category:Drugs")
+
+	get_wiki_concept_links(cat.categorymembers, wiki_wiki, 0)
+	

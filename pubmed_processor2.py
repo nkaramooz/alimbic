@@ -19,7 +19,7 @@ import sys
 import sqlalchemy as sqla
 import regex as re
 from ml2 import get_all_concepts_of_interest
-from ml2 import get_all_conditions_set, get_all_causes_set, get_all_treatments_set, get_all_diagnostics_set
+from ml2 import get_all_conditions_set, get_all_causes_set, get_all_treatments_set, get_all_diagnostics_set, get_all_study_designs_set
 from ftplib import FTP
 from time import sleep
 import numpy as np
@@ -31,6 +31,22 @@ CONDITIONS_OF_INTEREST = get_all_conditions_set()
 TREATMENTS_OF_INTEREST = get_all_treatments_set()
 DIAGNOSTICS_OF_INTEREST = get_all_diagnostics_set()
 CAUSES_OF_INTEREST = get_all_causes_set()
+STUDY_DESIGNS_OF_INTEREST = get_all_study_designs_set()
+
+month_dict = {
+	"jan" : 1
+	,"feb" : 2
+	,"mar" : 3
+	,"apr" : 4
+	,"may" : 5
+	,"jun" : 6
+	,"jul" : 7
+	,"aug" : 8
+	,"sep" : 9
+	,"oct" : 10
+	,"nov" : 11
+	,"dec" : 12
+}
 
 nlm_cat_dict = {
 	"a case report" :"methods"
@@ -3122,10 +3138,6 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						annotation_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = \
 							get_abstract_conceptids_2(json_str, article_text, lmtzr)
 
-						sentence_annotations_df['final_ann'] = np.where((sentence_annotations_df['final_ann'].str.replace('.','').str.isnumeric()) &
-							(sentence_annotations_df['acid'] == '-1'), 'NUM' + sentence_annotations_df['final_ann'], sentence_annotations_df['final_ann'])
-
-
 						sentence_annotations_df['ver'] = 0
 						sentence_concept_arr_df['ver'] = 0
 						sentence_tuples_df['ver'] = 0
@@ -3135,6 +3147,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 						json_str['treatments_of_interest'] = []
 						json_str['diagnostics_of_interest'] = []
 						json_str['causes_of_interest'] = []
+						json_str['study_designs_of_interest'] = []
 						
 						if annotation_dict['abstract'] is not None:
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
@@ -3146,6 +3159,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(concept_list)))
 							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(concept_list)))
 							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(concept_list)))
+							json_str['study_designs_of_interest'].extend(list(STUDY_DESIGNS_OF_INTEREST & set(concept_list)))
 
 						else:
 							json_str['abstract_conceptids'] = None
@@ -3166,6 +3180,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(title_cids)))
 							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(title_cids)))
 							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(title_cids)))
+							json_str['study_designs_of_interest'].extend(list(STUDY_DESIGNS_OF_INTEREST & set(title_cids)))
 						else:
 							json_str['title_cids'] = None
 							json_str['title_dids'] = None
@@ -3186,6 +3201,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(keywords_cids)))
 							json_str['diagnostics_of_interest'].extend(list(DIAGNOSTICS_OF_INTEREST & set(keywords_cids)))
 							json_str['causes_of_interest'].extend(list(CAUSES_OF_INTEREST & set(keywords_cids)))
+							json_str['study_designs_of_interest'].extend(list(STUDY_DESIGNS_OF_INTEREST & set(keywords_cids)))
 						else:
 							json_str['keywords_cids'] = None
 							json_str['keywords_dids'] = None
@@ -3195,13 +3211,17 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 												
 						sentence_concept_arr = sentence_concept_arr_df['concept_arr'].tolist()
 						abstract_concept_arr = [i for sublist in sentence_concept_arr for i in sublist]
-						abstract_concept_df = pd.DataFrame([[json_str['pmid'], abstract_concept_arr, json_str['journal_pub_year'], \
-							json_str['journal_iso_abbrev']]], columns=['pmid', 'abs_concept_arr', 'journal_pub_year', 'journal_iso_abbrev'])
+						abstract_concept_df = pd.DataFrame([[json_str['pmid'], abstract_concept_arr, json_str['journal_pub_month'], \
+							json_str['journal_pub_year'], json_str['journal_iso_abbrev']]], \
+							columns=['pmid', 'abs_concept_arr', 'journal_pub_month', 'journal_pub_year',  'journal_iso_abbrev'])
 						
 						abstract_sentence_tuples = sentence_tuples_df['sentence_tuples'].tolist()
 						abstract_sentence_tuples_arr = [i for sublist in abstract_sentence_tuples for i in sublist]
-						abstract_sentence_df = pd.DataFrame([[json_str['pmid'], abstract_sentence_tuples_arr, json_str['journal_pub_year'], \
-							json_str['journal_iso_abbrev']]], columns=['pmid', 'abs_tuples', 'journal_pub_year', 'journal_iso_abbrev'])
+						abstract_og_sentence_tuples = sentence_tuples_df['og_sentence_tuples'].tolist()
+						abstract_og_sentence_tuples_arr = [i for sublist in abstract_og_sentence_tuples for i in sublist]
+						abstract_sentence_df = pd.DataFrame([[json_str['pmid'], abstract_sentence_tuples_arr, abstract_og_sentence_tuples_arr,\
+							json_str['journal_pub_month'], json_str['journal_pub_year'], json_str['journal_iso_abbrev']]], \
+							columns=['pmid', 'abstract_tuples', 'abstract_og_tuples', 'journal_pub_month', 'journal_pub_year', 'journal_iso_abbrev'])
 
 						json_str =json.dumps(json_str)
 						json_obj = json.loads(json_str)
@@ -3220,53 +3240,53 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							engine = pg.return_sql_alchemy_engine()
 							try:
 								sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
-									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
 								sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 									if_exists='append', index=False)
 								abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
 								abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
-									if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
+									if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
 								engine.dispose()
 							except:
 								try:
 									sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
-										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
 									sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 										if_exists='append', index=False)
 									abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
 									abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
-										if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
+										if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
 									engine.dispose()
 								except:
 									try: 
 
 										sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
-											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
 										sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
 										sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 											if_exists='append', index=False)
 										abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
 										abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
-											if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
+											if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
 										engine.dispose()
 
 									except:
 										try:
 											sleep(0.5)
 											sentence_tuples_df.to_sql('sentence_tuples_2', engine, schema='pubmed', \
-												if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON})
+												if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
 											sentence_annotations_df.to_sql('sentence_annotations_2', engine, schema='pubmed', \
 												if_exists='append', index=False)
 											sentence_concept_arr_df.to_sql('sentence_concept_arr_2', engine, schema='pubmed', \
 												if_exists='append', index=False)
 											abstract_concept_df.to_sql('abstract_concept_arr_2', engine, schema='pubmed', if_exists='append', index=False)
 											abstract_sentence_df.to_sql('abstract_tuples_2', engine, schema='pubmed', \
-												if_exists='append', index=False, dtype={'abs_tuples' : sqla.types.JSON})
+												if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
 											engine.dispose()
 										except:
 											print("could not save the following")
@@ -3343,6 +3363,7 @@ def load_pubmed_local_2(start_file, end_file, folder_path, lmtzr_list):
 			,"treatments_of_interest" : {"type" : "keyword"}
 			,"diagnostics_of_interest" : {"type" : "keyword"}
 			,"causes_of_interest" : {"type" : "keyword"}
+			,"study_designs_of_interest" : {"type" : "keyword"}
 			,"article_type_id" : {"type" : "keyword"}
 			,"article_type" : {"type" : "keyword"}
 			,"index_date" : {"type" : "date", "format": "yyyy-MM-dd HH:mm:ss"}
@@ -3404,10 +3425,13 @@ def get_abstract_conceptids_2(abstract_dict, article_text, lmtzr):
 	sentence_tuples_df['pmid'] = abstract_dict['pmid']
 	sentence_concept_arr_df['pmid'] = abstract_dict['pmid']
 
+	sentence_annotations_df['journal_pub_month'] = abstract_dict['journal_pub_month']
+	sentence_tuples_df['journal_pub_month'] = abstract_dict['journal_pub_month']
+	sentence_concept_arr_df['journal_pub_month'] = abstract_dict['journal_pub_month']
 	sentence_annotations_df['journal_pub_year'] = abstract_dict['journal_pub_year']
 	sentence_tuples_df['journal_pub_year'] = abstract_dict['journal_pub_year']
 	sentence_concept_arr_df['journal_pub_year'] = abstract_dict['journal_pub_year']
-
+	
 	sentence_annotations_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
 	sentence_tuples_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
 	sentence_concept_arr_df['journal_iso_abbrev'] = abstract_dict['journal_iso_abbrev']
@@ -3571,7 +3595,11 @@ def get_journal_info(elem, json_str):
 
 	try:
 		month_elem = journal_elem.findall('./JournalIssue/PubDate/Month')[0]
-		json_str['journal_pub_month'] = str(month_elem.text)
+		month_text = str(month_elem.text).lower()
+		if month_text in month_dict.keys():
+			json_str['journal_pub_month'] = month_dict[month_text]
+		else:
+			json_str['journal_pub_month'] = int(month_text)
 	except:
 		json_str['journal_pub_month'] = None
 

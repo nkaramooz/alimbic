@@ -12,20 +12,20 @@ create table base_concept_types (
 
 
 insert into base_concept_types
-		select
+	select
 		ac.acid :: varchar(40) as root_acid
 		,concept_type :: text as rel_type
 		,1 as active
 		,'2000-12-16 11:15:33.438623' :: timestamp as effectivetime
-		from (
-			select
+	from (
+		select
 			conceptid
 			,concept_type
-			from (
-				select 
+		from (
+			select 
 				subtypeid as conceptid, 
 				case 
-					when supertypeid = '49755003' then 'condition' --therapeutic diet
+				when supertypeid = '49755003' then 'condition' --therapeutic diet
 				when supertypeid = '226077000' then 'treatment' --therapeutic diet
 				when supertypeid = '105958000' then 'treatment'
 				when supertypeid = '105590001' then 'treatment' -- substance
@@ -161,38 +161,42 @@ insert into base_concept_types
 				when supertypeid = '370570004' then 'cause' -- Protoctista
 				when supertypeid = '417396000' then 'cause' -- Protozoa
 				when supertypeid = '417377004' then 'cause' -- Mold
+				when supertypeid = '106685002' then 'cause'
 				when supertypeid = '404684003' then 'symptom' -- clinical finding
 				when supertypeid = '4147007' then 'condition' -- Mass
 				when supertypeid = '123037004' then 'anatomy' -- body structure			
 				when supertypeid = '363787002' then 'observable' -- observable entity
 				when supertypeid = '362981000' then 'qualifier' -- qualifier value
 	   			when supertypeid = '64572001' then 'condition' -- disease
+	   			when supertypeid = '887760' then 'outcome'
 		   		end as concept_type
 
-		   			from snomed2.curr_transitive_closure_f tr
-		   			left outer join (select
-		   				cid
-		   				,1 as match
-		   				from snomed2.active_descriptions d
-		   				where term like '%(finding)%' or term like '%(disorder)%') j
-		   			on tr.subtypeid = j.cid
-		   			where j.match is null
-		   			) tb
-	where concept_type is not null and conceptid not in ('182813001', '276239002')
+		   	from snomed2.curr_transitive_closure_f tr
+		   	left outer join (
+		   		select
+		   			cid
+		   			,1 as match
+		   		from snomed2.active_descriptions d
+		   		where term like '%(finding)%' or term like '%(disorder)%'
+		   	) j
+		   	on tr.subtypeid = j.cid
+		   	where j.match is null
+		 ) tb
+		where concept_type is not null and conceptid not in ('182813001', '276239002')
 
-	union all
+		union all
 
-	select
-	cid as conceptid
-	,case 
-	when term like '%(finding)%' then 'symptom'
-	when term like '%(disorder)%' then 'condition' end as concept_type
-	from snomed2.active_descriptions
-	) f 
-join annotation2.downstream_root_cid ac
-on f.conceptid = ac.cid
-where concept_type is not null
-);
+		select
+			cid as conceptid
+			,case 
+				when term like '%(finding)%' then 'symptom'
+				when term like '%(disorder)%' then 'condition' end as concept_type
+		from snomed2.active_descriptions 
+		) f 
+	join annotation2.downstream_root_cid ac
+	on f.conceptid = ac.cid
+	where concept_type is not null
+;
 
 create index base_ct_conceptid on base_concept_types(root_acid);
 	create index base_ct_concept_type on base_concept_types(rel_type)

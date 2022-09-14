@@ -22,5 +22,13 @@ txp_*
 *.spacy
 output*/
 label*/
+kb/
+web_lg_output/
+*.cfg
+alimbic_el/
+emerson.py
+*.jsonl
+*.csv
+my_output/
 
 

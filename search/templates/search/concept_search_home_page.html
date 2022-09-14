@@ -1,4 +1,8 @@
-{% include 'search/main_header.html' with css='css/search.css' search_active='active' vanc_active='' %}
+{% include 'search/main_header.html' with css='css/search.css' search_active='active'%}
+
+{% load static %}
+
+{% include 'search/nav_bar.html' %}
 
 {% include 'search/search_bar_template.html' with action=concept_search %}
 
@@ -7,3 +11,7 @@
 		{% include 'search/concept_search_results_page.html' %}
 	</div>
 </body>
+
+<br>
+<br>
+<br>

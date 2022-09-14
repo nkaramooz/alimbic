@@ -119,7 +119,7 @@ def add_new_description(acid, new_description, cursor):
 				acid
 				,adid
 				,term
-			from annotation2.lemmas
+			from annotation2.add_adid_acronym
 			where term = %s and acid=%s
 		"""
 		desc_df = pg.return_df_from_query(cursor, query, (new_description,acid), ['acid', 'adid', 'term'])
@@ -213,7 +213,7 @@ def remove_adid(adid, cursor):
 					,term
 					,'f' as active
 					,now() as effectivetime
-				from annotation2.lemmas
+				from annotation2.add_adid_acronym
 				where adid = %s
 		"""
 		cursor.execute(query, (adid,))
@@ -266,7 +266,7 @@ def get_existing_adid(adid, cursor):
 	query = """
 		select 
 			adid
-		from annotation2.lemmas
+		from annotation2.add_adid_acronym
 		where adid = %s
 	"""
 	adid_df = pg.return_df_from_query(cursor, query, (adid,), ['adid'])
@@ -303,7 +303,6 @@ def check_inactive_concepts(concept_name, cursor):
 
 # Will need to rerun pipeline for update to propagate
 def acronym_override(adid, is_acronym, cursor):
-	print("TEST")
 	df = get_existing_adid(adid, cursor)
 
 	if len(df.index) > 0:

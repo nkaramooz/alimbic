@@ -221,7 +221,7 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
+			from annotation2.add_adid_acronym t1
 			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where t1.acid = %s
@@ -241,7 +241,7 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
+			from annotation2.add_adid_acronym t1
 			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
 			where adid = %s
@@ -261,10 +261,10 @@ def post_concept_override(request):
 				,t1.word
 				,t1.word_ord
 				,t1.is_acronym
-			from annotation2.lemmas t1
+			from annotation2.add_adid_acronym t1
 			left join annotation2.downstream_root_cid t2
 			on t1.acid = t2.acid
-			where term_lower = lower(%s)
+			where t1.term_lower = lower(%s)
 		"""
 		df = pg.return_df_from_query(cursor, query, (term,), \
 	 		["adid", "acid", "cid", "term", "term_lower",'word', "word_ord", "is_acronym"])
@@ -286,6 +286,7 @@ def post_concept_override(request):
 			where source_acid = %s and typeid='116680003' and active='1'
 		"""
 		df = pg.return_df_from_query(cursor, query, (acid,), ['item', 'item_name', 'parent', 'parent_name'])
+
 		if len(df.index) == 0:
 			message = "No parents found."
 		else:
@@ -392,6 +393,8 @@ def post_concept_override(request):
 			rel_type = 'diagnostic'
 		elif 'rel_statistic' in request.POST:
 			rel_type = 'statistic'
+		elif 'rel_chemical' in request.POST:
+			rel_type = 'chemical'
 		elif 'rel_outcome' in request.POST:
 			rel_type = 'outcome'
 
@@ -472,6 +475,12 @@ def return_section_sentences(text, section, section_index, sentences_df):
 			columns=['line', 'section', 'section_ind', 'ln_num']), sort=False)
 
 	return sentences_df
+
+def about(request):
+	return render(request, 'about/about.html')
+
+def terms(request):
+	return render(request, 'about/terms.html')
 	
 def post_search_text(request):
 
@@ -520,7 +529,6 @@ def post_search_text(request):
 		for key,value in parsed.items():
 			if key.startswith('journals['):
 				filters['journals'].append(value[0])
-
 
 		if 'query_type' in parsed:
 			query_type = parsed['query_type'][0]
@@ -654,11 +662,9 @@ def post_search_text(request):
 						 "query": get_query(full_query_concepts_list, unmatched_list, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
-
 			sr = es.search(index=INDEX_NAME, body=es_query, request_timeout=100000)	
 
 		if query_concepts_df['acid'].isnull().all() or len(sr['hits']['hits']) == 0:
-			print("keyword query")
 			#query filtered for non-alphanumeric standalone characters
 			unmatched_list = words
 			es_query = get_keyword_query(query)
@@ -799,14 +805,13 @@ def get_json(item_df, prev_json):
 			get_json(item_df, r[list(r.keys())[0]]['children'])
 			return prev_json
 
-def log_query (ip_address, query, primary_cids, expanded_query_acids, unmatched_list, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor):
+def log_query (ip_address, query, primary_cids, unmatched_list, filters, cursor):
 	insert_query = """
 		insert into search.query_logs
-		VALUES(%s, %s, %s, %s,%s, %s, %s,%s, %s, %s,%s, %s, now())
+		VALUES(%s, %s, %s, %s, %s,%s, %s, now())
 	"""
 	cursor.execute(insert_query, (ip_address, query,json.dumps(primary_cids), \
-		json.dumps(expanded_query_acids), unmatched_list,filters['start_year'], filters['end_year'], json.dumps(filters['journals']), \
-		json.dumps(condition_dict), json.dumps(treatment_dict), json.dumps(diagnostic_dict), json.dumps(cause_dict)))
+		unmatched_list,filters['start_year'], filters['end_year'], json.dumps(filters['journals'])))
 
 	cursor.connection.commit()
 
@@ -831,7 +836,7 @@ def get_sr_payload(sr, expanded_query_acids, unmatched_list, cursor):
 		hit_dict = {}
 		sr_src = hit['_source']
 		for term in terms:
-			term_search = r"(\b" + term + r"\b)(?!(.(?!<b))*</b>)"
+			term_search = r"(\b" + term + r"s?\b)(?!(.(?!<b))*</b>)"
 
 			if sr_src['article_abstract'] is not None:
 				for key in sr_src['article_abstract']:

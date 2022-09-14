@@ -6,6 +6,7 @@ create table add_adid_acronym (
 	adid varchar(36) not null
     ,acid varchar(36) not null
 	,term varchar(400) not null
+    ,term_lower varchar(400) not null
 	,word varchar(100) not null
 	,word_ord integer not null
 	,term_length integer not null
@@ -14,6 +15,7 @@ create table add_adid_acronym (
 create index add_adid_acronym_acid_ind on add_adid_acronym(acid);
 create index add_adid_acronym_adid_ind on add_adid_acronym(adid);
 create index add_term_acronym_term_ind on add_adid_acronym(term);
+create index add_term_acronym_term_lower_ind on add_adid_acronym(term_lower);
 create index add_term_acronym_word_ind on add_adid_acronym(word);
 create index add_term_acronym_word_ord_ind on add_adid_acronym(word_ord);
 
@@ -23,6 +25,7 @@ insert into add_adid_acronym
         concept_table.adid
         ,concept_table.acid
         ,concept_table.term
+        ,lower(concept_table.term) as term_lower
         ,concept_table.word
         ,concept_table.word_ord 
         ,len_tb.term_length

@@ -1,5 +1,5 @@
 {% load app_filters %}
-{% load static %}
+<!-- {% load static %} -->
 
 <script src="{% static "js/collapsible.js" %}"></script>
 <script src="{% static "js/pivot.js" %}"></script>
@@ -10,7 +10,6 @@
 		<div class="query-display">
 
 			{% for lst in primary_a_cids %}
-				{{forloop.counter}}
 				{% for i in lst %}
 					<input type="hidden" name="primary_a_cids[]" id="primary_a_cids{{forloop.parentloop.counter}}" value="{{i}}">
 				{% endfor %}

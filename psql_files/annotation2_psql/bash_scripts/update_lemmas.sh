@@ -1,4 +1,5 @@
 #!/bin/bash
+
 echo "here we go"
 
 echo "insert_new_concepts_to_root.sql"

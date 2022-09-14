@@ -188,8 +188,20 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('Curr Rheumatol Rep', '1523-3774', 'Print'),
 	('Curr Rheumatol Rep', '1534-6307', 'Electronic'),
 	('J Clin Gastroenterol', '0192-0790', 'Print'),
-	('J Clin Gastroenterol', '1539-2031', 'Electronic')
-
+	('J Clin Gastroenterol', '1539-2031', 'Electronic'),
+	('Allergy Asthma Proc', '1088-5412', 'Print'),
+	('Allergy Asthma Proc', '1539-6304', 'Electronic'),
+	('Ther Clin Risk Manag', '1176-6336', 'Print'),
+	('Ther Clin Risk Manag', '1178-203X', 'Electronic'),
+	('Int Arch Allergy Immunol', '1018-2438', 'Print'),
+	('Int Arch Allergy Immunol', '1423-0097', 'Electronic'),
+	('Drugs', '0012-6667', 'Print'),
+	('Drugs', '1179-1950', 'Electronic'),
+	('J Am Acad Orthop Surg', '1067-151X', 'Print'),
+	('J Am Acad Orthop Surg', '1940-5480', 'Electronic'),
+	('Phys Ther Sport', '1466-853X', 'Print'),
+	('Phys Ther Sport', '1873-1600', 'Electronic'),
+	('Del Med J', '0011-7781', 'Print')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

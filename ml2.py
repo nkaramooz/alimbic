@@ -51,8 +51,12 @@ b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 def get_all_concepts_of_interest():
 	concepts_of_interest = get_all_conditions_set()
 	concepts_of_interest.update(get_all_treatments_set())
-	concepts_of_interest.update(get_all_causes_set())
 	concepts_of_interest.update(get_all_diagnostics_set())
+	concepts_of_interest.update(get_all_causes_set())
+	concepts_of_interest.update(get_all_outcomes_set())
+	concepts_of_interest.update(get_all_statistics_set())
+	concepts_of_interest.update(get_all_chemicals_set())
+	concepts_of_interest.update(get_all_study_designs_set())
 	return concepts_of_interest
 
 def get_all_conditions_set():
@@ -82,6 +86,24 @@ def get_all_statistics_set():
 	all_statistics_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
 	return all_statistics_set
 
+def get_all_study_designs_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='study_design') 
+		and (active=1 or active=3)
+	"""
+	conn,cursor = pg.return_postgres_cursor()
+	all_study_designs_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	return all_study_designs_set
+
+def get_all_chemicals_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='chemical') 
+		and (active=1 or active=3)
+	"""
+	conn,cursor = pg.return_postgres_cursor()
+	all_chemicals_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	return all_chemicals_set
+
 def get_all_treatments_set():
 	query = """
 		select root_acid from annotation2.concept_types 
@@ -91,6 +113,16 @@ def get_all_treatments_set():
 	conn,cursor = pg.return_postgres_cursor()
 	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
+
+def get_all_anatomy_set():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='anatomy' 
+		and (active=1 or active=3)
+	"""
+	conn,cursor = pg.return_postgres_cursor()
+	all_anatomy_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	return all_anatomy_set
 
 def get_all_treatments_with_inactive():
 	query = """
