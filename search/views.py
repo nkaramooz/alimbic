@@ -680,7 +680,7 @@ def post_search_text(request):
 
 	# calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
-	log_query(ip, query, primary_a_cids, narrowed_query_a_cids, unmatched_list, filters, treatment_dict, diagnostic_dict, condition_dict, cause_dict, cursor)
+	log_query(ip, query, primary_a_cids, unmatched_list, filters, cursor)
 	cursor.close()
 	conn.close()
 
