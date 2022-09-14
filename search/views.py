@@ -483,7 +483,6 @@ def terms(request):
 	return render(request, 'about/terms.html')
 	
 def post_search_text(request):
-
 	conn, cursor = pg.return_postgres_cursor()
 	es = es_util.get_es_client()
 	pivot_cid = None
@@ -678,7 +677,7 @@ def post_search_text(request):
 		sr_payload = get_sr_payload(sr['hits']['hits'], narrowed_query_a_cids, unmatched_list, cursor)
 
 
-	# calcs_json = get_calcs(query_concepts_df, cursor)
+	calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
 	log_query(ip, query, primary_a_cids, unmatched_list, filters, cursor)
 	cursor.close()

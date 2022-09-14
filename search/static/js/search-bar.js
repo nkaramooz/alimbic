@@ -360,6 +360,7 @@ $(document).ready(function() {
 
 
 function post_search_text() {
+
   $(':focus').blur()
   document.getElementById('search_box').disabled = true;
   document.getElementById('start_year').disabled = true;
@@ -398,7 +399,6 @@ function post_search_text() {
         pivot_cid : null,
         pivot_term : null,
   }
-
   $.ajax({
     url : "search/",
     type : "POST",

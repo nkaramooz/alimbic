@@ -14,7 +14,6 @@ urlpatterns = [
     url(r'^search/', views.post_search_text, name='post_search_text'),
     # url(r'^training/post/$', views.post_training, name='post_training'),
     # url(r'^training/', views.training, name='training'),
-    url(r'^search/', views.post_search_text, name='post_search_text'),
     # url(r'^training/', views.training, name='training'),
     # url(r'^labelling/post/$', views.post_labelling, name='post_labelling'),
     # url(r'^labelling/', views.labelling, name='labelling'),
