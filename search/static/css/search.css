@@ -25,10 +25,8 @@
 
 #menu {
 	color:  red;
-	/*position: fixed;*/
     top: 10px;
     margin-left: 5px;
-    /*z-index:  99;*/
 }
 
 .dropdown-content {

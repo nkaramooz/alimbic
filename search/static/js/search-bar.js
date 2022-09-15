@@ -403,8 +403,6 @@ function post_search_text() {
     url : "search/",
     type : "POST",
     contentType: "application/json",
-    dataType: "html",
-    async: false,
     data : JSON.stringify(data1),
 
     success : function(html) {

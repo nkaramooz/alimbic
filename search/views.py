@@ -660,7 +660,7 @@ def post_search_text(request):
 			query_concept_count = len(query_concepts_df.index)
 			
 			es_query = {"from" : 0, \
-						 "size" : 10, \
+						 "size" : 20, \
 						 "query": get_query(full_query_concepts_list, unmatched_list, query_types_list \
 						 	,filters['journals'], filters['start_year'], filters['end_year'] \
 						 	,["title_cids^10", "abstract_conceptids.*"], cursor)}
@@ -682,7 +682,7 @@ def post_search_text(request):
 
 	# calcs_json = get_calcs(query_concepts_df, cursor)
 	ip = get_ip_address(request)
-	# log_query(ip, query, primary_a_cids, unmatched_list, filters, cursor)
+	log_query(ip, query, primary_a_cids, unmatched_list, filters, cursor)
 	cursor.close()
 	conn.close()
 
@@ -694,7 +694,7 @@ def post_search_text(request):
 				'journals': filters['journals'], 'start_year' : filters['start_year'], 'end_year' : filters['end_year'], \
 				'treatment' : treatment_dict, 'diagnostic' : diagnostic_dict, 'cause' : cause_dict, 'condition' : condition_dict, \
 				'calcs' : calcs_json}, c)
-		print(len(html.content))
+
 		return html
 	elif request.method == 'GET':
 
@@ -1102,7 +1102,6 @@ def get_query_concept_types_df_3(conceptid_df, query_concept_list, cursor):
 			where condition_acid in %s and treatment_acid in %s 
 			and treatment_acid in
 				(select root_acid from annotation2.concept_types where active=1 and rel_type='treatment')
-			limit 10
 		"""
 		query_concept_type_df = pg.return_df_from_query(cursor, concept_type_query_string, \
 			(tuple(dist_concept_list), tuple(query_concept_list), tuple(dist_concept_list)), ["acid", "concept_type"])
