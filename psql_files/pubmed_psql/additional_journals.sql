@@ -201,7 +201,8 @@ INSERT INTO additional_journals(iso_abbrev, issn, type)
 	('J Am Acad Orthop Surg', '1940-5480', 'Electronic'),
 	('Phys Ther Sport', '1466-853X', 'Print'),
 	('Phys Ther Sport', '1873-1600', 'Electronic'),
-	('Del Med J', '0011-7781', 'Print')
+	('Del Med J', '0011-7781', 'Print'),
+	('BMJ Case Rep', '1757-790X', 'Electronic')
 	;
 
 create index add_journals_issn_ind on additional_journals(issn);

@@ -19,7 +19,7 @@ insert into spacy_primary_entities
 	left join annotation2.concept_counts t2
 	on t1.a_cid = t2.concept 
 	where a_cid in (select root_acid from annotation2.concept_types
-		where rel_type in ('condition', 'chemical', 'treatment', 'outcome', 'statistic', 'symptom', 'diagnostic', 'cause', 'study_design')
+		where rel_type in ('condition', 'chemical', 'treatment', 'outcome', 'statistic', 'symptom', 'diagnostic', 'cause', 'anatomy', 'study_design')
 		and (active=1 or active=3))
 	ON CONFLICT(a_cid) DO NOTHING
 ;
@@ -38,7 +38,7 @@ insert into spacy_primary_entities
 			from annotation2.downstream_root_did
 			where acid in (
 				select root_acid from annotation2.concept_types
-				where rel_type in ('condition','chemical', 'treatment', 'outcome', 'statistic', 'symptom', 'diagnostic', 'cause', 'study_design')
+				where rel_type in ('condition','chemical', 'treatment', 'outcome', 'statistic', 'symptom', 'diagnostic', 'cause','anatomy', 'study_design')
 				and (active=1 or active=3)
 			)
 		) t1

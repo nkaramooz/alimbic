@@ -6,8 +6,8 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 
 def get_es_client():
-	es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-	# es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
+	# es = Elasticsearch(hosts=[{'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
+	es = Elasticsearch([{'host' : 'localhost', 'port' : 9200, 'timeout' : 1000}])
 	return es
 
 class Timer:
@@ -43,55 +43,6 @@ def get_conceptid_name(conceptid, cursor):
 	name = pg.return_df_from_query(cursor, search_query, None, ['term'])['term'].to_string(index=False)
 	return name
 
-def add_new_concept(concept_name, cursor):
-	error = False
-	conflict_df = check_existing_concept(concept_name, cursor)
-	
-	if len(conflict_df.index) > 0:
-		error = True
-		message = "Matches found in upstream_root_did. New concept not created."
-	else:
-		inactive_conflict_df = check_inactive_concepts(concept_name, cursor)
-		if len(inactive_conflict_df.index) > 0:
-			if len(inactive_conflict_df['acid'].unique()) == 1:
-				message = "Activating previously inactived concept"
-				existing_acid = inactive_conflict_df['acid']
-				error = False
-				query = """
-					insert into annotation2.inactive_concepts (acid, active, effectivetime)
-						VALUES(%s, 't', now())
-					"""
-				cursor.execute(query, (existing_acid,))
-				cursor.connection.commit()
-			else:
-				message = "Multiple inactive concepts match this description"
-				error = True
-		else:
-			query = """
-				insert into annotation2.new_concepts (cid, did, term, effectivetime)
-					VALUES(public.uuid_generate_v4(), public.uuid_generate_v4(), %s, now())
-			"""
-			cursor.execute(query, (concept_name,))
-			cursor.connection.commit()
-			message = "success"
-			## figure out what to do about running lemmatizer
-
-	return error, message, conflict_df
-
-def remove_concept(acid, cursor):
-	error = "Complete"
-
-	try:
-		query = """
-			insert into annotation2.inactive_concepts (acid, active, effectivetime)
-			VALUES (%s, 'f', now())
-		"""	
-		cursor.execute(query, (acid,))
-		cursor.connection.commit()
-	except:
-		error = "Error"
-
-	return error
 
 # Make sure new description does not already exist
 # If not, add to root_new_desc
@@ -176,7 +127,7 @@ def check_acid(acid, cursor):
 		where acid = %s
 	"""
 	df = pg.return_df_from_query(cursor,query, (acid,), ['acid'])
-
+	
 	if len(df.index) > 0:
 		return True
 	else:
@@ -196,8 +147,6 @@ def change_concept_type(acid, rel_type, state, cursor):
 		return "that probably worked"
 	else:
 		return "error, acid is not real"
-
-	
 
 
 def remove_adid(adid, cursor):

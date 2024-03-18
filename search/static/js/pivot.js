@@ -10,6 +10,11 @@ $(document).ready(function() {
 	
 	var primary_a_cids = [];
 	var a_cid_id_array = [];
+	var pivot_history = [];
+
+  $("[id^='pivot_history']").each(function(){
+      pivot_history.push($(this).val());
+  });
 
 	$("[id^='primary_a_cids']").each(function(){
 		if(jQuery.inArray(this.id, a_cid_id_array) == -1) {
@@ -32,10 +37,9 @@ $(document).ready(function() {
 	}).get();
 
 	var pivot_complete_acid = []
-	form.find('#pivot_complete_acid').each(function(){
+	form.find('[name="pivot_complete_acid[]"').each(function(){
 		pivot_complete_acid.push($(this).val());
 	}).get()
-
 
 	var chipInstance = M.Chips.getInstance($(".chips"));
 
@@ -46,6 +50,7 @@ $(document).ready(function() {
 			query_type : "pivot",
 			primary_a_cids : primary_a_cids,
 			pivot_complete_acid : pivot_complete_acid,
+			pivot_history : pivot_history,
 			unmatched_list : unmatched_list,
 			pivot_cid : form.find('#pivot_cid').val(),
 			pivot_term : form.find('#pivot_term').val(),

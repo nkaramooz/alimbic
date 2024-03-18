@@ -18,7 +18,7 @@
 
 -- insert into annotation2.concept_types_app
 -- 	VALUES 
--- 	('348498', 'treatment', 0, now())
+-- 	('113501', 'treatment', 0, now())
 -- ;
 
 -- insert into annotation2.concept_types_app
@@ -28,7 +28,7 @@
 -- 		,0 as active
 -- 		,now() as effectivetime
 -- 	from snomed2.transitive_closure_acid 
--- 	where parent_acid='348498'
+-- 	where parent_acid='113501'
 -- ;
 
 -- insert into annotation2.concept_types_app
@@ -105,7 +105,7 @@
 
 -- insert into annotation.concept_types_app
 -- 	VALUES 
--- 	('90286', 'anatomy', 0, now())
+-- 	('899224', 'anatomy', 1, now())
 -- ;
 
 -- insert into annotation2.concept_types_app

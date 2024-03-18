@@ -70,6 +70,8 @@ custom_term_synonym_dict = {
 	,'Expressive language delay' : 'Delayed speech'
 	,'Clostridium' : 'C.'
 	,'Clostridium' : 'C'
+	,'Enlargement' : 'Enlarged'
+	,'Inflammatory bowel disease' : 'IBD'
 }
 
 def create_custom_phrases():

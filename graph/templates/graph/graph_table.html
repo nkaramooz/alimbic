@@ -1,14 +1,22 @@
+{% if alert != None %}
+<h5>{{alert}}</h5>
+{% endif %}
+
+{% if header != None %}
+<h5>{{header}}</h5>
+{% endif %}
+
 <table>
 	<thead>
 		<tr>
-			{% for key,value in payload_item.0.items %}
+			{% for key,value in payload.0.items %}
 				<th>{{key}}</th>
 			{% endfor %}
 		</tr>
 	</thead>
 
 	<tbody>
-	{% for a in payload_item %}
+	{% for a in payload %}
 	<tr>
 		{% for key,value in a.items %}
 		 <td>{{value}}</td>

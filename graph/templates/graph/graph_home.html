@@ -1,0 +1,509 @@
+<head>
+	<link href='https://fonts.googleapis.com/css?family=Comfortaa' rel='stylesheet'>
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+	<script type = "text/javascript" src = "https://code.jquery.com/jquery-2.1.1.min.js">  </script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</head>
+
+{% load static %}
+{% csrf_token %}
+
+<script src="{% static "js/graph_utils.js" %}"></script>
+
+<div class="navbar-fixed">
+	<ul id="dropdown1" class="dropdown-content">
+		<li><a href="#concept-lookup-header">Concept lookup</a></li>
+		<li><a href="#label-tx-header">Label treatment</a></li>
+		<li><a href="#rel-lookup-header">Relationship lookup</a></li>
+		<li><a href="#new-concept-header">New concept</a></li>
+		<li><a href="#deactivate-concept-header">Deactivate concept</a></li>
+		<li><a href="#add-description-header">New description</a></li>
+		<li><a href="#remove-desc-header">Remove description</a></li>
+		<li><a href="#update-rel-header">Update relationship</a></li>
+		<li><a href="#set-acronym-header">Set acronym</a></li>
+		<li><a href="#change-concept-type-header">Change concept type</a></li>
+	</ul>
+	<nav>
+		<div class="nav-wrapper">
+			<ul class="left hide-on-med-and-down">
+				<li><a class="dropdown-trigger" href="#!" data-target="dropdown1">Jump<i class="material-icons right">arrow_drop_down</i></a></li>
+			</ul>
+		</div>
+	</nav>
+</div>
+
+
+<div class="row center" id="concept-lookup-header">
+	<br>
+	<br>
+	<h3 > Concept lookup </h3>
+</div>
+
+<div class="container">
+	<form id="getAcid" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" class="input" id="acid-search" value="{{acid}}"> <br>
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="acid-results">
+	
+</div>
+<br>
+<br>
+<div class="container">
+	<form id="getAdid" onsubmit="return false;">
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ADID: <input type="text" class="input" id="adid-search" value="{{adid}}"> <br>
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="adid-results">
+</div>
+<br>
+<br>
+<br>
+
+<div class="container">
+	<form id="getTerm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				TERM: <input type="text" class="input" id="term-search" value="{{term}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+<div class="container results" id="term-results">
+</div>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="label-tx-header">
+	<br>
+	<br>
+	<h3> Label condition/treatment </h3>
+</div>
+<div class="container">
+	<form id="labelRelForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				CONDITION ACID: <input type="text" class="input" id="rel-condition-acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<div class="input-field col s8">
+				TREATMENT ACID: <input type="text" class="input" id="rel-treatment-acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="rel" class="radio" id="rel-0" value="0" type="radio"/>
+					<span> zero (not a treatment) </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel" class="radio" id="rel-1" value="1" type="radio"/>
+					<span> one (is a treatment) </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="rel" class="radio" id="rel-2" value="2" type="radio" />
+					<span> item is too broad to use in training or display</span>
+				</label>
+			</p>
+		</div>
+		<div class="input-field col s2">
+			<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="labelRel-results">
+</div>
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="rel-lookup-header">
+	<br>
+	<br>
+	<h3> Relationship lookup </h3>
+</div>
+
+<div class="container">
+	<form id="getRel" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" class="input" id="acid-rel-lookup" value="{{acid}}"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Search</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="acid-rel-parents">
+</div>
+<div class="container results" id="acid-rel-children">
+</div>
+<br>
+<br>
+
+
+
+
+
+
+<div class="row center" id="new-concept-header">
+	<br>
+	<br>
+	<h3> Add new concept </h3>
+</div>
+<div class="container">
+	<form id="createConcept" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				Concept name <input type="text" class="input" id="new-concept"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="new-concept-results">
+	
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="deactivate-concept-header">
+	<br>
+	<br>
+	<h3> Deactivate concept </h3>
+</div>
+<div class="container">
+	<form id="deactivateAcidForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID <input type="text" class="input" id="deactivate-acid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="deactivate-acid-results">
+
+</div>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="add-description-header">
+	<br>
+	<br>
+	<h3> Add new description </h3>
+</div>
+<div class="container">
+	<form id="addDescriptionForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				Description: <input type="text" class="input" id="new-description"> <br> 
+			</div>
+			<div class="input-field col s8">
+				ACID: <input type="text" class="input" id="new-description-acid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="new-description-results">
+
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="remove-desc-header">
+	<br>
+	<br>
+	<h3> Remove description </h3>
+</div>
+<div class="container">
+	<form id="deactivateDescriptionForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ADID: <input class="input" type="text" id="deactivate-adid"> <br> 
+			</div>
+			<div class="input-field col s2">
+				<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+			</div>
+		</div>
+	</form>
+</div>
+
+<div class="container results" id="deactivate-description-results">
+
+</div>
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+<div class="row center" id="update-rel-header">
+	<br>
+	<br>
+	<h3> Update relationship </h3>
+</div>
+<div class="container">
+	<form id="updateRelationshipFrom" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				CHILD ACID: <input class="input" type="text" id="update-rel-child-acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<div class="input-field col s8">
+				PARENT ACID: <input class="input" type="text" id="update-rel-parent-acid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="update-rel" class="radio" value="0" type="radio"/>
+					<span> Delete </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="update-rel" class="radio" value="1" type="radio"/>
+					<span> Create </span>
+				</label>
+			</p>
+		</div>
+		<div class="input-field col s2">
+			<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="update-rel-results">
+
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+<div class="row center" id="set-acronym-header">
+	<h3> Set acronym </h3>
+</div>
+<div class="container">
+	<form id="setAcronymForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ADID: <input type="number" class="input" id="set-acronym-adid"> <br> 
+			</div>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="set-acronym" class="radio" value="true" type="radio"/>
+					<span> true </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-acronym" class="radio" value="false" type="radio"/>
+					<span> false </span>
+				</label>
+			</p>
+		</div>
+		<div class="input-field col s2">
+			<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="set-acronym-results">
+
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+
+<div class="row center" id="change-concept-type-header">
+	<br>
+	<br>
+	<h3> Change concept type </h3>
+</div>
+<div class="container">
+	<form id="changeConceptTypeForm" onsubmit="return false;"> 
+		<div class="row form-row">
+			<div class="input-field col s8">
+				ACID: <input type="text" class="input" id="acid-change-concept-type"> <br> 
+			</div>
+		</div>
+		<span> Change the following rel_type </span>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="condition" type="radio"/>
+					<span> condition </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="symptom" type="radio"/>
+					<span> symptom </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="treatment" type="radio"/>
+					<span> treatment </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="cause" type="radio"/>
+					<span> cause </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="diagnostic" type="radio"/>
+					<span> diagnostic </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="statistic" type="radio"/>
+					<span> statistic </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="chemical" type="radio"/>
+					<span> chemical </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="set-concept-type" class="radio" value="outcome" type="radio"/>
+					<span> outcome </span>
+				</label>
+			</p>
+		</div>
+		<div class="row form-row">
+			<p>
+				<label>
+					<input name="concept-type-state" class="radio" value=1 type="radio"/>
+					<span> activate </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="concept-type-state" class="radio" value=0 type="radio"/>
+					<span> deactivate </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="concept-type-state" class="radio" value=2 type="radio"/>
+					<span> too broad to display and to use for training </span>
+				</label>
+			</p>
+			<p>
+				<label>
+					<input name="concept-type-state" class="radio" value=3 type="radio"/>
+					<span> too broad to display (will continue to use for training) </span>
+				</label>
+			</p>
+		</div>
+
+		<div class="input-field col s2">
+			<button type="submit" class="waves-effect waves-light btn search-btn">Submit</button>
+		</div>
+	</form>
+</div>
+
+<div class="container" id="change-concept-type-results">
+
+</div>
+
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>

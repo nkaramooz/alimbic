@@ -15,6 +15,10 @@
 				{% endfor %}
 			{% endfor %}
 
+			{% for piv in pivot_history %}
+				<input type="hidden" name="pivot_history[]" id="pivot_history" value="{{piv}}">
+			{% endfor %}
+
 			{% for i in unmatched_list %}
 				<input type="hidden" name="unmatched_list[]" id="unmatched_list" value="{{i}}">
 			{% endfor %}
