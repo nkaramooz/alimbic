@@ -34,7 +34,7 @@ frozenlist==1.3.0
 fsspec==2022.5.0
 fuzzywuzzy==0.18.0
 gast==0.3.3
-gensim==4.0.1
+gensim==4.3.2
 google-auth==1.22.1
 google-auth-oauthlib==0.4.1
 google-pasta==0.2.0
@@ -60,17 +60,16 @@ multidict==6.0.2
 multiprocess==0.70.13
 murmurhash==1.0.5
 nltk==3.5
-numpy==1.22.3
+numpy==1.26.4
 oauthlib==3.1.0
 opt-einsum==3.3.0
 packaging==21.2
-pandas==1.1.2
+pandas==2.2.1
 parso==0.8.2
 pathy==0.6.1
 pexpect==4.8.0
 pickleshare==0.7.5
 Pillow==7.2.0
-pkg-resources==0.0.0
 plac==1.1.3
 postgres==3.0.0
 preshed==3.0.5
@@ -104,7 +103,7 @@ spacy-alignments==0.8.5
 spacy-legacy==3.0.9
 spacy-loggers==1.0.1
 spacy-transformers==1.1.6
-SQLAlchemy==1.3.19
+SQLAlchemy==2.0.27
 sqlparse==0.3.1
 srsly==2.4.3
 tensorboard==2.9.1
