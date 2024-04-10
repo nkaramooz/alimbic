@@ -3,7 +3,7 @@ from django.views.decorators.csrf import requires_csrf_token
 from django.http import HttpResponseRedirect, HttpResponse
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-import snomed_annotator2 as ann2
+import snomed_annotator as ann2
 import utilities.pglib as pg
 from nltk.stem.wordnet import WordNetLemmatizer
 import utilities.utils2 as u
@@ -18,9 +18,10 @@ import urllib.parse as urlparse
 from urllib.parse import parse_qs
 import nltk.data
 import re
+import os
 
 
-INDEX_NAME='pubmedx2.0'
+INDEX_NAME=os.environ["INDEX_NAME"]
 
 # Initialize lemmatizer
 lmtzr = WordNetLemmatizer()

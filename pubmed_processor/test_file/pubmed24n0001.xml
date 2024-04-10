@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE PubmedArticleSet SYSTEM "">
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation Status="TestMedline" Owner="TestNLM">
+      <PMID Version="1">99999999</PMID>
+      <DateCompleted>
+        <Year>2024</Year>
+        <Month>01</Month>
+        <Day>01</Day>
+      </DateCompleted>
+      <DateRevised>
+        <Year>2024</Year>
+        <Month>01</Month>
+        <Day>31</Day>
+      </DateRevised>
+      <Article PubModel="Print-Electronic">
+        <Journal>
+          <ISSN IssnType="Electronic">9999-9999</ISSN>
+          <JournalIssue CitedMedium="Internet">
+            <Volume>1</Volume>
+            <Issue>1</Issue>
+            <PubDate>
+              <Year>2024</Year>
+              <Month>Jan</Month>
+            </PubDate>
+          </JournalIssue>
+          <Title>Test Pubmed Journal</Title>
+          <ISOAbbreviation>Test Journal</ISOAbbreviation>
+        </Journal>
+        <ArticleTitle>This is a test Pubmed Abstract on Congestive Heart Failure and the use of sacubitril valsartan to reduce hospitalizations.</ArticleTitle>
+        <Pagination>
+          <MedlinePgn>9999-99</MedlinePgn>
+        </Pagination>
+        <ELocationID EIdType="doi" ValidYN="N"></ELocationID>
+        <Abstract>
+          <AbstractText Label="INTRODUCTION" NlmCategory="BACKGROUND">This is a test article randomized control trial (RCT) on the impact of sacubitril-valsartan on CHF. </AbstractText>
+          <AbstractText Label="METHODS" NlmCategory="METHODS">Patients were randomized to receiving sacubitril-valsartan twice daily among patients with heart failure with reduced ejection fraction (HFrEF). Hospitalization rates were evaluated after 6 months.</AbstractText>
+          <AbstractText Label="CONCLUSIONS" NlmCategory="CONCLUSIONS">Patients in the intervention group were noted to have a 20% reduction in admissions (p ≤ 0.005 ).</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>TestLastName</LastName>
+            <ForeName>TestForeName</ForeName>
+            <Initials>T</Initials>
+            <AffiliationInfo>
+              <Affiliation>Pubmed Test Affiliation</Affiliation>
+            </AffiliationInfo>
+          </Author>
+        </AuthorList>
+        <Language>eng</Language>
+        <PublicationTypeList>
+          <PublicationType UI="D016428">Journal Article</PublicationType>
+          <PublicationType UI="D013485">Research Support, Non-U.S. Gov't</PublicationType>
+        </PublicationTypeList>
+        <ArticleDate DateType="Electronic">
+          <Year>2024</Year>
+          <Month>01</Month>
+          <Day>01</Day>
+        </ArticleDate>
+      </Article>
+      <MedlineJournalInfo>
+        <Country>United States</Country>
+        <MedlineTA>Test Journal</MedlineTA>
+        <NlmUniqueID>9999999</NlmUniqueID>
+        <ISSNLinking>9999-9999</ISSNLinking>
+      </MedlineJournalInfo>
+      <CitationSubset>IM</CitationSubset>
+      <MeshHeadingList>
+        <MeshHeading>
+          <DescriptorName UI="D006333" MajorTopicYN="Y">Congestive Heart Failure</DescriptorName>
+        </MeshHeading>
+      </MeshHeadingList>
+    </MedlineCitation>
+    <PubmedData>
+      <History>
+        <PubMedPubDate PubStatus="entrez">
+          <Year>2024</Year>
+          <Month>01</Month>
+          <Day>01</Day>
+          <Hour>1</Hour>
+          <Minute>1</Minute>
+        </PubMedPubDate>
+      </History>
+      <PublicationStatus>ppublish</PublicationStatus>
+      <ArticleIdList>
+        <ArticleId IdType="pubmed">21427014</ArticleId>
+        <ArticleId IdType="doi">10.1109/TBME.2011.2131142</ArticleId>
+      </ArticleIdList>
+    </PubmedData>
+  </PubmedArticle>
+  </PubmedArticleSet>

@@ -699,14 +699,16 @@ def get_cache(all_words_list, case_sensitive, check_pos, spellcheck_threshold, l
 
 # Returns 3 dataframes to be eventually materialized into tables
 # sentence_annotations_df colums=['id (sentnece)', 'section', 'section_ind', 'ln_num', 'a_cid', 'a_did', 'final_ann']
-# ann_df returned for annotation if write sentences is negative
-# otherwise returns 3 dataframes for pubmed indexing
+# ann_df returned for annotation if return details is False
+# otherwise returns 3 dataframes for pubmed indexing.
+# return_details is a boolean that flags whether or not to return the sentence_tuples
+# and sentence_concept_arr dataframes (used during indexing of abstracts, not during search).
 # TODO: Clean this up to avoid neeeding sqlite3.
 # acr_check evaluates for acronyms and looks for supporting material in the text to favor
 # one interpretation over another.
 # check_pos boolean to flag if wordnet's part of speech tagger should be used.
 def annotate_text(sentences_df, cache, case_sensitive, \
-	check_pos, acr_check, write_sentences, lmtzr, spellcheck_threshold):
+	check_pos, acr_check, return_details, lmtzr, spellcheck_threshold):
 	# concepts_df contains one row per concept in the provided sentence with 
 	# the start and stop indices.
 	concepts_df = pd.DataFrame()
@@ -773,7 +775,7 @@ def annotate_text(sentences_df, cache, case_sensitive, \
 	sentence_annotations_df = pd.DataFrame()
 	sentence_tuples_df = pd.DataFrame()
 	sentence_concept_arr_df = pd.DataFrame()
-	if write_sentences:	
+	if return_details:	
 		for i in range(section_max):
 			section_df = ann_df[ann_df['section_ind'] == i].copy()
 
@@ -826,6 +828,7 @@ def annotate_text(sentences_df, cache, case_sensitive, \
 	return ann_df
 
 
+# TODO: Avoid stripping period if in the context of a number.
 def clean_text(line):
 	# Order here does matter
 	chars_to_remove = ['.(','.', '!',',',';','*','[',']','-',':','"',':','(',')','\\','/','  ']

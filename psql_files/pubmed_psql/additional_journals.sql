@@ -9,6 +9,7 @@ create table additional_journals (
 
 INSERT INTO additional_journals(iso_abbrev, issn, type)
 	VALUES
+	('Test Journal', '9999-9999', 'Eletronic'),
 	('ACG Case Rep J', '2326-3253', 'Electronic'),
 	('Case Rep Cardiol', '2090-6404', 'Print'),
 	('Case Rep Cardiol', '2090-6412', 'Print'),

@@ -1,5 +1,4 @@
 import pandas as pd
-import psycopg2
 from sqlalchemy import create_engine
 from nltk.stem.wordnet import WordNetLemmatizer
 from operator import itemgetter
@@ -8,11 +7,8 @@ import numpy as np
 import time
 import utilities.pglib as pg
 import utilities.utils2 as u
-import collections
-import os
-import random
 import sys
-import snomed_annotator2 as ann2
+from snomed_annotator import snomed_annotator as ann
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -22,7 +18,6 @@ from keras.layers import Bidirectional
 from keras.models import Model
 from keras.models import load_model
 from keras.callbacks import ModelCheckpoint
-import matplotlib.pyplot as plt
 import sqlalchemy as sqla
 import multiprocessing as mp
 import datetime
@@ -64,8 +59,7 @@ def get_all_conditions_set():
 		where (rel_type='condition' or rel_type='symptom') 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_conditions_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	all_conditions_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
 	return all_conditions_set
 
 def get_all_outcomes_set():
@@ -73,8 +67,7 @@ def get_all_outcomes_set():
 		where (rel_type='outcome') 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_outcomes_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	all_outcomes_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
 	return all_outcomes_set
 
 def get_all_statistics_set():
@@ -82,8 +75,7 @@ def get_all_statistics_set():
 		where (rel_type='statistic') 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_statistics_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	all_statistics_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
 	return all_statistics_set
 
 def get_all_study_designs_set():
@@ -91,8 +83,7 @@ def get_all_study_designs_set():
 		where (rel_type='study_design') 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_study_designs_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	all_study_designs_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
 	return all_study_designs_set
 
 def get_all_chemicals_set():
@@ -100,8 +91,7 @@ def get_all_chemicals_set():
 		where (rel_type='chemical') 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_chemicals_set = set(pg.return_df_from_query(cursor, query, None, ['root_acid'])['root_acid'].tolist())
+	all_chemicals_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
 	return all_chemicals_set
 
 def get_all_treatments_set():
@@ -110,8 +100,7 @@ def get_all_treatments_set():
 		where rel_type='treatment' 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_treatments_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
 
 def get_all_anatomy_set():
@@ -120,8 +109,7 @@ def get_all_anatomy_set():
 		where rel_type='anatomy' 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_anatomy_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_anatomy_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
 	return all_anatomy_set
 
 def get_all_treatments_with_inactive():
@@ -129,8 +117,7 @@ def get_all_treatments_with_inactive():
 		select root_acid from annotation2.concept_types 
 		where rel_type='treatment'
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_treatments_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_treatments_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
 	return all_treatments_set
 
 def get_all_causes_set():
@@ -139,8 +126,7 @@ def get_all_causes_set():
 		where rel_type='cause' 
 		and (active=1 or active=3)
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_cause_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_cause_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
 	return all_cause_set
 
 def get_all_diagnostics_set():
@@ -149,13 +135,12 @@ def get_all_diagnostics_set():
 		where rel_type='diagnostic' 
 		and (active=1 or active=3) 
 	"""
-	conn,cursor = pg.return_postgres_cursor()
-	all_diagnostic_set = set(pg.return_df_from_query(cursor, query, None, ['root_cid'])['root_cid'].tolist())
+	all_diagnostic_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
 	return all_diagnostic_set
 
-def get_word_index(word, cursor):
+def get_word_index(word):
 	query = "select rn from ml2.word_counts_50k where word=%s limit 1"
-	ind_df = pg.return_df_from_query(cursor, query, (word,), ['rn'])
+	ind_df = pg.return_df_from_query(query, (word,), ['rn'])
 	
 	# return index for UNK
 	if (len(ind_df.index) == 0):

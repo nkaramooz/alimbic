@@ -1,4 +1,4 @@
-python3 pubmed_processor2.py
+python3 pubmed_processor.py
 
 psql -d alimbic -f psql_files/pubmed_psql/create_pubmed_index.sql -q
 
