@@ -206,7 +206,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['abstract_conceptids'] = annotation_dict['abstract']['cid_dict']
 							json_str['abstract_dids'] = annotation_dict['abstract']['did_dict']
 							concept_list = annotation_dict['abstract']['cid_dict'].values()
-							concept_list = [i for sublist in concept_list for i in sublist]
+							concept_list = [i for sublist in concept_list for i in sublist if i != -1]
 							json_str['concepts_of_interest'].extend(list(CONCEPTS_OF_INTEREST & set(concept_list)))
 							json_str['conditions_of_interest'].extend(list(CONDITIONS_OF_INTEREST & set(concept_list)))
 							json_str['treatments_of_interest'].extend(list(TREATMENTS_OF_INTEREST & set(concept_list)))
@@ -246,6 +246,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							keywords_cids = None
 							keywords_dids = None
 
+
 						if keywords_cids is not None:
 							json_str['keywords_cids'] = keywords_cids
 							json_str['keywords_dids'] = keywords_dids
@@ -259,7 +260,7 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							json_str['keywords_cids'] = None
 							json_str['keywords_dids'] = None
 
-						json_str['index_date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+						json_str['index_date'] = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 						json_str['filename'] = filename
 												
 						sentence_concept_arr = sentence_concept_arr_df['concept_arr'].tolist()
@@ -410,16 +411,17 @@ def get_abstract_conceptids(abstract_dict, article_text, lmtzr):
 
 	result_dict['title'] = {'cids' : title_cids, 'dids' : title_dids}
 	result_dict['article_keywords'] = {'cids' : keywords_cids, 'dids' : keywords_dids}
-
+	
+	positive = sentence_annotations_df[(sentence_annotations_df['adid']=='-1')]['adid'].tolist()
+	negative = sentence_annotations_df[~(sentence_annotations_df['adid']=='-1')]['adid'].tolist()
+	
 	if abstract_dict['article_abstract'] is not None:
 		for index,k1 in enumerate(abstract_dict['article_abstract']):
 			k1_cid = str(k1) + "_cid"
 			k1_did = str(k1) + "_did"
 			cid_dict[k1_cid] = sentence_annotations_df[(sentence_annotations_df['section']== k1) & (sentence_annotations_df['acid'] != '-1')]['acid'].tolist()
 			did_dict[k1_did] = sentence_annotations_df[(sentence_annotations_df['section']== k1) & (sentence_annotations_df['adid'] != '-1')]['adid'].tolist()
-
 		result_dict['abstract'] = {'cid_dict' : cid_dict, 'did_dict' : did_dict}
-
 		return result_dict, sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df
 	else:
 		result_dict['abstract'] = None
@@ -428,14 +430,14 @@ def get_abstract_conceptids(abstract_dict, article_text, lmtzr):
 
 def get_snomed_annotation(text_dict, cache, lmtzr):
 	sentences_df = pd.DataFrame()
-	sentences_df = return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
+	sentences_df = ann.return_section_sentences(text_dict['article_title'], 'article_title', 0, sentences_df)
 
 	if text_dict['article_abstract'] is not None:
 		for ind,k1 in enumerate(text_dict['article_abstract']):
-			sentences_df = return_section_sentences(text_dict['article_abstract'][k1], str(k1), ind+1, sentences_df)
+			sentences_df = ann.return_section_sentences(text_dict['article_abstract'][k1], str(k1), ind+1, sentences_df)
 
 	if text_dict['article_keywords'] is not None:
-		sentences_df = return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
+		sentences_df = ann.return_section_sentences(text_dict['article_keywords'], 'article_keywords', 0, sentences_df)
 
 	sentences_df['line'] = sentences_df['line'].apply(lambda x: ann.clean_text(x))
 
@@ -681,15 +683,6 @@ def get_article_info(elem, json_str):
 		json_str['article_type_id'] = None
 
 	return json_str, article_text
-
-
-# Updates sentences_df with new sentences from the text and section provided.
-def return_section_sentences(text, section, section_index, sentences_df):
-	tokenized = nltk.sent_tokenize(text)
-	for ln_num, line in enumerate(tokenized):
-		sentences_df = pd.concat([sentences_df, pd.DataFrame([[line, section, section_index, ln_num]],\
-													   columns=['line', 'section', 'section_ind', 'ln_num'])])
-	return sentences_df
 
 
 # Function can be used to determine the starting file number to index.

@@ -9,18 +9,18 @@
 	<div class="col s12">
 		<div class="query-display">
 
-			{% for lst in primary_a_cids %}
-				{% for i in lst %}
-					<input type="hidden" name="primary_a_cids[]" id="primary_a_cids{{forloop.parentloop.counter}}" value="{{i}}">
+			{% for lst in query_obj.nested_query_acids %}
+				{% for id in lst %}
+					<input type="hidden" name="nested_query_acids[]" id="nested_query_acids{{forloop.parentloop.counter}}" value="{{id}}">
 				{% endfor %}
 			{% endfor %}
 
-			{% for piv in pivot_history %}
-				<input type="hidden" name="pivot_history[]" id="pivot_history" value="{{piv}}">
+			{% for pivot_acid in pivot_history %}
+				<input type="hidden" name="pivot_history[]" id="pivot_history" value="{{pivot_acid}}">
 			{% endfor %}
 
-			{% for i in unmatched_list %}
-				<input type="hidden" name="unmatched_list[]" id="unmatched_list" value="{{i}}">
+			{% for term in unmatched_terms_list %}
+				<input type="hidden" name="unmatched_terms_list[]" id="unmatched_list" value="{{term}}">
 			{% endfor %}
 		</div>
 
@@ -140,6 +140,7 @@
 		      			<div class="collapsible-body" id="calcs">
 		      				<ul class="">
 								{% for c in calcs %}
+									{% if forloop.counter < 11 %}
 									<li>
 										<form class="inline-form" action=# method="get">
 											{% csrf_token %}
@@ -147,6 +148,13 @@
 											{{c.desc}}
 										</form>
 									</li>
+									{% else %}
+										<form class="inline-form collection-item hidden-items hide" action=# method="get">
+											{% csrf_token %}
+											<a target="_blank" href="https://{{c.url}}" class=""> {{c.title}}</a> <br>
+											{{c.desc}}
+										</form>
+									{% endif %}
 								{% endfor %}
 							</ul>
 							<div class="row">

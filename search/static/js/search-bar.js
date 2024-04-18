@@ -31,7 +31,7 @@ window.addEventListener('popstate', function(event) {
         $('#query_type').val(event.state['query_type']);
 
         $('#narrowed_query_a_cids').val(event.state['narrowed_query_a_cids']);
-        $('#unmatched_list').val(event.state['unmatched_list']);
+        $('#unmatched_terms_list').val(event.state['unmatched_terms_list']);
         $('#pivot_complete_acid').val(event.state['pivot_complete_acid']);
         $('#pivot_history').val(event.state['pivot_history']);
         $('#pivot_cid').val(event.state['pivot_cid']);
@@ -370,7 +370,7 @@ function post_search_text() {
   $('#loader').addClass("active");
   var chipInstance = M.Chips.getInstance($(".chips-autocomplete"));
 
-  var primary_a_cids = [];
+  var nested_query_acids = [];
   var a_cid_id_array = [];
   var pivot_history = [];
 
@@ -378,7 +378,7 @@ function post_search_text() {
       pivot_history.push($(this).val());
   });
 
-  $("[id^='primary_a_cids']").each(function(){
+  $("[id^='nested_query_acids']").each(function(){
     if(jQuery.inArray(this.id, a_cid_id_array) == -1) {
       a_cid_id_array.push(this.id);
     }
@@ -390,7 +390,7 @@ function post_search_text() {
     $("[id="+value+"]").each(function() {
         sub_array.push($(this).val());
       }).get();
-    primary_a_cids.push(sub_array);
+      nested_query_acids.push(sub_array);
   });
 
   var data1 = { query : $('#search_box').val(),
@@ -398,9 +398,9 @@ function post_search_text() {
         end_year : $('#end_year').val(),
         journals : chipInstance.chipsData,
         query_type : "keyword",
-        primary_a_cids : primary_a_cids,
+        nested_query_acids : nested_query_acids,
         pivot_history : pivot_history,
-        unmatched_list : $('#unmatched_list').val(),
+        unmatched_terms_list : $('#unmatched_terms_list').val(),
         pivot_cid : null,
         pivot_term : null,
   }

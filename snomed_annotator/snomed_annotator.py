@@ -458,18 +458,18 @@ def get_preferred_concept_names(a_cid, cursor):
 	names_df = pg.return_df_from_query(cursor, search_query, params, ['a_cid', 'term'])
 	return names_df['term'][0]
 
+# If an empty data frame is provided, an empty data frame will be returned.
+def add_names(concepts_df):
+	if len(concepts_df.index) > 0:
+		search_query = """
+			select acid, term from annotation2.preferred_concept_names \
+			where acid in %s
+		"""
+		params = (tuple(concepts_df['acid']),)
+		names_df = pg.return_df_from_query(search_query, params, ['acid', 'term'])
+		concepts_df = concepts_df.merge(names_df, on='acid')
 
-def add_names(results_df, cursor):
-	if results_df is None:
-		return None
-	else:
-		search_query = "select acid, term from annotation2.preferred_concept_names \
-			where acid in %s"
-		params = (tuple(results_df['a_cid']),)
-		names_df = pg.return_df_from_query(cursor, search_query, params, ['a_cid', 'term'])
-		results_df = results_df.merge(names_df, on='a_cid')
-
-		return results_df
+	return concepts_df
 
 
 # For errors check to make sure that get_reverse_lemmas has reverse lemmas
@@ -574,84 +574,39 @@ def get_annotated_tuple(c_df):
 	else:
 		return None
 
-
-# When child_candidates is provided, it does not expand the query
-# but rather reformats arrays around primary cids and filters
-# to only child a_cids that exist in the search results
-def query_expansion(conceptid_series, flattened_concept_list, child_candidates, cursor):
-
-	conceptid_tup = tuple(flattened_concept_list)
-	if child_candidates is None and len(conceptid_tup) > 0:
-
-		# may need to artificially limit query size at some point for 
-		# elastic search
-		child_query = """
-			select
-				t1.child_acid
-				,t1.parent_acid
-			from snomed2.transitive_closure_acid t1
-			where child_acid in (select acid from annotation2.used_descriptions) and parent_acid in %s
-			limit 1000
-		"""
-		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup,), \
-			["child_a_cid", "parent_a_cid"])
-
-	elif child_candidates is not None and len(conceptid_tup) > 0:
-		child_candidates_tup = tuple(child_candidates)
-		child_query = """
-			select
-				child_acid
-				,parent_acid
-			from snomed2.transitive_closure_acid where parent_acid in %s
-			and child_acid in %s
-		"""
-
-		child_df = pg.return_df_from_query(cursor, child_query, (conceptid_tup, child_candidates_tup), \
-			["child_a_cid", "parent_a_cid"])
-
-	else:
-		return []
-
-	results_list = []
-	for a_cid_list in conceptid_series:
-		sub_results_list = []
-		for item in a_cid_list:
-			temp_res = [item]
-			added_other = False
-			# JUST CHANGED PARENTHESES location
-
-			if len(child_df[child_df['parent_a_cid'] == item].index) > 0:
-				temp_res.extend(child_df[child_df['parent_a_cid'] == item]['child_a_cid'].tolist())
-				added_other = True
-
-			if added_other:
-				sub_results_list.append(temp_res)
-			else:
-				sub_results_list.append(temp_res)
-		if len(sub_results_list) > 0:
-			results_list.append(sub_results_list)
-
-	return results_list
+# Taking in a 2-d array, returns a 2-d array where each
+# inner array has been expanded to include child concepts.
+# For example [[A], [B]] returns [[A, A1, A2], [B, B1, B2]]
+def query_expansion(nested_query_acids):
+	nested_expanded_query_acids = []
+	for query_acids in nested_query_acids:
+		children = get_children(query_acids)
+		if len(children) > 0:
+			nested_expanded_query_acids.append(query_acids + children)
+		else:
+			nested_expanded_query_acids.append(query_acids)
+	return nested_expanded_query_acids
 
 
-## removed limit 15 for generating training dataset
-def get_children(conceptid, cursor):
+# With a list of conceptids, returns a list of the child concepts.
+# This is filtered for concepts that are in the index to avoid unnecessarily
+# returning a large number of concepts.
+def get_children(concept_list):
 	child_query = """
 		select 
 			child_acid
 		from snomed2.transitive_closure_acid tb1
 		left join annotation2.concept_counts tb2
 			on tb1.child_acid = tb2.concept
-		where tb1.parent_acid = %s and tb2.cnt is not null
+		where tb1.parent_acid in %s and tb2.cnt is not null
 		order by tb2.cnt desc
 	"""
-	child_df = pg.return_df_from_query(cursor, child_query, (conceptid,), \
-		["child__cid"])
-	
-
-	return child_df['child_a_cid'].tolist()
+	child_df = pg.return_df_from_query(child_query, (tuple(concept_list),), \
+		["child_acid"])
+	return child_df['child_acid'].tolist()
 
 
+# Provides unique list of words in the text split by spaces.
 def get_all_words_list(text):
 	tokenized = nltk.sent_tokenize(text)
 	all_words = list(set([w for line in tokenized for w in line.split() if w.strip() != '']))
@@ -792,8 +747,7 @@ def annotate_text(sentences_df, cache, case_sensitive, \
 						annotated_tuples = get_annotated_tuple(ln_df)
 
 						ln_df['sentence_id'] = uid
-						ln_df.fillna(-1, inplace=True)
-						
+						ln_df.fillna({'a_cid' : '-1', 'a_did' : '-1'}, inplace=True)
 						ln_df.to_sql('ln_df', conn, index=False, if_exists='replace')
 						query = """
 							select 
@@ -835,3 +789,12 @@ def clean_text(line):
 	for c in chars_to_remove:
 		line = line.replace(c, ' ')
 	return line
+
+
+# Updates sentences_df with new sentences from the text and section provided.
+def return_section_sentences(text, section, section_index, sentences_df):
+	tokenized = nltk.sent_tokenize(text)
+	for ln_num, line in enumerate(tokenized):
+		sentences_df = pd.concat([sentences_df, pd.DataFrame([[line, section, section_index, ln_num]],\
+													   columns=['line', 'section', 'section_ind', 'ln_num'])])
+	return sentences_df

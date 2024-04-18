@@ -28,15 +28,15 @@
           <Title>Test Pubmed Journal</Title>
           <ISOAbbreviation>Test Journal</ISOAbbreviation>
         </Journal>
-        <ArticleTitle>This is a test Pubmed Abstract on Congestive Heart Failure and the use of sacubitril valsartan to reduce hospitalizations.</ArticleTitle>
+        <ArticleTitle>This is a test Pubmed Abstract on Congestive Heart Failure and the use of valsartan to reduce hospitalizations.</ArticleTitle>
         <Pagination>
           <MedlinePgn>9999-99</MedlinePgn>
         </Pagination>
         <ELocationID EIdType="doi" ValidYN="N"></ELocationID>
         <Abstract>
-          <AbstractText Label="INTRODUCTION" NlmCategory="BACKGROUND">This is a test article randomized control trial (RCT) on the impact of sacubitril-valsartan on CHF. </AbstractText>
-          <AbstractText Label="METHODS" NlmCategory="METHODS">Patients were randomized to receiving sacubitril-valsartan twice daily among patients with heart failure with reduced ejection fraction (HFrEF). Hospitalization rates were evaluated after 6 months.</AbstractText>
-          <AbstractText Label="CONCLUSIONS" NlmCategory="CONCLUSIONS">Patients in the intervention group were noted to have a 20% reduction in admissions (p ≤ 0.005 ).</AbstractText>
+          <AbstractText Label="INTRODUCTION" NlmCategory="BACKGROUND">This is a test article randomized control trial (RCT) on the impact of valsartan on CHF. Causes of heart failure may include prior myocardial infarction (MI) or chronic hypertension.</AbstractText>
+          <AbstractText Label="METHODS" NlmCategory="METHODS">Patients were randomized to receiving valsartan twice daily among patients with heart failure with reduced ejection fraction (HFrEF). Hospitalization rates were evaluated after 6 months. Patients were able to continue carvedilol during the study. </AbstractText>
+          <AbstractText Label="CONCLUSIONS" NlmCategory="CONCLUSIONS">Patients in the intervention group were noted to have a 20% reduction in admissions (p ≤ 0.005).</AbstractText>
         </Abstract>
         <AuthorList CompleteYN="Y">
           <Author ValidYN="Y">

@@ -65,6 +65,7 @@ $(document).ready(function() {
 	});
 
 	$('#more_calcs_btn').on('click', function() {
+		console.log("this is a test");
 		if ($('#calcs').find('.hidden-items').hasClass('hide')) { 
 			$('#calcs').find('.hidden-items').removeClass('hide');
 			$(this).text('less');

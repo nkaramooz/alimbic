@@ -1,17 +1,15 @@
 from elasticsearch import Elasticsearch, RequestsHttpConnection
-
-
-# Create your views here.
-
-INDEX_NAME='pubmedx2.0'
+import os
 
 def return_es_host():
-	# return {'host': 'vpc-elasticsearch-ilhv667743yj3goar2xvtbyriq.us-west-2.es.amazonaws.com', 'port' : 443}
-	return {'host' : 'localhost', 'port' : 9200, 'request_timeout' : 100000}
+	return {'host' : os.environ['ES_HOST'], 'port' : os.environ['ES_PORT'], 'request_timeout' : 1000}
+
 
 def get_es_client():
-	# es = Elasticsearch(hosts=[return_es_host()], use_ssl=True, verify_certs=True, connection_class=RequestsHttpConnection)
-	es = Elasticsearch([return_es_host()])
-	return es
+	return Elasticsearch([return_es_host()])
 
 
+def search(es_query, index_name):
+	es = get_es_client()
+	res = es.search(index=index_name, body=es_query)
+	return res

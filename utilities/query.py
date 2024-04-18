@@ -1,69 +1,49 @@
 class Query:
 	def __init__(self, **kwargs):
-		# Form [[[]], [[]]]
-		self.full_query_concepts_list = kwargs.get('full_query_concepts_list', None)
-		self.flattened_concept_list = kwargs.get('flattened_concept_list', None)
-		# Form [[],[]]
-		self.flattened_query = kwargs.get('flattened_query', None)
-		self.unmatched_list = kwargs.get('unmatched_list', None)
+		self.query_string = kwargs.get('query_string', None)
+		
+		# Cleaned query string
+		self.cleaned_query_string = kwargs.get('cleaned_query_string', None)
+
+		# The 2-d list of explicit concepts annotated in the query. [[],[]]
+		self.nested_query_acids = kwargs.get('nested_query_acids', None)
+		
+		# The explicit concepts in the query in a one-dimensional list. []
+		self.flat_query_acids = kwargs.get('flat_query_acids', [])
+
+		# The expanded list of query acids in a 2-d list. [[],[]]
+		self.nested_expanded_query_acids = kwargs.get('nested_expanded_query_acids', None)
+
+		# The flattened list of expanded query acids. []
+		self.flat_expanded_query_acids = kwargs.get('flat_expanded_query_acids', [])
+		
+		# Terms in the query that were not matched to a concept
+		self.unmatched_terms_list = kwargs.get('unmatched_terms_list', [])
+
+		# Search filters
 		self.filters = kwargs.get('filters', [])
-		self.query_types_list = kwargs.get('query_types_list', None)
-		self.root_query = kwargs.get('root_query', None)
+
+		# Concept types in the query
+		self.query_concept_types_list = kwargs.get('query_concept_types_list', None)
+		
+		# The elasticsearch query created from the searched expanded concepts
+		# unmatched terms, and filters.
+		self.es_query = kwargs.get('es_query', None)
 		self.pivot_history = kwargs.get('pivot_history', [])
 
-#query_type = {'condition', 'treatment', 'organism', 'diagnostic'}
-def get_pivot_queries(query_type, a_cid_candidates, query_concept_list, pivot_list, cursor):
-	a_cid_candidates_string = '(' + ', '.join(f'\'{item}\'' for item in a_cid_candidates) + ')'
-	query_concept_string = '(' + ', '.join(f'\'{item}\'' for item in query_concept_list) + ')'
-	pivot_string = '(' + ', '.join(f'\'{item}\'' for item in pivot_list) + ')'
-
-	if query_type == 'condition' or query_type == 'diagnostic' or query_type == 'cause':
-		if len(pivot_list) == 0:
-			query = """
-				select
-					root_acid as acid
-					,rel_type as concept_type
-				from annotation2.concept_types
-				where active=1 and 
-					rel_type='%s' and
-					root_acid in %s
-			""" % (query_type, a_cid_candidates_string)
-			return query
-		else:
-			query = """
-				select
-					root_acid as acid
-					,rel_type as concept_type
-				from annotation2.concept_types t1
-				join (select distinct(child_acid) from snomed2.transitive_closure_acid 
-					where parent_acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in %s)) t2
-					on t1.root_acid = t2.child_acid
-				where t1.active=1 and 
-					rel_type='%s' and
-					root_acid in %s
-			""" % (pivot_string, query_type, a_cid_candidates_string)
-			return query
-
-	elif query_type == 'treatment':
-		if len(pivot_list) == 0:
-			query = """
-				select distinct(treatment_acid) as acid
-					,'treatment' as concept_type
-				from ml2.treatment_recs_final_1 t1
-				join (select root_acid from annotation2.concept_types where active=1 and rel_type='treatment') t2
-				on t1.treatment_acid = t2.root_acid
-				where condition_acid in %s and treatment_acid in %s 
-			""" % (query_concept_string, a_cid_candidates_string)
-			return query
-		else:
-			query = """
-				select distinct(treatment_acid) as acid
-					,'treatment' as concept_type
-				from ml2.treatment_recs_final_1 t1
-				join (select root_acid from annotation2.concept_types where active=1 and rel_type='treatment' 
-					and root_acid in (select child_acid from snomed2.transitive_closure_acid where parent_acid in %s) ) t2
-				on t1.treatment_acid = t2.root_acid
-				where condition_acid in %s and treatment_acid in %s 
-			""" % (pivot_string, query_concept_string, a_cid_candidates_string)
-			return query
+		# Pivot term is the displayed name of the concept of the pivot item
+		# item the user selected. This terms updates the displayed user search query.
+		self.pivot_term = kwargs.get('pivot_term', None)
 	
+	def return_json(self):
+		return {
+			'query_string' : self.query_string,
+			'cleaned_query_string' : self.cleaned_query_string,
+			'nested_query_acids' : self.nested_query_acids,
+			'flat_query_acids' : self.flat_query_acids,
+			'nested_expanded_query_acids' : self.nested_expanded_query_acids,
+			'flat_expanded_query_acids' : self.flat_expanded_query_acids,
+			'unmatched_terms_list' : self.unmatched_terms_list,
+			'query_concept_types_list' : self.query_concept_types_list,
+			'pivot_history' : self.pivot_history
+		}

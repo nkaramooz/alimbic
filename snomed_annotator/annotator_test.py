@@ -61,5 +61,10 @@ class TestAnnotator(unittest.TestCase):
 
 		print("============================")
 
+		print(sentence_annotations_df)
+		title_dids = sentence_annotations_df[(sentence_annotations_df['section']== 'title') 
+			& (sentence_annotations_df['a_did'] != '-1')]['a_did'].tolist()
+		print(title_dids)
+
 if __name__ == "__main__":
 	unittest.main()

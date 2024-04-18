@@ -9,6 +9,6 @@ app_name = 'search'
 urlpatterns = [
     url(r'^about/', views.about, name='about'),
     url(r'^terms/', views.terms, name='terms'),
-    url(r'^$', views.concept_search_home_page, name='concept_search_home_page'),
+    url(r'^$', views.home, name='home'),
     url(r'^search/', views.post_search_text, name='post_search_text'),
 ]

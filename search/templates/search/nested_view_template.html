@@ -1,58 +1,50 @@
 {% for key,item in node.items %}
-
-
-					{% if forloop.parentloop.counter < 11 %}
-						<div class="line-item">
-						{% if item.children|length > 2 %}
-							<a href='#' class="collection-item tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
-						{% else %}
-							<a href='#' class="collection-item" id="{{key}}"> {{item.name}}
-						{% endif %}
-						
-						{% if item.children|length > 0 %}
-
-							{% if item.children|length == 1 %}
-								({{item.children.0}}) 
-							{% elif item.children|length == 2 %}
-								({{item.children.0}}, {{item.children.1}})
-							{% else %}
-								({{item.children.0}}, {{item.children.1}}, ...)
-							{% endif %}
-							
-							{% endif %} - {{item.count}} {% if item.count > 1 %} references {% else %} reference {% endif %} 
-						</a>
-
-						<input type="hidden" id="pivot_cid" value="{{key}}">
-						<input type="hidden" id="pivot_term" value="{{item.name}}">
-						{% for i in item.complete_acid %}
-							<input type="hidden" name="pivot_complete_acid[]" id="pivot_complete_acid" value="{{i}}">
-						{% endfor %}
-						</div>
-					{% else %}
-					<div class="line-item">
-						{% if item.children|length > 2 %}
-							<a href='#' class="collection-item hidden-items hide tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
-						{% else %}
-							<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}}
-						{% endif %}
-							{% if item.children|length > 0 %}
-
-							{% if item.children|length == 1 %}
-								({{item.children.0}}) 
-							{% elif item.children|length == 2 %}
-								({{item.children.0}}, {{item.children.1}})
-							{% else %}
-								({{item.children.0}}, {{item.children.1}}, ...)
-							{% endif %}
-							
-							{% endif %} - {{item.count}} {% if item.count > 1 %} references {% else %} reference {% endif %} 
-						</a>
-
-						<input type="hidden" id="pivot_cid" value="{{key}}">
-						<input type="hidden" id="pivot_term" value="{{item.name}}">
-						</div>
-					{% endif %}
-
+	{% if forloop.parentloop.counter < 11 %}
+		<div class="line-item">
+		{% if item.children|length > 2 %}
+			<a href='#' class="collection-item tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
+		{% else %}
+			<a href='#' class="collection-item" id="{{key}}"> {{item.name}}
+		{% endif %}
+		{% if item.children|length > 0 %}
+			{% if item.children|length == 1 %}
+				({{item.children.0}}) 
+			{% elif item.children|length == 2 %}
+				({{item.children.0}}, {{item.children.1}})
+			{% else %}
+				({{item.children.0}}, {{item.children.1}}, ...)
+			{% endif %}
+			
+			{% endif %} - {{item.count}} {% if item.count > 1 %} references {% else %} reference {% endif %} 
+		</a>
+		<input type="hidden" id="pivot_concept" value="{{key}}">
+		<input type="hidden" id="pivot_term" value="{{item.name}}">
+		{% for i in item.complete_acid %}
+			<input type="hidden" name="pivot_complete_acid[]" id="pivot_complete_acid" value="{{i}}">
+		{% endfor %}
+		</div>
+	{% else %}
+	<div class="line-item">
+		{% if item.children|length > 2 %}
+			<a href='#' class="collection-item hidden-items hide tooltipped" data-position="right" data-tooltip="{% for a in item.children %} {{a}} <br> {% endfor %}" id="{{key}}"> {{item.name}}
+		{% else %}
+			<a href='#' class="collection-item hidden-items hide" id="{{key}}"> {{item.name}}
+		{% endif %}
+			{% if item.children|length > 0 %}
+			{% if item.children|length == 1 %}
+				({{item.children.0}}) 
+			{% elif item.children|length == 2 %}
+				({{item.children.0}}, {{item.children.1}})
+			{% else %}
+				({{item.children.0}}, {{item.children.1}}, ...)
+			{% endif %}
+			
+			{% endif %} - {{item.count}} {% if item.count > 1 %} references {% else %} reference {% endif %} 
+		</a>
+		<input type="hidden" id="pivot_concept" value="{{key}}">
+		<input type="hidden" id="pivot_term" value="{{item.name}}">
+		</div>
+	{% endif %}
 {% endfor %}
 
 
