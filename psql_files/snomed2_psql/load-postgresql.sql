@@ -1,6 +1,4 @@
-/* loads the SNOMED CT 'Full' release - replace filenames with relevant locations of base SNOMED CT release files*/
-/* Filenames may need to change depending on the release you wish to upload, currently set to January 2015 release */
-
+/* base code from: https://github.com/IHTSDO/snomed-database-loader */
 set schema 'snomed2';
 
 COPY curr_concept_f(id, effectivetime, active, moduleid, definitionstatusid)

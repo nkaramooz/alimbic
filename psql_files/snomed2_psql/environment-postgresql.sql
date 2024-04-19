@@ -1,4 +1,4 @@
-/* create the Full S-CT data tables */
+/* base code from: https://github.com/IHTSDO/snomed-database-loader */
 set schema 'snomed2';
 
 drop table if exists curr_concept_f cascade;

@@ -120,17 +120,20 @@ def load_pubmed(start_file, end_file, folder_path, two_char_year, lmtzr_list):
 		filename += "n" + str(file_counter).zfill(4) + '.xml'
 		file_path = folder_path + '/' + filename
 		
-		for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
-			json_str = {}
-			params = (ET.tostring(elem), filename, issn_list)
-			task_queue.put((index_doc_from_elem, params))
-			elem.clear()
-		query = """
-			INSERT INTO pubmed.indexed_files
-			VALUES
-			(%s, %s)
-			"""
-		pg.write_data(query, (filename, file_counter))
+		try:
+			for event, elem in ET.iterparse(file_path, tag="PubmedArticle"):
+				json_str = {}
+				params = (ET.tostring(elem), filename, issn_list)
+				task_queue.put((index_doc_from_elem, params))
+				elem.clear()
+			query = """
+				INSERT INTO pubmed.indexed_files
+				VALUES
+				(%s, %s)
+				"""
+			pg.write_data(query, (filename, file_counter))
+		except:
+			print("File not found: " + file_path)
 		file_counter += 1
 
 	for i in range(NUM_PROCESSES):

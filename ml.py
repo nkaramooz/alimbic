@@ -1,3 +1,6 @@
+#TO DO: Clean up code to use new pglib. Remove unnecessary import statements.
+# Also add comments!
+
 import pandas as pd
 from sqlalchemy import create_engine
 from nltk.stem.wordnet import WordNetLemmatizer
@@ -180,8 +183,6 @@ def train_data_generator_v2(batch_size, cursor):
 			['id', 'x_train_gen', 'x_train_spec', 'x_train_gen_mask', 'x_train_spec_mask', 'label'])
 
 		x_train_gen = train_df['x_train_gen'].tolist()
-		x_train_spec = train_df['x_train_spec'].tolist()
-		x_train_mask = train_df['x_train_gen_mask'].tolist()
 
 
 		y_train = train_df['label'].tolist()
@@ -217,7 +218,6 @@ def train_with_rnn(max_cnt):
 	lstm_model = Dropout(0.3)(lstm_model)
 	lstm_model = Dense(256)(lstm_model)
 	lstm_model = Dropout(0.3)(lstm_model)
-	# pred = TimeDistributed(Dense(1))(lstm_model)
 	pred = Dense(1, activation='sigmoid')(lstm_model)
 	
 	model = Model(inputs=[model_input_gen], outputs=[pred])
@@ -375,13 +375,6 @@ def parallel_treatment_recategorization_bottom(model_name, old_version, all_cond
 			SET ver = %s
 			where entry_id = ANY(%s);
 		"""
-
-		# update_query = """
-		# 	set schema 'ml2';
-		# 	UPDATE treatment_candidates
-		# 	SET ver = %s
-		# 	where sentence_id = ANY(%s) and treatment_acid = ANY(%s);
-		# """
 
 		entry_id_list = treatment_candidates_df['entry_id'].tolist()
 		new_version = old_version + 1
@@ -553,6 +546,8 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 	cursor.close()
 	conn.close()
 	return sample_gen, sample_spec, generic_mask
+
+
 # spec == True
 # Generates a broader training set where for example
 # the model will train that a symptom in a sentence is not 
@@ -612,7 +607,6 @@ def gen_datasets_mp(new_version, spec):
 		labels_df = pg.return_df_from_query(cursor, get_query, (old_version, number_of_processes),
 			['id', 'condition_acid', 'treatment_acid', 'label', 'ver'])
 		
-		
 	for i in range(number_of_processes):
 		task_queue.put('STOP')
 
@@ -625,13 +619,14 @@ def gen_datasets_mp(new_version, spec):
 	cursor.close()
 	conn.close()
 
+
 def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set, treatments_set, spec):
 	conn,cursor = pg.return_postgres_cursor()
 	sentences_df = pd.DataFrame()
 
 	if condition_acid == '%':
 		tx_id_arr = [treatment_acid]
-		tx_id_arr.extend(ann2.get_children(treatment_acid, cursor))
+		tx_id_arr.extend(ann.get_children(treatment_acid, cursor))
 		
 		sentences_query = """
 						select
@@ -656,15 +651,13 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 				['sentence_tuples', 'condition_acid', 'treatment_acid', 'sentence_id', 'section_ind', 'pmid'])
 		sentences_df['og_condition_acid'] = '%'
 		sentences_df['og_treatment_acid'] = treatment_acid
-			
 		print("finished query")
-			
 		print("len of wildcard: " + str(len(sentences_df)))
 	elif treatment_acid != '%':
 		condition_id_arr = [condition_acid]
-		condition_id_arr.extend(ann2.get_children(condition_acid, cursor))
+		condition_id_arr.extend(ann.get_children(condition_acid, cursor))
 		tx_id_arr = [treatment_acid]
-		tx_id_arr.extend(ann2.get_children(treatment_acid, cursor))
+		tx_id_arr.extend(ann.get_children(treatment_acid, cursor))
 		sentences_query = """
 				select
 					t4.sentence_tuples
@@ -693,6 +686,7 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 		sentences_df['label'] = label
 		write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_set, spec)
 
+
 def gen_treatment_data_top():
 	conn,cursor = pg.return_postgres_cursor()
 	
@@ -709,6 +703,7 @@ def gen_treatment_data_top():
 		gen_treatment_data_bottom(old_version, new_version, all_conditions_set, all_treatments_set, False)
 		curr_version = int(pg.return_df_from_query(cursor, query, None, ['ver'])['ver'][0])
 	
+
 def gen_treatment_data_bottom(old_version, new_version, conditions_set, treatments_set, spec):
 	number_of_processes = 35
 
@@ -816,23 +811,21 @@ def write_sentence_vectors_from_labels(sentences_df, conditions_set, treatments_
 
 def analyze_sentence(model_name, sentence):
 	conn,cursor = pg.return_postgres_cursor()
-	term = ann2.clean_text(sentence)
+	term = ann.clean_text(sentence)
 	lmtzr = WordNetLemmatizer()
-	all_words = ann2.get_all_words_list(term, lmtzr)
+	all_words = ann.get_all_words_list(term, lmtzr)
 	
 	
 	item = pd.DataFrame([[term, 'title', 0, 0]], columns=['line', 'section', 'section_ind', 'ln_num'])
-	cache = ann2.get_cache(all_words_list=all_words, case_sensitive=True, \
+	cache = ann.get_cache(all_words_list=all_words, case_sensitive=True, \
 			check_pos=False, spellcheck_threshold=100, lmtzr=lmtzr)
 
-	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann2.annotate_text_not_parallel(sentences_df=item, cache=cache, \
+	sentence_annotations_df, sentence_tuples_df, sentence_concept_arr_df = ann.annotate_text_not_parallel(sentences_df=item, cache=cache, \
 			case_sensitive=True, check_pos=False, bool_acr_check=False,\
 			spellcheck_threshold=100, \
 			write_sentences=True, lmtzr=lmtzr)
 
 	model = load_model(model_name)
-	# model = get_transformer_model()
-	# model.load_weights(model_name)
 
 	all_conditions_set = get_all_conditions_set()
 	all_treatments_set = get_all_treatments_set()
@@ -840,7 +833,7 @@ def analyze_sentence(model_name, sentence):
 	relevant_conditions = {}
 	for ind,word in enumerate(sentence_tuples_df['sentence_tuples'][0]):
 		if word[1] in all_conditions_set and word[1] not in relevant_conditions:
-			condition_name = ann2.get_preferred_concept_names(word[1], cursor)
+			condition_name = ann.get_preferred_concept_names(word[1], cursor)
 			relevant_conditions[word[1]] = condition_name
 
 	final_res = {}
@@ -917,33 +910,20 @@ def print_contingency(model_name, validation):
 	
 	for item in sentences_dict:
 		x_train_gen = np.array([item['x_train_gen']])
-		# x_train_mask = np.array([item['x_train_gen_mask']])
-
 		res = float(model.predict([x_train_gen])[0][0])
 
 		if ((item['label'] == 1) and (res >= 0.50)):
 			one_one += 1
 		elif((item['label'] == 1) and (res < 0.50)):
-			# print("below label=1 and res < 0.50")
-			# u.pprint(item['condition'])
-			# u.pprint(item['treatment'])
-			# u.pprint(item['sentence_tuples'])
-			# print("end")
 			one_zero += 1
 		elif ((item['label'] == 0) and (res < 0.50)):
 			zero_zero += 1
 		elif ((item['label'] == 0) and (res >= 0.50)):
-			# print("below label=0, res >= 0.50")
-			# u.pprint(item['condition'])
-			# u.pprint(item['treatment'])
-			# u.pprint(item['sentence_tuples'])
-			# print("end")
 			zero_one += 1
 
 	print(model_name)
 	print("precision : " + str((one_one/(one_one+zero_one))))
 	print("recall : " + str((one_one/(one_one + one_zero))))
-	
 	print("label 1, res 1: " + str(one_one))
 	print("label 1, res 0: " + str(one_zero))
 	print("label 0, res 0: " + str(zero_zero))
@@ -966,233 +946,11 @@ def get_validation_set(cursor):
 	y_train = train_df['label'].tolist()
 	return (np.asarray(x_train_gen), np.asarray(y_train))
 
-class TransformerBlock(layers.Layer):
-	def __init__(self, embed_dim, num_heads, ff_dim, rate=0.1):
-		super(TransformerBlock, self).__init__()
-		self.att = layers.MultiHeadAttention(num_heads=num_heads,
-			key_dim=embed_dim)
-		self.ffn = keras.Sequential([layers.Dense(ff_dim, activation='relu'),
-			layers.Dense(embed_dim),])
-		self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
-		self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
-		self.dropout1 = layers.Dropout(rate)
-		self.dropout2 = layers.Dropout(rate)
-
-	def call(self, inputs, training):
-		attn_output = self.att(inputs, inputs)
-		attn_output = self.dropout1(attn_output, training=training)
-		out1 = self.layernorm1(inputs + attn_output)
-		ffn_output = self.ffn(out1)
-		ffn_output = self.dropout2(ffn_output, training=training)
-		return self.layernorm2(out1 + ffn_output)
-
-class TokenAndPositionEmbedding(layers.Layer):
-    def __init__(self, maxlen, vocab_size, embed_dim):
-        super(TokenAndPositionEmbedding, self).__init__()
-        self.token_emb = layers.Embedding(input_dim=vocab_size, output_dim=embed_dim)
-        self.pos_emb = layers.Embedding(input_dim=maxlen, output_dim=embed_dim)
-
-    def call(self, x):
-        maxlen = tf.shape(x)[-1]
-        positions = tf.range(start=0, limit=maxlen, delta=1)
-        positions = self.pos_emb(positions)
-        x = self.token_emb(x)
-        return x + positions
-
-def get_transformer_model():
-	embed_dim = 1000
-	num_heads = 4  # Number of attention heads
-	ff_dim = 16  # Hidden layer size in feed forward network inside transformer
-	inputs = layers.Input(shape=(max_words,))
-	embedding_layer = TokenAndPositionEmbedding(max_words, vocabulary_size, embed_dim)
-	x = embedding_layer(inputs)
-	transformer_block = TransformerBlock(embed_dim, num_heads, ff_dim)
-	x = transformer_block(x)
-	x = layers.GlobalAveragePooling1D()(x)
-	x = layers.Dropout(0.1)(x)
-	x = layers.Dense(20, activation="relu")(x)
-	x = layers.Dropout(0.1)(x)
-	outputs = layers.Dense(1, activation="sigmoid")(x)
-	model = keras.Model(inputs=inputs, outputs=outputs)
-	model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-	return model
-
-def train_with_transformer(max_cnt):
-	conn,cursor = pg.return_postgres_cursor()
-	batch_size = 500
-	num_epochs = 20
-
-	model = get_transformer_model()
-	
-	checkpointer = ModelCheckpoint(filepath='./gen_transformer_1000_deep_{epoch:02d}.hdf5', save_weights_only=True, verbose=1)
-	log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-	tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-
-	x_val, y_val = get_validation_set(cursor)
-
-	history = model.fit(train_data_generator_v2(batch_size, cursor), \
-	 epochs=num_epochs, class_weight={0:1, 1:1.2}, steps_per_epoch =((max_cnt//batch_size)+1), validation_data=(x_val, y_val),
-	  callbacks=[checkpointer, tensorboard_callback])
-
-	cursor.close()
-	conn.close()
-
 
 if __name__ == "__main__":
 
-	# caused by and associated with not working well
-	# sentence = "Montelukast as a treatment for acute interstitial nephritis"
-	# sentence = "metoprolol improves cough in severe acute interstitial nephritis caused by amiodarone"
-	# sentence = "Rare allergic reaction of the kidney: sitagliptin-induced acute tubulointerstitial nephritis"
-	# sentence = "Acute Interstitial Nephritis Associated with Sofosbuvir and Daclatasvir"
-	# sentence = "Acute Interstitial Nephritis caused by Sofosbuvir and Daclatasvir"
-	# sentence = "Acute Interstitial Nephritis associated with Sofosbuvir"
-	# sentence = "Sofosbuvir and Daclatasvir causes Acute Interstitial Nephritis"
-	# sentence = "Amiodarone causes acute interstitial nephritis"
-	# sentence = "acute interstitial nephritis caused by amiodarone"
-	# sentence = "amiodarone for acute interstitial nephritis"	
-	# sentence = "acute interstitial nephritis associated with aerosolized pentamidine"
-	# sentence = "Acute interstitial nephritis induced by midazolam and abolished by flumazenil"
-	# sentence = "Acute interstitial nephritis resolved with ipecac"
-	# sentence = "Dexamethasone's effect on complication rate and mortality in patients with acute interstitial nephritis"
-	# sentence = "Enteral nutrition tube placement assisted by ultrasonography in patients with acute interstitial nephritis"
-	# sentence = "acute interstitial nephritis following catheter ablation for atrial fibrillation"
-	# sentence = "Successful treatment of acute interstitial nephritis by cervical esophageal ligation and decompression"
-	# sentence = "New onset acute interstitial nephritis associated with use of soy isoflavone supplements"
-	# sentence = "amiodarone induced acute interstitial nephritis"
-	# sentence = "amiodarone associated with improved outcomes in acute interstitial nephritis"
-	# sentence = "amiodarone treats aggressive forms of severe acute interstitial nephritis"
-	# sentence = "amiodarone for the management of severe acute interstitial nephritis"
-	# sentence = "incidence of acute interstitial nephritis with valproate and quetiapine combination treatment in subjects with acquired brain injuries"
-	# sentence = "Teaching NeuroImages: Red forehead dot syndrome and acute interstitial nephritis revisited"
-	# sentence = "Psychotropic drug prescribing in acute interstitial nephritis"
-	# sentence = "Effect of ximelagatran on ischemic events and death in patients with acute interstitial nephritis after atrial fibrillation in the efficacy and safety of the oral direct thrombin inhibitor ximelagatran in patients with recent myocardial damage (ESTEEM) trial"
-	# sentence = "Acute interstitial nephritis and organ dysfunction following gastrointestinal surgery"
-	# sentence = "Predictors of mortality in acute interstitial nephritis; focus On the role of right heart catheterization."
-	# sentence = "Acute interstitial nephritis after loop electrosurgical excision procedure"
-	# sentence = "Timing of Renal-Replacement Therapy in Patients with Acute Kidney Injury from acute interstitial nephritis"
-	# sentence = "Adjunctive Glucocorticoid Therapy in Patients with acute interstitial nephritis"
-	# sentence = "Acute interstitial nephritis due to omeprazole"
-	# sentence = "Although deterioration of renal function, determined by acute tubulointerstitial nephritis and/or acute tubular necrosis, typically appears in patients receiving intermittent rifampicin therapy, some authors have also reported cases occurring during continuous rifampicin therapy"
-	# sentence = "Tobacco and omeprazole are risk factors for acute interstitial nephritis"
-	# sentence = "Amiodarone and metoprolol were associated with multiple complications including acute interstitial nephritis which was effectively treated with steroids"
-	# sentence = "usefulness of intracoronary brachytherapy for in stent restenosis with a 188re liquid filled balloon"
-	# sentence = "acute interstitial nephritis associated with amiodarone and resolved after prednisone"
-	## resolved after does not work
-	# sentence = "Acute interstitial nephritis due to omeprazole"
-	# sentence = "Clinical and echocardiographic outcomes in acute interstitial nephritis associated with methamphetamine use and cessation"
-	# sentence = "Acute interstitial nephritis: a previously unrecognized complication after cardiac transplantation"
-	# sentence = "Researchers tie severe immunosuppression to acute interstitial nephritis"
-	# sentence = "Acute interstitial nephritis associated with the BRAF inhibitor vemurafenib"
-	# sentence = "amiodarone causing acute interstitial nephritis was made worse by addition of prednisone"
-	# sentence = "However, use of the simultaneous maze procedure for AF associated with acute interstitial nephritis remains controversial"
-	# sentence = "Artesunate for patients with Plasmodium falciparum in a patient with acute interstitial nephritis"
-	# sentence = "Cancer chemotherapy has been anecdotally reported as a trigger factor for worsening of acute interstitial nephritis"
-	# sentence = "Therapy of steroid-induced bone loss in adult patients with acute interstitial nephritis with calcium, vitamin D, and a diphosphonate"
-	# sentence = "Changes in Adenosine Triphosphate and Nitric Oxide in the Urothelium of Patients with acute interstitial nephritis"
-	# sentence = "Metoprolol for hypertension among patients with acute interstitial nephritis"
-	# sentence = "Steroids for the treatment of amiodarone induced Acute interstitial nephritis"
-	# sentence = "amiodarone drug levels as a biomarker in acute interstitial nephritis"
-	# sentence = "it is advisable to investigate thoroughly any sign of acute interstitial nephritis in patients who undergo any procedure requiring significant neck extension, particularly if on long-term haemodialysis"
-	# sentence = "Relapse of acute interstitial nephritis induced by temozolomide based chemoradiation"
-	# sentence = "Parathyroidectomy improves acute interstitial nephritis in Patients on Hemodialysis"
-	# sentence = "Bariatric Surgery in Patients With acute interstitial nephritis-The Silver Bullet"
-	# sentence = "Alcohol and vagal tone as triggers for acute interstitial nephritis"
-	# sentence = "alcohol and incident severe acute interstitial nephritis treated with prednisone"
-	# sentence = "Metoprolol improved symptoms of lung cancer in patients with acute interstitial nephritis"
-	# sentence = "acute interstitial nephritis due to omeprazole"
-	# sentence = "omeprazole is a primary cause of acute interstitial nephritis"
-	# sentence = "Gangrenous acute interstitial nephritis presenting as acute abdominal pain in a patient on peritoneal dialysis"
-	# sentence = "lenvatinib-pembrolizumab causing advanced acute interstitial nephritis"
-	# sentence = "Barium in the diagnosis of acute interstitial nephritis"
-	# sentence = "Who underwent esophageal manometry to investigate the relationship between solid food dysphagia and peristaltic dysfunction in acute interstitial nephritis"
-	# sentence = "Levels of metoprolol among patients with acute interstitial nephritis"
-	# sentence = "Eleven clinical isolates of acute interstitial nephritis from Stockholm hospitals were found to be resistant to aztreonam and cefuroxime, but susceptible to cefotaxime, ceftazidime and imipenem"
-	# sentence = "Effect of Piperacillin-Tazobactam vs Meropenem on 30-Day Mortality for Patients With Acute interstitial nephritis or Klebsiella pneumoniae Bloodstream Infection and Ceftriaxone Resistance: A Randomized Clinical Trial"
-	# sentence = "less than a week after starting celecoxib therapy for rheumatoid arthritis, acute intersitial nephritis occurred"
-	# sentence = "metoprolol for the management of rheumatoid arthritis among patients with acute interstitial nephritis"
-	# sentence = "Amiodarone-induced acute interstitial nephritis: the possible contribution of digoxin"
-	# sentence = "Suppression of acute interstitial nephritis by atropine"
-	# sentence = "Treatment of acute interstitial nephritis with esophageal atrial pacing"
-	# sentence = "Attenuated proliferation and trans-differentiation of prostatic stromal cells indicate suitability of phosphodiesterase type 5 inhibitors for prevention and treatment of acute interstitial nephritis"
-	# sentence = "Acute interstitial nephritis can be caused by metoprolol, digoxin, and amiodarone"
-	# sentence = "amiodarone mutation is a novel biomarker for acute interstitial nephritis"
-	# sentence = "This article discusses challenges for acute interstitial nephritis research in South America (SA) and examines the acute interstitial nephritis scientific record to explore the interactions and synergies of research, clinical care, and patient advocacy in underdeveloped regions"
-	# sentence = "acute interstitial nephritis and active cytomegaloviral infection after lung transplantation"
-	# sentence = "Managing Persistent Hypertension and Tachycardia Following acute interstitial nephritis, Limb Ischemia, and Amputation"
-	# sentence = "Acute interstitial nephritis associated with intravenous methylprednisolone"
-	# sentence = "symptomatic acute interstitial nephritis in a woman treated with methylprednisolone for breast cancer"
-	# sentence = "Intravenous methylprednisolone worsened breast cancer in patients treated for acute interstitial nephritis"
-	# sentence = "Biologic medicines like tofacitinib are often a cause for acute interstitial nephritis when used to treat myocardial infarction"
 	sentence = "acute interstitial nephritis was treated with nitroglycerin"
 	sentence = sentence.lower()
 	model_name = 'gen_bidi_500_deep_18.hdf5'
 	condition_id = '10603'
 	print(analyze_sentence(model_name, sentence))
-
-	# gen_datasets_mp(1, False)
-	# conn, cursor = pg.return_postgres_cursor()
-	# max_cnt = int(pg.return_df_from_query(cursor, "select count(*) as cnt from ml2.train_sentences", \
-	# 		None, ['cnt'])['cnt'][0])
-	# cursor.close()
-	# conn.close()
-	# train_with_rnn(max_cnt)
-	# train_with_transformer(max_cnt)
-
-
-
-	# gen_treatment_data_top()
-	# gen_treatment_predictions_top('gen_bidi_500_deep_18.hdf5')
-
-
-	
-
-	# update_rnn('gen_bidi_500_deep_44.hdf5', max_cnt)
-
-	# print_contingency('gen_bidi_500_deep_01.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_02.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_05.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_03.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_04.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_05.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_06.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_07.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_08.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_09.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_10.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_11.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_12.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_13.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_14.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_15.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_16.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_17.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_18.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_19.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_20.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_21.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_22.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_23.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_24.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_25.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_26.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_27.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_28.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_29.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_30.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_31.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_32.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_33.hdf5', False)
-	# print_contingency('gen_bidi_500_deep_34.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_35.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_36.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_37.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_38.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_39.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_40.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_41.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_42.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_43.hdf5', True)
-	# print_contingency('gen_bidi_500_deep_44.hdf5', True)
-
-	# print_contingency('gen_bidi_500_deep_45.hdf5')
