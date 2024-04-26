@@ -1,14 +1,12 @@
-from django.conf.urls import url
+from django.urls import re_path
 from django.views.generic.base import RedirectView
-from django.urls import path
-
 
 from . import views
 
 app_name = 'search'
 urlpatterns = [
-    url(r'^about/', views.about, name='about'),
-    url(r'^terms/', views.terms, name='terms'),
-    url(r'^$', views.home, name='home'),
-    url(r'^search/', views.post_search_text, name='post_search_text'),
+    re_path(r'^about/', views.about, name='about'),
+    re_path(r'^terms/', views.terms, name='terms'),
+    re_path(r'^$', views.home, name='home'),
+    re_path(r'^search/', views.post_search_text, name='post_search_text'),
 ]

@@ -123,5 +123,5 @@ STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
     "/search/static",
-    "/annotations/static/",
+    "/graph/static/",
 ]
