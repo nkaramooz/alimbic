@@ -12,24 +12,19 @@ import datetime
 from multiprocessing import Pool
 import re
 from nltk.stem.wordnet import WordNetLemmatizer
-import nltk.data
-import sys
 import regex as re
-from ml import get_all_conditions_set, get_all_causes_set, get_all_treatments_set,\
-	  get_all_diagnostics_set, get_all_study_designs_set, get_all_concepts_of_interest
 from time import sleep
 import numpy as np
 import os
-import sys
 
 INDEX_NAME = os.environ["INDEX_NAME"]
 NUM_PROCESSES = int(os.environ["NUM_PROCESSES"])
-CONCEPTS_OF_INTEREST = get_all_concepts_of_interest()
-CONDITIONS_OF_INTEREST = get_all_conditions_set()
-TREATMENTS_OF_INTEREST = get_all_treatments_set()
-DIAGNOSTICS_OF_INTEREST = get_all_diagnostics_set()
-CAUSES_OF_INTEREST = get_all_causes_set()
-STUDY_DESIGNS_OF_INTEREST = get_all_study_designs_set()
+CONCEPTS_OF_INTEREST = pg.get_all_concepts_of_interest()
+CONDITIONS_OF_INTEREST = pg.get_all_conditions_set()
+TREATMENTS_OF_INTEREST = pg.get_all_treatments_set()
+DIAGNOSTICS_OF_INTEREST = pg.get_all_diagnostics_set()
+CAUSES_OF_INTEREST = pg.get_all_causes_set()
+STUDY_DESIGNS_OF_INTEREST = pg.get_all_study_designs_set()
 
 month_dict = {
 	"jan" : 1
@@ -300,18 +295,8 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 							# Multiple try blocks included due to processing errors that resulted when using
 							# 48 threads which would result in the database locking. Adding these additional try blocks
 	   						# solved the problem temporarily, but would address this differently for a production tool.
-							try:
-								sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
-									if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
-								sentence_annotations_df.to_sql('sentence_annotation', engine, schema='pubmed', \
-									if_exists='append', index=False)
-								sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-									if_exists='append', index=False)
-								abstract_concept_df.to_sql('abstract_concept_arr', engine, schema='pubmed', if_exists='append', index=False)
-								abstract_sentence_df.to_sql('abstract_tuples', engine, schema='pubmed', \
-									if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
-								engine.dispose()
-							except:
+							counter = 0
+							while counter < 3:
 								try:
 									sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
@@ -323,39 +308,11 @@ def index_doc_from_elem(elem, filename, issn_list, lmtzr):
 									abstract_sentence_df.to_sql('abstract_tuples', engine, schema='pubmed', \
 										if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
 									engine.dispose()
+									break
 								except:
-									try: 
-										sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
-											if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
-										sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
-											if_exists='append', index=False)
-										sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-											if_exists='append', index=False)
-										abstract_concept_df.to_sql('abstract_concept_arr', engine, schema='pubmed', if_exists='append', index=False)
-										abstract_sentence_df.to_sql('abstract_tuples', engine, schema='pubmed', \
-											if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
-										engine.dispose()
-									except:
-										try:
-											sleep(0.5)
-											sentence_tuples_df.to_sql('sentence_tuples', engine, schema='pubmed', \
-												if_exists='append', index=False, dtype={'sentence_tuples' : sqla.types.JSON, 'og_sentence_tuples' : sqla.types.JSON})
-											sentence_annotations_df.to_sql('sentence_annotations', engine, schema='pubmed', \
-												if_exists='append', index=False)
-											sentence_concept_arr_df.to_sql('sentence_concept_arr', engine, schema='pubmed', \
-												if_exists='append', index=False)
-											abstract_concept_df.to_sql('abstract_concept_arr', engine, schema='pubmed', if_exists='append', index=False)
-											abstract_sentence_df.to_sql('abstract_tuples', engine, schema='pubmed', \
-												if_exists='append', index=False, dtype={'abstract_tuples' : sqla.types.JSON, 'abstract_og_tuples' : sqla.types.JSON})
-											engine.dispose()
-										except:
-											print("could not save the following")
-											u.pprint(sentence_tuples_df)
-											u.pprint(sentence_annotations_df)
-											u.pprint(sentence_concept_arr_df)
-											u.pprint(abstract_concept_df)
-											u.pprint(abstract_sentence_df)
-											engine.dispose()
+									counter += 1
+									sleep(0.5)
+									engine.dispose()
 				
 						elif query_result['hits']['total']['value'] >= 1:
 	   						#TODO Update the tables with new values for a new document
@@ -731,8 +688,6 @@ if __name__ == "__main__":
 		load_pubmed(start_file, end_file, resource_path, two_char_year, lmtzr_list)
 		start_file += 5
  
-	# with open ('./pubmed_processor/test_file/pubmed24n0001.xml', 'r') as f:
-	# 	print('test')
 
 
 

@@ -391,3 +391,119 @@ def set_concept_type(acid, concept_type, state):
 	return "Success setting concept type" if write_data(query, (acid, concept_type, state)) else \
 		"Error writing concept type. Check pglib function."
 
+
+# Return all active condition/symptom concepts.
+def get_all_conditions_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='condition' or rel_type='symptom') 
+		and (active=1 or active=3)
+	"""
+	all_conditions_set = set(return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
+	return all_conditions_set
+
+
+# Returns all active outcomes concepts.
+def get_all_outcomes_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='outcome') 
+		and (active=1 or active=3)
+	"""
+	all_outcomes_set = set(return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
+	return all_outcomes_set
+
+
+# Returns all active statistic concepts.
+def get_all_statistics_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='statistic') 
+		and (active=1 or active=3)
+	"""
+	all_statistics_set = set(return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
+	return all_statistics_set
+
+
+# Returns all active study design concepts.
+def get_all_study_designs_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='study_design') 
+		and (active=1 or active=3)
+	"""
+	all_study_designs_set = set(return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
+	return all_study_designs_set
+
+
+# Return all active chemical concepts.
+def get_all_chemicals_set():
+	query = """select root_acid from annotation2.concept_types 
+		where (rel_type='chemical') 
+		and (active=1 or active=3)
+	"""
+	all_chemicals_set = set(return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
+	return all_chemicals_set
+
+
+# Return all active treatment concepts.
+def get_all_treatments_set():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='treatment' 
+		and (active=1 or active=3)
+	"""
+	all_treatments_set = set(return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
+	return all_treatments_set
+
+
+# Return all active anatomy concepts.
+def get_all_anatomy_set():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='anatomy' 
+		and (active=1 or active=3)
+	"""
+	all_anatomy_set = set(return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
+	return all_anatomy_set
+
+
+# Return all treatment candidates, including ones marked as inactive.
+def get_all_treatments_with_inactive():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='treatment'
+	"""
+	all_treatments_set = set(return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
+	return all_treatments_set
+
+
+# Returns all active causes concepts.
+def get_all_causes_set():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='cause' 
+		and (active=1 or active=3)
+	"""
+	all_cause_set = set(return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
+	return all_cause_set
+
+
+# Return all active diagnostic concepts.
+def get_all_diagnostics_set():
+	query = """
+		select root_acid from annotation2.concept_types 
+		where rel_type='diagnostic' 
+		and (active=1 or active=3) 
+	"""
+	all_diagnostic_set = set(return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
+	return all_diagnostic_set
+
+
+# Return all active concepts of interest.
+def get_all_concepts_of_interest():
+	concepts_of_interest = get_all_conditions_set()
+	concepts_of_interest.update(get_all_treatments_set())
+	concepts_of_interest.update(get_all_diagnostics_set())
+	concepts_of_interest.update(get_all_causes_set())
+	concepts_of_interest.update(get_all_outcomes_set())
+	concepts_of_interest.update(get_all_statistics_set())
+	concepts_of_interest.update(get_all_chemicals_set())
+	concepts_of_interest.update(get_all_study_designs_set())
+	return concepts_of_interest

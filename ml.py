@@ -10,7 +10,6 @@ import numpy as np
 import time
 import utilities.pglib as pg
 import utilities.utils2 as u
-import sys
 from snomed_annotator import snomed_annotator as ann
 import tensorflow as tf
 from tensorflow import keras
@@ -46,100 +45,6 @@ b_target_treatment_key_end = vocabulary_size+1 # 50001
 b_generic_treatment_key_start = generic_treatment_key # 4995
 b_generic_treatment_key_stop = vocabulary_size+2 # 50002
 
-def get_all_concepts_of_interest():
-	concepts_of_interest = get_all_conditions_set()
-	concepts_of_interest.update(get_all_treatments_set())
-	concepts_of_interest.update(get_all_diagnostics_set())
-	concepts_of_interest.update(get_all_causes_set())
-	concepts_of_interest.update(get_all_outcomes_set())
-	concepts_of_interest.update(get_all_statistics_set())
-	concepts_of_interest.update(get_all_chemicals_set())
-	concepts_of_interest.update(get_all_study_designs_set())
-	return concepts_of_interest
-
-def get_all_conditions_set():
-	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='condition' or rel_type='symptom') 
-		and (active=1 or active=3)
-	"""
-	all_conditions_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
-	return all_conditions_set
-
-def get_all_outcomes_set():
-	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='outcome') 
-		and (active=1 or active=3)
-	"""
-	all_outcomes_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
-	return all_outcomes_set
-
-def get_all_statistics_set():
-	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='statistic') 
-		and (active=1 or active=3)
-	"""
-	all_statistics_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
-	return all_statistics_set
-
-def get_all_study_designs_set():
-	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='study_design') 
-		and (active=1 or active=3)
-	"""
-	all_study_designs_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
-	return all_study_designs_set
-
-def get_all_chemicals_set():
-	query = """select root_acid from annotation2.concept_types 
-		where (rel_type='chemical') 
-		and (active=1 or active=3)
-	"""
-	all_chemicals_set = set(pg.return_df_from_query(query, None, ['root_acid'])['root_acid'].tolist())
-	return all_chemicals_set
-
-def get_all_treatments_set():
-	query = """
-		select root_acid from annotation2.concept_types 
-		where rel_type='treatment' 
-		and (active=1 or active=3)
-	"""
-	all_treatments_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
-	return all_treatments_set
-
-def get_all_anatomy_set():
-	query = """
-		select root_acid from annotation2.concept_types 
-		where rel_type='anatomy' 
-		and (active=1 or active=3)
-	"""
-	all_anatomy_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
-	return all_anatomy_set
-
-def get_all_treatments_with_inactive():
-	query = """
-		select root_acid from annotation2.concept_types 
-		where rel_type='treatment'
-	"""
-	all_treatments_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
-	return all_treatments_set
-
-def get_all_causes_set():
-	query = """
-		select root_acid from annotation2.concept_types 
-		where rel_type='cause' 
-		and (active=1 or active=3)
-	"""
-	all_cause_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
-	return all_cause_set
-
-def get_all_diagnostics_set():
-	query = """
-		select root_acid from annotation2.concept_types 
-		where rel_type='diagnostic' 
-		and (active=1 or active=3) 
-	"""
-	all_diagnostic_set = set(pg.return_df_from_query(query, None, ['root_cid'])['root_cid'].tolist())
-	return all_diagnostic_set
 
 def get_word_index(word):
 	query = "select rn from ml2.word_counts_50k where word=%s limit 1"
@@ -556,13 +461,13 @@ def get_labelled_data_sentence_generic_v2_custom(sentence, condition_id, tx_id, 
 def gen_datasets_mp(new_version, spec):
 	number_of_processes = 40
 	old_version = new_version-1
-	conditions_set = get_all_conditions_set()
+	conditions_set = pg.get_all_conditions_set()
 
 	if spec == False:
-		treatments_set = get_all_treatments_set() #model did not learn well with using inactive
+		treatments_set = pg.get_all_treatments_set() #model did not learn well with using inactive
 	else:
 		# for specific word + mask dataset, will broaden to include all concepts of interest
-		treatments_set = get_all_concepts_of_interest()
+		treatments_set = pg.get_all_concepts_of_interest()
 
 	task_queue = mp.Queue()
 	pool = []
@@ -690,8 +595,8 @@ def gen_datasets_mp_bottom(condition_acid, treatment_acid, label, conditions_set
 def gen_treatment_data_top():
 	conn,cursor = pg.return_postgres_cursor()
 	
-	all_conditions_set = get_all_conditions_set() 
-	all_treatments_set = get_all_treatments_set()
+	all_conditions_set = pg.get_all_conditions_set() 
+	all_treatments_set = pg.get_all_treatments_set()
 
 
 	query = "select min(ver) from ml2.treatment_candidates_2"
@@ -827,8 +732,8 @@ def analyze_sentence(model_name, sentence):
 
 	model = load_model(model_name)
 
-	all_conditions_set = get_all_conditions_set()
-	all_treatments_set = get_all_treatments_set()
+	all_conditions_set = pg.get_all_conditions_set()
+	all_treatments_set = pg.get_all_treatments_set()
 
 	relevant_conditions = {}
 	for ind,word in enumerate(sentence_tuples_df['sentence_tuples'][0]):
